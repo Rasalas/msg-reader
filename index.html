@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>*.msg Reader</title>
+    <script src="dist/bundle.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        #dropZone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+
+        #dropZone.dragover {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 p-5">
+    <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-lg">
+        <div class="p-4 border-b border-gray-200">
+            <h1 class="text-xl font-semibold text-gray-800">*.msg Reader</h1>
+            <input type="file" id="fileInput" class="mt-4 p-2 border border-gray-300 rounded hidden">
+            <div id="dropZone" class="mt-4 p-4 text-gray-600">
+                Drop the *.msg file here or click to select a file
+            </div>
+        </div>
+        <div id="emailViewer" class="p-4">
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const emailViewer = document.getElementById('emailViewer');
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const fileBuffer = e.target.result;
+                const msgInfo = window.extractMsg(fileBuffer);
+                console.log(msgInfo);
+
+                const toRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'to').map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
+                const ccRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'cc').map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
+
+                const emailHeader = `
+                    <div class="mb-4">
+                        <div class="text-gray-600"><strong>From:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
+                        ${toRecipients ? `<div class="text-gray-600"><strong>To:</strong> ${toRecipients}</div>` : ''}
+                        ${ccRecipients ? `<div class="text-gray-600"><strong>CC:</strong> ${ccRecipients}</div>` : ''}
+                        <div class="text-gray-600"><strong>Subject:</strong> ${msgInfo.subject}</div>
+                        <div class="text-gray-500 text-sm mt-2">${new Date(msgInfo.messageDeliveryTime).toLocaleString()}</div>
+                    </div>
+                `;
+                const emailBody = `
+                    <div class="prose max-w-none">${msgInfo.bodyContentHTML || msgInfo.bodyContent || '<p>(No content)</p>'}</div>
+                `;
+                let emailAttachments = '';
+                if (msgInfo.attachments && msgInfo.attachments.length > 0) {
+                    emailAttachments = '<div class="mt-6"><strong>Attachments:</strong><div class="mt-2 space-y-2">';
+                    msgInfo.attachments.forEach((attachment, index) => {
+                        if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
+                            emailAttachments += `
+                                <div class="flex items-center space-x-2">
+                                    <a href="${attachment.contentBase64}" download="${attachment.fileName}" style="text-decoration:none;">
+                                        <div class="flex items-center space-x-2 rounded border p-1">
+                                            <div class="border rounded w-12 h-12 flex-shrink-0">
+                                                <img src="${attachment.contentBase64}" alt="Attachment ${index + 1}" class="w-12 h-12 object-cover">
+                                            </div>
+                                            <div class="no-underline">
+                                                <p class="no-underline text-sm text-gray-800">${attachment.fileName}</p>
+                                                <p class="no-underline text-xs text-gray-400">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                            </div>
+                                        </div>
+                                    </a>
+                                </div>
+                            `;
+                        } else {
+                            emailAttachments += `
+                            <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-sm text-gray-600 no-underline">${attachment.fileName}</a>
+                                <div class="rounded border">
+                                    <p class="text-xs text-gray-500">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                </div>
+                            </a>
+                            `;
+                        }
+                    });
+                    emailAttachments += '</div></div>';
+                }
+
+                emailViewer.innerHTML = emailHeader + emailBody + emailAttachments;
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Load file via file selection
+        fileInput.addEventListener('change', function (event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        // Drag-and-drop events for the drop zone
+        dropZone.addEventListener('dragover', function (event) {
+            event.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', function (event) {
+            event.preventDefault();
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', function (event) {
+            event.preventDefault();
+            dropZone.classList.remove('dragover');
+
+            const file = event.dataTransfer.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        dropZone.addEventListener('click', function () {
+            fileInput.click();
+        });
+    </script>
+</body>
+
+</html>
