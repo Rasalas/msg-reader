@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,6 @@
     <script src="bundle.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <style>
-        /* Styling für den Drag-and-Drop-Bereich */
         #dropZone {
             border: 2px dashed #ccc;
             border-radius: 8px;
@@ -26,11 +25,10 @@
             <h1 class="text-xl font-semibold text-gray-800">MSG Reader</h1>
             <input type="file" id="fileInput" class="mt-4 p-2 border border-gray-300 rounded hidden">
             <div id="dropZone" class="mt-4 p-4 text-gray-600">
-                Ziehe die MSG-Datei hierher oder klicke, um eine Datei auszuwählen
+                Drop the MSG file here or click to select a file
             </div>
         </div>
         <div id="emailViewer" class="p-4">
-            <!-- Hier wird die E-Mail angezeigt -->
         </div>
     </div>
 
@@ -39,7 +37,6 @@
         const fileInput = document.getElementById('fileInput');
         const emailViewer = document.getElementById('emailViewer');
 
-        // Verarbeiten der Datei nach dem Auswählen oder Ablegen
         function handleFile(file) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -47,7 +44,6 @@
                 const msgInfo = window.extractMsg(fileBuffer);
                 console.log(msgInfo);
 
-                // Strukturierte Ausgabe im Outlook-Stil
                 const emailHeader = `
                     <div class="mb-4">
                         <div class="text-gray-600"><strong>Von:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
@@ -82,7 +78,7 @@
             reader.readAsArrayBuffer(file);
         }
 
-        // Datei über Dateiauswahl laden
+        // Load file via file selection
         fileInput.addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (file) {
@@ -90,7 +86,7 @@
             }
         });
 
-        // Drag-and-Drop-Events für den Drop-Bereich
+        // Drag-and-drop events for the drop zone
         dropZone.addEventListener('dragover', function(event) {
             event.preventDefault();
             dropZone.classList.add('dragover');
@@ -111,7 +107,6 @@
             }
         });
 
-        // Option, um Datei durch Klicken auf den Drop-Bereich auszuwählen
         dropZone.addEventListener('click', function() {
             fileInput.click();
         });

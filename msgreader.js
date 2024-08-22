@@ -1,37 +1,35 @@
 const MsgReaderLib = require('@kenjiuno/msgreader');
 const { decompressRTF } = require('@kenjiuno/decompressrtf');
-const { RTFToHTML } = require('rtf-stream-parser');
 const { deEncapsulateSync } = require('rtf-stream-parser');
-const iconvLite  = require('iconv-lite');
+const iconvLite = require('iconv-lite');
 
 function extractMsg(fileBuffer) {
     let msgInfo = null;
     try {
-        // Prüfe, ob MsgReader als Funktion/Konstruktor existiert
+        // Check if MsgReader exists as a function/constructor
         if (typeof MsgReaderLib === 'function') {
             const msgReader = new MsgReaderLib(fileBuffer);
             msgInfo = msgReader.getFileData();
-            
+
         } else if (MsgReaderLib && typeof MsgReaderLib.default === 'function') {
             const msgReader = new MsgReaderLib.default(fileBuffer);
             msgInfo = msgReader.getFileData();
-            
+
         } else {
-            console.error("MsgReader-Konstruktor konnte nicht gefunden werden.");
+            console.error("MsgReader constructor could not be found.");
         }
     } catch (error) {
-        console.error("Fehler beim Erstellen einer MsgReader-Instanz:", error);
+        console.error("Error creating a MsgReader instance:", error);
     }
 
     let emailBodyContent = msgInfo.bodyHTML || msgInfo.body;
     let emailBodyContentHTML = '';
 
-    // Falls der HTML-Body fehlt und compressedRtf vorhanden ist, dekomprimiere und konvertiere
-        const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
-        emailBodyContentHTML = convertRTFToHTML(decompressedRtf);
-    
+    const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
+    emailBodyContentHTML = convertRTFToHTML(decompressedRtf);
 
-    // Bilder und Anhänge extrahieren
+
+    // Extract images and attachments
     if (msgInfo.attachments && msgInfo.attachments.length > 0) {
         msgInfo.attachments.forEach((attachment, index) => {
             if (attachment.mimeType && attachment.mimeType.startsWith('image/')) {
@@ -49,11 +47,11 @@ function extractMsg(fileBuffer) {
     };
 }
 
-// Funktion zum Konvertieren des dekomprimierten RTF-Inhalts zu HTML
+// Function for converting the decompressed RTF content to HTML
 function convertRTFToHTML(rtfContent) {
-    const result = deEncapsulateSync(rtfContent, {decode: iconvLite.decode});
+    const result = deEncapsulateSync(rtfContent, { decode: iconvLite.decode });
     return result.text;
 }
 
-// Exportiere die Funktion für den Browser
+// Export the function for the browser
 window.extractMsg = extractMsg;
