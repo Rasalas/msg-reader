@@ -34,11 +34,6 @@ function extractMsg(fileBuffer) {
     if (msgInfo.attachments && msgInfo.attachments.length > 0) {
         msgInfo.attachments.forEach((attachment, index) => {
             
-            if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
-                console.log(`Image ${index}:`, attachment.content);
-            } else {
-                console.log(`Attachment ${index}:`, attachment);
-            }
             const contentUint8Array = msgReader.getAttachment(attachment).content;
             const contentBuffer = Buffer.from(contentUint8Array);
             const contentBase64 = contentBuffer.toString('base64');
@@ -50,6 +45,8 @@ function extractMsg(fileBuffer) {
             } else {
                 emailBodyContentHTML = emailBodyContentHTML.replace(`href="cid:${attachment.pidContentId}"`, `href="${base64String}"`);
             }
+
+            msgInfo.attachments[index].contentBase64 = base64String;
         });
     }
 

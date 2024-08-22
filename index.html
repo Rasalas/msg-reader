@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,11 +15,13 @@
             text-align: center;
             transition: background-color 0.3s ease;
         }
+
         #dropZone.dragover {
             background-color: #f0f0f0;
         }
     </style>
 </head>
+
 <body class="bg-gray-100 p-5">
     <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-lg">
         <div class="p-4 border-b border-gray-200">
@@ -39,7 +42,7 @@
 
         function handleFile(file) {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = function (e) {
                 const fileBuffer = e.target.result;
                 const msgInfo = window.extractMsg(fileBuffer);
                 console.log(msgInfo);
@@ -63,15 +66,30 @@
                 if (msgInfo.attachments && msgInfo.attachments.length > 0) {
                     emailAttachments = '<div class="mt-6"><strong>Attachments:</strong><div class="mt-2 space-y-2">';
                     msgInfo.attachments.forEach((attachment, index) => {
-                        if (attachment.mimeType && attachment.mimeType.startsWith('image/')) {
+                        if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
                             emailAttachments += `
-                                <div>
-                                    <img class="border rounded" src="data:${attachment.mimeType};base64,${btoa(String.fromCharCode(...new Uint8Array(attachment.content)))}" alt="Attachment ${index + 1}">
-                                    <p class="text-sm text-gray-600">${attachment.fileName}</p>
+                                <div class="flex items-center space-x-2">
+                                    <a href="${attachment.contentBase64}" download="${attachment.fileName}">
+                                        <div class="flex items-center space-x-2 rounded border p-1">
+                                            <div class="border rounded w-12 h-12 flex-shrink-0">
+                                                <img src="${attachment.contentBase64}" alt="Attachment ${index + 1}" class="w-12 h-12 object-cover">
+                                            </div>
+                                            <div class="no-underline">
+                                                <p class="no-underline text-sm text-gray-600">${attachment.fileName}</p>
+                                                <p class="no-underline text-xs text-gray-500">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                            </div>
+                                        </div>
+                                    </a>
                                 </div>
                             `;
                         } else {
-                            emailAttachments += `<p class="text-sm text-gray-600">${attachment.fileName}</p>`;
+                            emailAttachments += `
+                            <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-sm text-gray-600 no-underline">${attachment.fileName}</a>
+                                <div class="rounded border">
+                                    <p class="text-xs text-gray-500">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                </div>
+                            </a>
+                            `;
                         }
                     });
                     emailAttachments += '</div></div>';
@@ -83,7 +101,7 @@
         }
 
         // Load file via file selection
-        fileInput.addEventListener('change', function(event) {
+        fileInput.addEventListener('change', function (event) {
             const file = event.target.files[0];
             if (file) {
                 handleFile(file);
@@ -91,17 +109,17 @@
         });
 
         // Drag-and-drop events for the drop zone
-        dropZone.addEventListener('dragover', function(event) {
+        dropZone.addEventListener('dragover', function (event) {
             event.preventDefault();
             dropZone.classList.add('dragover');
         });
 
-        dropZone.addEventListener('dragleave', function(event) {
+        dropZone.addEventListener('dragleave', function (event) {
             event.preventDefault();
             dropZone.classList.remove('dragover');
         });
 
-        dropZone.addEventListener('drop', function(event) {
+        dropZone.addEventListener('drop', function (event) {
             event.preventDefault();
             dropZone.classList.remove('dragover');
 
@@ -111,9 +129,10 @@
             }
         });
 
-        dropZone.addEventListener('click', function() {
+        dropZone.addEventListener('click', function () {
             fileInput.click();
         });
     </script>
 </body>
+
 </html>
