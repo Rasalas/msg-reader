@@ -6,12 +6,28 @@
     <title>MSG Reader</title>
     <script src="bundle.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        /* Styling für den Drag-and-Drop-Bereich */
+        #dropZone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+        #dropZone.dragover {
+            background-color: #f0f0f0;
+        }
+    </style>
 </head>
 <body class="bg-gray-100 p-5">
     <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-lg">
         <div class="p-4 border-b border-gray-200">
-            <h1 class="text-xl font-semibold text-gray-800">MSG Reader Demo</h1>
-            <input type="file" id="fileInput" class="mt-4 p-2 border border-gray-300 rounded">
+            <h1 class="text-xl font-semibold text-gray-800">MSG Reader</h1>
+            <input type="file" id="fileInput" class="mt-4 p-2 border border-gray-300 rounded hidden">
+            <div id="dropZone" class="mt-4 p-4 text-gray-600">
+                Ziehe die MSG-Datei hierher oder klicke, um eine Datei auszuwählen
+            </div>
         </div>
         <div id="emailViewer" class="p-4">
             <!-- Hier wird die E-Mail angezeigt -->
@@ -19,57 +35,85 @@
     </div>
 
     <script>
-        document.getElementById('fileInput').addEventListener('change', function(event) {
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const emailViewer = document.getElementById('emailViewer');
+
+        // Verarbeiten der Datei nach dem Auswählen oder Ablegen
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const fileBuffer = e.target.result;
+                const msgInfo = window.extractMsg(fileBuffer);
+                console.log(msgInfo);
+
+                // Strukturierte Ausgabe im Outlook-Stil
+                const emailHeader = `
+                    <div class="mb-4">
+                        <div class="text-gray-600"><strong>Von:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
+                        <div class="text-gray-600"><strong>An:</strong> ${msgInfo.recipients.map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ')}</div>
+                        <div class="text-gray-600"><strong>Betreff:</strong> ${msgInfo.subject}</div>
+                        <div class="text-gray-500 text-sm mt-2">${new Date(msgInfo.messageDeliveryTime).toLocaleString()}</div>
+                    </div>
+                `;
+                const emailBody = `
+                    <div class="prose max-w-none">${msgInfo.bodyContentHTML || msgInfo.bodyContent || '<p>(Kein Inhalt)</p>'}</div>
+                `;
+                let emailAttachments = '';
+                if (msgInfo.attachments && msgInfo.attachments.length > 0) {
+                    emailAttachments = '<div class="mt-6"><strong>Anhänge:</strong><div class="mt-2 space-y-2">';
+                    msgInfo.attachments.forEach((attachment, index) => {
+                        if (attachment.mimeType && attachment.mimeType.startsWith('image/')) {
+                            emailAttachments += `
+                                <div>
+                                    <img class="border rounded" src="data:${attachment.mimeType};base64,${btoa(String.fromCharCode(...new Uint8Array(attachment.content)))}" alt="Anhang ${index + 1}">
+                                    <p class="text-sm text-gray-600">${attachment.fileName}</p>
+                                </div>
+                            `;
+                        } else {
+                            emailAttachments += `<p class="text-sm text-gray-600">${attachment.fileName}</p>`;
+                        }
+                    });
+                    emailAttachments += '</div></div>';
+                }
+
+                emailViewer.innerHTML = emailHeader + emailBody + emailAttachments;
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Datei über Dateiauswahl laden
+        fileInput.addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const fileBuffer = e.target.result;
-                    const msgInfo = window.extractMsg(fileBuffer);
-                    console.log(msgInfo);
-
-                    // Strukturierte Ausgabe im Outlook-Stil
-                    const emailViewer = document.getElementById('emailViewer');
-
-                    // E-Mail Header (Absender, Empfänger, Betreff)
-                    const emailHeader = `
-                        <div class="mb-4">
-                            <div class="text-gray-600"><strong>Von:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
-                            <div class="text-gray-600"><strong>An:</strong> ${msgInfo.recipients.map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ')}</div>
-                            <div class="text-gray-600"><strong>Betreff:</strong> ${msgInfo.subject}</div>
-                            <div class="text-gray-500 text-sm mt-2">${new Date(msgInfo.messageDeliveryTime).toLocaleString()}</div>
-                        </div>
-                    `;
-
-                    // E-Mail Body (HTML-Inhalt oder Textinhalt)
-                    const emailBody = `
-                        <div class="prose max-w-none">${msgInfo.bodyContentHTML || msgInfo.bodyContent || '<p>(Kein Inhalt)</p>'}</div>
-                    `;
-
-                    // Bilder und Anhänge
-                    let emailAttachments = '';
-                    if (msgInfo.attachments && msgInfo.attachments.length > 0) {
-                        emailAttachments = '<div class="mt-6"><strong>Anhänge:</strong><div class="mt-2 space-y-2">';
-                        msgInfo.attachments.forEach((attachment, index) => {
-                            if (attachment.mimeType && attachment.mimeType.startsWith('image/')) {
-                                emailAttachments += `
-                                    <div>
-                                        <img class="border rounded" src="data:${attachment.mimeType};base64,${btoa(String.fromCharCode(...new Uint8Array(attachment.content)))}" alt="Anhang ${index + 1}">
-                                        <p class="text-sm text-gray-600">${attachment.fileName}</p>
-                                    </div>
-                                `;
-                            } else {
-                                emailAttachments += `<p class="text-sm text-gray-600">${attachment.fileName}</p>`;
-                            }
-                        });
-                        emailAttachments += '</div></div>';
-                    }
-
-                    // Zusammensetzen des E-Mail-Inhalts
-                    emailViewer.innerHTML = emailHeader + emailBody + emailAttachments;
-                };
-                reader.readAsArrayBuffer(file);
+                handleFile(file);
             }
+        });
+
+        // Drag-and-Drop-Events für den Drop-Bereich
+        dropZone.addEventListener('dragover', function(event) {
+            event.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', function(event) {
+            event.preventDefault();
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', function(event) {
+            event.preventDefault();
+            dropZone.classList.remove('dragover');
+
+            const file = event.dataTransfer.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        // Option, um Datei durch Klicken auf den Drop-Bereich auszuwählen
+        dropZone.addEventListener('click', function() {
+            fileInput.click();
         });
     </script>
 </body>
