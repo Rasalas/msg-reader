@@ -5,11 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MSG Reader</title>
     <script src="bundle.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-    <h1>MSG Reader Demo</h1>
-    <input type="file" id="fileInput" />
-    <div id="output"></div>
+<body class="bg-gray-100 p-5">
+    <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-lg">
+        <div class="p-4 border-b border-gray-200">
+            <h1 class="text-xl font-semibold text-gray-800">MSG Reader Demo</h1>
+            <input type="file" id="fileInput" class="mt-4 p-2 border border-gray-300 rounded">
+        </div>
+        <div id="emailViewer" class="p-4">
+            <!-- Hier wird die E-Mail angezeigt -->
+        </div>
+    </div>
 
     <script>
         document.getElementById('fileInput').addEventListener('change', function(event) {
@@ -21,18 +28,45 @@
                     const msgInfo = window.extractMsg(fileBuffer);
                     console.log(msgInfo);
 
-                    // HTML-Inhalt anzeigen, wenn vorhanden, sonst den normalen Body
-                    document.getElementById('output').innerHTML = msgInfo.bodyContentHTML || msgInfo.bodyContent || '(Kein Inhalt)';
+                    // Strukturierte Ausgabe im Outlook-Stil
+                    const emailViewer = document.getElementById('emailViewer');
 
-                    if (msgInfo.attachments) {
+                    // E-Mail Header (Absender, Empfänger, Betreff)
+                    const emailHeader = `
+                        <div class="mb-4">
+                            <div class="text-gray-600"><strong>Von:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
+                            <div class="text-gray-600"><strong>An:</strong> ${msgInfo.recipients.map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ')}</div>
+                            <div class="text-gray-600"><strong>Betreff:</strong> ${msgInfo.subject}</div>
+                            <div class="text-gray-500 text-sm mt-2">${new Date(msgInfo.messageDeliveryTime).toLocaleString()}</div>
+                        </div>
+                    `;
+
+                    // E-Mail Body (HTML-Inhalt oder Textinhalt)
+                    const emailBody = `
+                        <div class="prose max-w-none">${msgInfo.bodyContentHTML || msgInfo.bodyContent || '<p>(Kein Inhalt)</p>'}</div>
+                    `;
+
+                    // Bilder und Anhänge
+                    let emailAttachments = '';
+                    if (msgInfo.attachments && msgInfo.attachments.length > 0) {
+                        emailAttachments = '<div class="mt-6"><strong>Anhänge:</strong><div class="mt-2 space-y-2">';
                         msgInfo.attachments.forEach((attachment, index) => {
                             if (attachment.mimeType && attachment.mimeType.startsWith('image/')) {
-                                const img = document.createElement('img');
-                                img.src = `data:${attachment.mimeType};base64,${btoa(String.fromCharCode(...new Uint8Array(attachment.content)))}`;
-                                document.getElementById('output').appendChild(img);
+                                emailAttachments += `
+                                    <div>
+                                        <img class="border rounded" src="data:${attachment.mimeType};base64,${btoa(String.fromCharCode(...new Uint8Array(attachment.content)))}" alt="Anhang ${index + 1}">
+                                        <p class="text-sm text-gray-600">${attachment.fileName}</p>
+                                    </div>
+                                `;
+                            } else {
+                                emailAttachments += `<p class="text-sm text-gray-600">${attachment.fileName}</p>`;
                             }
                         });
+                        emailAttachments += '</div></div>';
                     }
+
+                    // Zusammensetzen des E-Mail-Inhalts
+                    emailViewer.innerHTML = emailHeader + emailBody + emailAttachments;
                 };
                 reader.readAsArrayBuffer(file);
             }
