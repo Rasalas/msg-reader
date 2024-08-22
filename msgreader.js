@@ -5,14 +5,15 @@ const iconvLite = require('iconv-lite');
 
 function extractMsg(fileBuffer) {
     let msgInfo = null;
+    let msgReader = null;
     try {
         // Check if MsgReader exists as a function/constructor
         if (typeof MsgReaderLib === 'function') {
-            const msgReader = new MsgReaderLib(fileBuffer);
+            msgReader = new MsgReaderLib(fileBuffer);
             msgInfo = msgReader.getFileData();
 
         } else if (MsgReaderLib && typeof MsgReaderLib.default === 'function') {
-            const msgReader = new MsgReaderLib.default(fileBuffer);
+            msgReader = new MsgReaderLib.default(fileBuffer);
             msgInfo = msgReader.getFileData();
 
         } else {
@@ -32,10 +33,22 @@ function extractMsg(fileBuffer) {
     // Extract images and attachments
     if (msgInfo.attachments && msgInfo.attachments.length > 0) {
         msgInfo.attachments.forEach((attachment, index) => {
-            if (attachment.mimeType && attachment.mimeType.startsWith('image/')) {
+            
+            if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
                 console.log(`Image ${index}:`, attachment.content);
             } else {
                 console.log(`Attachment ${index}:`, attachment);
+            }
+            const contentUint8Array = msgReader.getAttachment(attachment).content;
+            const contentBuffer = Buffer.from(contentUint8Array);
+            const contentBase64 = contentBuffer.toString('base64');
+
+            const base64String = `data:${attachment.attachMimeTag};base64,${contentBase64}`;
+
+            if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
+                emailBodyContentHTML = emailBodyContentHTML.replace(`cid:${attachment.pidContentId}`, base64String);
+            } else {
+                emailBodyContentHTML = emailBodyContentHTML.replace(`href="cid:${attachment.pidContentId}"`, `href="${base64String}"`);
             }
         });
     }
