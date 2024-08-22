@@ -5,7 +5,7 @@ Um den Code im Browser verwenden zu können, musst du die Datei mit Browserify o
 
 install dev dependencies:
 ```bash
-npm install --save-dev browserify watchify
+npm install --save-dev browserify watchify live-server concurrently
 ```
 
 Development mode:

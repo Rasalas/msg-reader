@@ -4,7 +4,8 @@
   "main": "app.js",
   "scripts": {
     "build": "browserify src/msgreader.js -o dist/bundle.js",
-    "watch": "watchify src/msgreader.js -o dist/bundle.js -v"
+    "watch": "watchify src/msgreader.js -o dist/bundle.js -v",
+    "dev": "concurrently \"npm run watch\" \"live-server --watch=dist --port=8080\""
   },
   "keywords": [],
   "author": "",
@@ -18,6 +19,8 @@
   },
   "devDependencies": {
     "browserify": "^17.0.0",
+    "concurrently": "^8.2.2",
+    "live-server": "^1.2.2",
     "watchify": "^4.0.0"
   }
 }
