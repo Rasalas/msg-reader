@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "browserify src/msgreader.js -o dist/bundle.js",
+    "watch": "watchify src/msgreader.js -o dist/bundle.js -v"
   },
   "keywords": [],
   "author": "",
@@ -14,5 +15,9 @@
     "@kenjiuno/msgreader": "^1.22.0",
     "iconv-lite": "^0.6.3",
     "rtf-stream-parser": "^3.8.0"
+  },
+  "devDependencies": {
+    "browserify": "^17.0.0",
+    "watchify": "^4.0.0"
   }
 }
