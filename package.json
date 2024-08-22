@@ -5,7 +5,8 @@
   "scripts": {
     "build": "browserify src/msgreader.js -o dist/bundle.js",
     "watch": "watchify src/msgreader.js -o dist/bundle.js -v",
-    "dev": "concurrently \"npm run watch\" \"live-server --watch=dist --port=8080\""
+    "dev": "concurrently \"npm run watch\" \"live-server --watch=dist --port=8080\"",
+    "start": "npm run build && npx live-server dist --port=8080"
   },
   "keywords": [],
   "author": "",
