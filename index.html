@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSG Reader</title>
+    <script src="bundle.js"></script>
+</head>
+<body>
+    <h1>MSG Reader Demo</h1>
+    <input type="file" id="fileInput" />
+    <div id="output"></div>
+
+    <script>
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const fileBuffer = e.target.result;
+                    const msgInfo = window.extractMsg(fileBuffer);
+                    console.log(msgInfo);
+
+                    // HTML-Inhalt anzeigen, wenn vorhanden, sonst den normalen Body
+                    document.getElementById('output').innerHTML = msgInfo.bodyContentHTML || msgInfo.bodyContent || '(Kein Inhalt)';
+
+                    if (msgInfo.attachments) {
+                        msgInfo.attachments.forEach((attachment, index) => {
+                            if (attachment.mimeType && attachment.mimeType.startsWith('image/')) {
+                                const img = document.createElement('img');
+                                img.src = `data:${attachment.mimeType};base64,${btoa(String.fromCharCode(...new Uint8Array(attachment.content)))}`;
+                                document.getElementById('output').appendChild(img);
+                            }
+                        });
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+    </script>
+</body>
+</html>
