@@ -22,10 +22,10 @@
 <body class="bg-gray-100 p-5">
     <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-lg">
         <div class="p-4 border-b border-gray-200">
-            <h1 class="text-xl font-semibold text-gray-800">MSG Reader</h1>
+            <h1 class="text-xl font-semibold text-gray-800">*.msg Reader</h1>
             <input type="file" id="fileInput" class="mt-4 p-2 border border-gray-300 rounded hidden">
             <div id="dropZone" class="mt-4 p-4 text-gray-600">
-                Drop the MSG file here or click to select a file
+                Drop the *.msg file here or click to select a file
             </div>
         </div>
         <div id="emailViewer" class="p-4">
@@ -44,25 +44,29 @@
                 const msgInfo = window.extractMsg(fileBuffer);
                 console.log(msgInfo);
 
+                const toRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'to').map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
+                const ccRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'cc').map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
+
                 const emailHeader = `
                     <div class="mb-4">
-                        <div class="text-gray-600"><strong>Von:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
-                        <div class="text-gray-600"><strong>An:</strong> ${msgInfo.recipients.map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ')}</div>
-                        <div class="text-gray-600"><strong>Betreff:</strong> ${msgInfo.subject}</div>
+                        <div class="text-gray-600"><strong>From:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
+                        ${toRecipients ? `<div class="text-gray-600"><strong>To:</strong> ${toRecipients}</div>` : ''}
+                        ${ccRecipients ? `<div class="text-gray-600"><strong>CC:</strong> ${ccRecipients}</div>` : ''}
+                        <div class="text-gray-600"><strong>Subject:</strong> ${msgInfo.subject}</div>
                         <div class="text-gray-500 text-sm mt-2">${new Date(msgInfo.messageDeliveryTime).toLocaleString()}</div>
                     </div>
                 `;
                 const emailBody = `
-                    <div class="prose max-w-none">${msgInfo.bodyContentHTML || msgInfo.bodyContent || '<p>(Kein Inhalt)</p>'}</div>
+                    <div class="prose max-w-none">${msgInfo.bodyContentHTML || msgInfo.bodyContent || '<p>(No content)</p>'}</div>
                 `;
                 let emailAttachments = '';
                 if (msgInfo.attachments && msgInfo.attachments.length > 0) {
-                    emailAttachments = '<div class="mt-6"><strong>Anhänge:</strong><div class="mt-2 space-y-2">';
+                    emailAttachments = '<div class="mt-6"><strong>Attachments:</strong><div class="mt-2 space-y-2">';
                     msgInfo.attachments.forEach((attachment, index) => {
                         if (attachment.mimeType && attachment.mimeType.startsWith('image/')) {
                             emailAttachments += `
                                 <div>
-                                    <img class="border rounded" src="data:${attachment.mimeType};base64,${btoa(String.fromCharCode(...new Uint8Array(attachment.content)))}" alt="Anhang ${index + 1}">
+                                    <img class="border rounded" src="data:${attachment.mimeType};base64,${btoa(String.fromCharCode(...new Uint8Array(attachment.content)))}" alt="Attachment ${index + 1}">
                                     <p class="text-sm text-gray-600">${attachment.fileName}</p>
                                 </div>
                             `;
