@@ -69,14 +69,14 @@
                         if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
                             emailAttachments += `
                                 <div class="flex items-center space-x-2">
-                                    <a href="${attachment.contentBase64}" download="${attachment.fileName}">
+                                    <a href="${attachment.contentBase64}" download="${attachment.fileName}" style="text-decoration:none;">
                                         <div class="flex items-center space-x-2 rounded border p-1">
                                             <div class="border rounded w-12 h-12 flex-shrink-0">
                                                 <img src="${attachment.contentBase64}" alt="Attachment ${index + 1}" class="w-12 h-12 object-cover">
                                             </div>
                                             <div class="no-underline">
-                                                <p class="no-underline text-sm text-gray-600">${attachment.fileName}</p>
-                                                <p class="no-underline text-xs text-gray-500">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                                <p class="no-underline text-sm text-gray-800">${attachment.fileName}</p>
+                                                <p class="no-underline text-xs text-gray-400">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
                                             </div>
                                         </div>
                                     </a>
