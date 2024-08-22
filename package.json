@@ -6,7 +6,9 @@
     "build": "browserify src/msgreader.js -o dist/bundle.js",
     "watch": "watchify src/msgreader.js -o dist/bundle.js -v",
     "dev": "concurrently \"npm run watch\" \"live-server --watch=dist --port=8080\"",
-    "start": "npm run build && npx live-server dist --port=8080"
+    "start": "npm run build && npx live-server dist --port=8080",
+    "build-gh-pages": "browserify src/msgreader.js -o .gh-pages/dist/bundle.js && cpx index.html .gh-pages/",
+    "deploy": "npm run build-gh-pages && gh-pages -d .gh-pages"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +23,8 @@
   "devDependencies": {
     "browserify": "^17.0.0",
     "concurrently": "^8.2.2",
+    "cpx": "^1.5.0",
+    "gh-pages": "^6.1.1",
     "live-server": "^1.2.2",
     "watchify": "^4.0.0"
   }
