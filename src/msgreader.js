@@ -41,7 +41,7 @@ function extractMsg(fileBuffer) {
             const base64String = `data:${attachment.attachMimeTag};base64,${contentBase64}`;
 
             if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
-                emailBodyContentHTML = emailBodyContentHTML.replace(`cid:${attachment.pidContentId}`, base64String);
+                emailBodyContentHTML = emailBodyContentHTML.replaceAll(`cid:${attachment.pidContentId}`, base64String);
             } else {
                 emailBodyContentHTML = emailBodyContentHTML.replace(`href="cid:${attachment.pidContentId}"`, `href="${base64String}"`);
             }
