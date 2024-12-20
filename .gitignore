@@ -1,4 +1,4 @@
-/node_modules
+node_modules/
 .gh-pages/*
 dist/*
 .DS_Store
