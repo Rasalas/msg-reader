@@ -4,10 +4,10 @@
   "main": "app.js",
   "scripts": {
     "build": "npm run build:css && npm run build:js",
-    "build:js": "browserify src/msgreader.js -o dist/bundle.js",
+    "build:js": "browserify src/js/main.js -o dist/bundle.js",
     "build:css": "tailwindcss -i src/styles.css -o dist/styles.css",
     "watch": "concurrently \"npm run watch:js\" \"npm run watch:css\"",
-    "watch:js": "watchify src/msgreader.js -o dist/bundle.js -v",
+    "watch:js": "watchify src/js/main.js -o dist/bundle.js -v",
     "watch:css": "tailwindcss -i src/styles.css -o dist/styles.css --watch",
     "dev": "concurrently \"npm run watch\" \"live-server --watch=dist --port=8080\"",
     "start": "npm run build && npx live-server dist --port=8080",
@@ -22,6 +22,7 @@
     "@kenjiuno/decompressrtf": "^0.1.4",
     "@kenjiuno/msgreader": "^1.22.0",
     "iconv-lite": "^0.6.3",
+    "md5": "^2.3.0",
     "rtf-stream-parser": "^3.8.0"
   },
   "devDependencies": {
