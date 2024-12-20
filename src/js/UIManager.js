@@ -159,13 +159,13 @@ class UIManager {
         yesterday.setDate(yesterday.getDate() - 1);
         
         if (date.toDateString() === now.toDateString()) {
-            return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         } else if (date.toDateString() === yesterday.toDateString()) {
-            return 'Gestern';
+            return 'Yesterday';
         } else if (date.getFullYear() === now.getFullYear()) {
-            return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); // Returns "Dec. 31" format
         } else {
-            return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+            return date.toISOString().split('T')[0]; // Returns "2024-12-31" format in ISO 8601
         }
     }
 
