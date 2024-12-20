@@ -4,135 +4,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>*.msg Reader</title>
+    <title>msgReader</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='%233b82f6' class='size-6'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75'/%3E%3C/svg%3E">
     <script src="dist/bundle.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
-    <style>
-        #dropZone {
-            border: 2px dashed #ccc;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            transition: background-color 0.3s ease;
-        }
-
-        #dropZone.dragover {
-            background-color: #f0f0f0;
-        }
-    </style>
+    <link href="dist/styles.css" rel="stylesheet">
 </head>
 
-<body class="bg-gray-100 p-5">
-    <div class="max-w-3xl mx-auto bg-white shadow-lg rounded-lg">
-        <div class="p-4 border-b border-gray-200">
-            <h1 class="text-xl font-semibold text-gray-800">*.msg Reader</h1>
-            <input type="file" id="fileInput" class="mt-4 p-2 border border-gray-300 rounded hidden">
-            <div id="dropZone" class="mt-4 p-4 text-gray-600">
-                Drop the *.msg file here or click to select a file
-            </div>
-        </div>
-        <div id="emailViewer" class="p-4">
-        </div>
+<body>
+    <!-- Drop Overlay -->
+    <div class="drop-overlay">
+        <div class="drop-message">drop .msg file here</div>
     </div>
 
-    <script>
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const emailViewer = document.getElementById('emailViewer');
+    <!-- Welcome Screen -->
+    <div id="welcomeScreen" class="welcome-screen">
+        <div class="welcome-logo">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+            </svg>
+            msgReader
+        </div>
+        <div class="welcome-content">
+            drop .msg files here or <label class="browse-button">pick files<input type="file" id="fileInput" class="hidden" accept=".msg" multiple></label>
+        </div>
+        <a href="https://github.com/Rasalas/msg-reader" class="read-more-link" target="_blank" rel="noopener noreferrer">
+            <span>made with ❤️ by Torben Buck</span>
+            learn more
+        </a>
+    </div>
 
-        function handleFile(file) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const fileBuffer = e.target.result;
-                const msgInfo = window.extractMsg(fileBuffer);
-                console.log(msgInfo);
-
-                const toRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'to').map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
-                const ccRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'cc').map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
-
-                const emailHeader = `
-                    <div class="mb-4">
-                        <div class="text-gray-600"><strong>From:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
-                        ${toRecipients ? `<div class="text-gray-600"><strong>To:</strong> ${toRecipients}</div>` : ''}
-                        ${ccRecipients ? `<div class="text-gray-600"><strong>CC:</strong> ${ccRecipients}</div>` : ''}
-                        <div class="text-gray-600"><strong>Subject:</strong> ${msgInfo.subject}</div>
-                        <div class="text-gray-500 text-sm mt-2">${new Date(msgInfo.messageDeliveryTime).toLocaleString()}</div>
-                    </div>
-                `;
-                const emailBody = `
-                    <div class="prose max-w-none">${msgInfo.bodyContentHTML || msgInfo.bodyContent || '<p>(No content)</p>'}</div>
-                `;
-                let emailAttachments = '';
-                if (msgInfo.attachments && msgInfo.attachments.length > 0) {
-                    emailAttachments = '<div class="mt-6"><strong>Attachments:</strong><div class="mt-2 space-y-2">';
-                    msgInfo.attachments.forEach((attachment, index) => {
-                        if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
-                            emailAttachments += `
-                                <div class="flex items-center space-x-2">
-                                    <a href="${attachment.contentBase64}" download="${attachment.fileName}" style="text-decoration:none;">
-                                        <div class="flex items-center space-x-2 rounded border p-1">
-                                            <div class="border rounded w-12 h-12 flex-shrink-0">
-                                                <img src="${attachment.contentBase64}" alt="Attachment ${index + 1}" class="w-12 h-12 object-cover">
-                                            </div>
-                                            <div class="no-underline">
-                                                <p class="no-underline text-sm text-gray-800">${attachment.fileName}</p>
-                                                <p class="no-underline text-xs text-gray-400">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
-                                            </div>
-                                        </div>
-                                    </a>
-                                </div>
-                            `;
-                        } else {
-                            emailAttachments += `
-                            <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-sm text-gray-600 no-underline">${attachment.fileName}</a>
-                                <div class="rounded border">
-                                    <p class="text-xs text-gray-500">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
-                                </div>
-                            </a>
-                            `;
-                        }
-                    });
-                    emailAttachments += '</div></div>';
-                }
-
-                emailViewer.innerHTML = emailHeader + emailBody + emailAttachments;
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        // Load file via file selection
-        fileInput.addEventListener('change', function (event) {
-            const file = event.target.files[0];
-            if (file) {
-                handleFile(file);
-            }
-        });
-
-        // Drag-and-drop events for the drop zone
-        dropZone.addEventListener('dragover', function (event) {
-            event.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-
-        dropZone.addEventListener('dragleave', function (event) {
-            event.preventDefault();
-            dropZone.classList.remove('dragover');
-        });
-
-        dropZone.addEventListener('drop', function (event) {
-            event.preventDefault();
-            dropZone.classList.remove('dragover');
-
-            const file = event.dataTransfer.files[0];
-            if (file) {
-                handleFile(file);
-            }
-        });
-
-        dropZone.addEventListener('click', function () {
-            fileInput.click();
-        });
-    </script>
+    <!-- Main App -->
+    <div id="appContainer" class="app-container" style="display: none;">
+        <div class="message-list">
+            <div class="app-logo">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                </svg>
+                msgReader
+            </div>
+            <div class="upload-area rounded-2xl border-2 border-slate-300">
+                <label>
+                    drop .msg files here or click to upload
+                    <input type="file" id="fileInputInApp" class="hidden" accept=".msg" multiple>
+                </label>
+            </div>
+            <div id="messageItems" class="message-items">
+                <!-- Message items will be inserted here -->
+            </div>
+        </div>
+        <div id="messageViewer" class="message-viewer">
+            <!-- Message content will be shown here -->
+        </div>
+    </div>
 </body>
 
 </html>

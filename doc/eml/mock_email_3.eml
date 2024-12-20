@@ -1,0 +1,44 @@
+Content-Type: multipart/mixed; boundary="===============3810389161130638196=="
+MIME-Version: 1.0
+Subject: Found a bug in the compiler - nanoseconds matter!
+From: Grace Hopper <grace.hopper@cobol.mil>
+To: Alan Turing <alan.turing@enigma.gov.uk>
+Date: Wed, 18 Dec 2024 15:48:57 +0000
+Message-ID: <6270191@cobol.mil>
+
+--===============3810389161130638196==
+Content-Type: text/html; charset="us-ascii"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
+    <p>Dear Alan Turing,</p>
+    <br>
+    <p>I've discovered a timing issue in our compiler. It seems we're losing nanoseconds 
+    in the instruction processing loop. As I always say, nanoseconds add up!</p>
+    <br>
+    <p>The issue appears in the main processing loop where we're not properly accounting 
+    for the microsecond precision in our timing calculations. This is causing a cumulative 
+    delay that becomes significant in longer running processes.</p>
+    <br>
+    <p style="color: #cc0000;">Priority: High<br>
+    Impact: Performance degradation<br>
+    Affected Component: Main processing loop</p>
+    <br>
+    <p>I recommend we schedule a meeting to discuss the implementation details of a fix.</p>
+    <br>
+    <p>Regards,<br>
+    Grace Hopper<br><br>
+    Director of Compiler Development<br>
+    COBOL Systems Inc.<br>
+    <br>
+    <img src="cid:company-logo" style="max-width: 200px;"><br>
+</p>
+</body>
+</html>
+--===============3810389161130638196==--

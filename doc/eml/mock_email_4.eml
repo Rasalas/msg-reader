@@ -1,0 +1,45 @@
+Content-Type: multipart/mixed; boundary="===============2278426391037070234=="
+MIME-Version: 1.0
+Subject: Minutes from yesterday's Engine Design Review
+From: Charles Babbage <charles.babbage@differencemachine.co.uk>
+To: Ada Lovelace <ada.lovelace@analyticalengine.co.uk>
+Date: Tue, 17 Dec 2024 15:48:57 +0000
+Message-ID: <1498874@differencemachine.co.uk>
+
+--===============2278426391037070234==
+Content-Type: text/html; charset="us-ascii"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
+    <h2>Engine Design Review - Meeting Summary</h2>
+    <br>
+    <p>Dear Ada Lovelace,</p>
+    <br>
+    <p>Here's a brief summary of yesterday's design review meeting where we discussed 
+    the gear ratio calculations.</p>
+    <br>
+    <p>Key decisions:</p>
+    <ul style="margin-left: 20px;">
+        <li>Approved the new brass gear specifications</li>
+        <li>Scheduled next month's maintenance window</li>
+        <li>Allocated budget for additional punch cards</li>
+    </ul>
+    <br>
+    <p>Next meeting scheduled for: December 27, 2024</p>
+    <br>
+    <p>Yours sincerely,<br>
+    Charles Babbage<br><br>
+    Chief Engineer<br>
+    Difference Engine Works<br>
+    <br>
+    <img src="cid:company-logo" style="max-width: 200px;"><br>
+</p>
+</body>
+</html>
+--===============2278426391037070234==--
