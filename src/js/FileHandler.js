@@ -37,7 +37,8 @@ class FileHandler {
 
     handleFiles(files) {
         Array.from(files).forEach(file => {
-            if (file.name.toLowerCase().endsWith('.msg')) {
+            const extension = file.name.toLowerCase().split('.').pop();
+            if (extension === 'msg' || extension === 'eml') {
                 this.handleFile(file);
             }
         });
@@ -47,7 +48,14 @@ class FileHandler {
         const reader = new FileReader();
         reader.onload = (e) => {
             const fileBuffer = e.target.result;
-            const msgInfo = window.extractMsg(fileBuffer);
+            const extension = file.name.toLowerCase().split('.').pop();
+            
+            let msgInfo;
+            if (extension === 'msg') {
+                msgInfo = window.extractMsg(fileBuffer);
+            } else if (extension === 'eml') {
+                msgInfo = window.extractEml(fileBuffer);
+            }
             
             const message = this.messageHandler.addMessage(msgInfo, file.name);
             

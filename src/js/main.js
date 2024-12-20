@@ -1,11 +1,12 @@
 const MessageHandler = require('./MessageHandler');
 const UIManager = require('./UIManager');
 const FileHandler = require('./FileHandler');
-const { extractMsg } = require('./utils');
+const { extractMsg, extractEml } = require('./utils');
 
-// Make sure extractMsg is available globally
+// Make extractMsg and extractEml available globally
 if (typeof window !== 'undefined') {
     window.extractMsg = extractMsg;
+    window.extractEml = extractEml;
 }
 
 class App {

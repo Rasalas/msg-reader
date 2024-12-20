@@ -21,6 +21,7 @@
   "dependencies": {
     "@kenjiuno/decompressrtf": "^0.1.4",
     "@kenjiuno/msgreader": "^1.22.0",
+    "emailjs-mime-codec": "^2.0.9",
     "iconv-lite": "^0.6.3",
     "md5": "^2.3.0",
     "rtf-stream-parser": "^3.8.0"
