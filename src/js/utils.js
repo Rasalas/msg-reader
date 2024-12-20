@@ -141,37 +141,74 @@ function extractEml(fileBuffer) {
         // Parse multipart content
         let bodyHTML = '';
         let bodyText = '';
-        const attachments = [];
+        let attachments = [];
 
         if (boundary) {
-            const parts = bodyContent.split('--' + boundary);
+            const parts = bodyContent.split('--' + boundary).filter(part => 
+                part.trim() && !part.includes('--' + boundary + '--')
+            );
+
             parts.forEach(part => {
-                if (part.trim() && !part.includes('--')) {
-                    const [partHeaders, ...partContent] = part.trim().split('\n\n');
-                    const content = partContent.join('\n\n');
+                const [partHeaders, ...partContent] = part.trim().split('\n\n');
+                let content = partContent.join('\n\n').trim();
+                
+                // Parse part headers
+                const partHeadersObj = {};
+                partHeaders.split('\n').forEach(line => {
+                    const [key, ...value] = line.split(':');
+                    if (key) {
+                        partHeadersObj[key.toLowerCase().trim()] = value.join(':').trim();
+                    }
+                });
+
+                const contentType = partHeadersObj['content-type'] || '';
+                const contentTransferEncoding = partHeadersObj['content-transfer-encoding'] || '';
+                const contentDisposition = partHeadersObj['content-disposition'] || '';
+                const contentId = partHeadersObj['content-id'] || '';
+
+                // Decode content based on transfer encoding
+                if (contentTransferEncoding.toLowerCase() === 'base64') {
+                    content = content.replace(/\s/g, '');
+                    if (contentType.startsWith('text/')) {
+                        const buffer = Buffer.from(content, 'base64');
+                        content = buffer.toString('utf-8');
+                    }
+                } else if (contentTransferEncoding.toLowerCase() === 'quoted-printable') {
+                    content = content.replace(/=\r?\n/g, '')
+                        .replace(/=([0-9A-F]{2})/gi, (_, hex) => 
+                            String.fromCharCode(parseInt(hex, 16))
+                        );
+                }
+
+                // Handle different content types
+                if (contentType.startsWith('text/html')) {
+                    bodyHTML = content;
+                } else if (contentType.startsWith('text/plain')) {
+                    bodyText = content;
+                } else if (contentType.startsWith('image/') || contentType.startsWith('application/')) {
+                    const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
+                    const filename = filenameMatch ? filenameMatch[1] : 'attachment';
                     
-                    const contentTypeMatch = partHeaders.match(/Content-Type:\s*([^;\n]+)/i);
-                    const contentType = contentTypeMatch ? contentTypeMatch[1].toLowerCase() : '';
-                    
-                    if (contentType === 'text/html') {
-                        bodyHTML = content;
-                    } else if (contentType === 'text/plain') {
-                        bodyText = content;
-                    } else if (contentType.startsWith('image/') || contentType.startsWith('application/')) {
-                        const filenameMatch = partHeaders.match(/filename="?([^";\n]+)"?/i);
-                        const filename = filenameMatch ? filenameMatch[1] : 'attachment';
-                        
-                        // Find the base64 content
-                        const encodingMatch = partHeaders.match(/Content-Transfer-Encoding:\s*([^\n]+)/i);
-                        if (encodingMatch && encodingMatch[1].trim().toLowerCase() === 'base64') {
-                            const base64Content = content.replace(/\s/g, '');
-                            attachments.push({
-                                fileName: filename,
-                                attachMimeTag: contentType,
-                                contentLength: base64Content.length * 0.75, // Approximate original size
-                                contentBase64: `data:${contentType};base64,${base64Content}`
-                            });
+                    if (contentTransferEncoding.toLowerCase() === 'base64') {
+                        const attachment = {
+                            fileName: filename,
+                            attachMimeTag: contentType.split(';')[0],
+                            contentLength: Math.floor(content.length * 0.75), // Approximate original size
+                            contentBase64: `data:${contentType.split(';')[0]};base64,${content}`
+                        };
+
+                        if (contentId) {
+                            // This is an inline image
+                            attachment.contentId = contentId.replace(/[<>]/g, '');
+                            if (bodyHTML) {
+                                bodyHTML = bodyHTML.replace(
+                                    new RegExp(`cid:${attachment.contentId}`, 'g'),
+                                    attachment.contentBase64
+                                );
+                            }
                         }
+
+                        attachments.push(attachment);
                     }
                 }
             });
@@ -197,7 +234,7 @@ function extractEml(fileBuffer) {
 
         return {
             subject: decodeMIMEWord(headers.subject) || '',
-            senderName: from.name || from.address,
+            senderName: decodeMIMEWord(from.name) || from.address,
             senderEmail: from.address,
             recipients,
             messageDeliveryTime: date.toISOString(),

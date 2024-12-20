@@ -1,4 +1,6 @@
-# *.msg Reader
+# msgReader
+
+![alt text](doc/res/msg-reader-screenshot.png)
 
 My collegue sends me a lot of emails in the *.msg format. It's the format that "Old Microsoft Outlook" uses if you export an email or attach it to another email.  
 I couldn't even open these files on my Windows 11 machine, because of an error that stated that I need an active Microsoft 365 subscription - which is confusing (or **very** wrong), because I have one and it's active in all other MS Office apps.
@@ -10,11 +12,22 @@ I am currently writing with the Microsoft Support to get this issue fixed, but u
 
 ... also - WHY would you put a paywall in front of a file format that you created?
 
-## Disclaimer
-I'm not sure I remember updating this readme file if there are any updates to the Microsoft Support thing or if it suddenly works.  
+## Features
+- Open and read *.msg and *.eml files directly in your browser
+- View HTML content and inline images
+- Pin important messages
+- Multiple file support with message list
+- Sort messages by date
+- Drag & drop support
+- No server needed - everything runs in your browser
 
-It's just here to help. :)
-
+## Project Structure
+The project is organized into several modules:
+- `MessageHandler.js` - Manages message state and storage
+- `UIManager.js` - Handles UI updates and rendering
+- `FileHandler.js` - Manages file operations and drag & drop
+- `utils.js` - Contains MSG file processing and utility functions
+- `main.js` - Initializes and orchestrates the application
 
 ## HYPER Quick Start (GitHub Pages)
 1. Open [rasalas.github.io/msg-reader/](https://rasalas.github.io/msg-reader/)
@@ -22,7 +35,6 @@ It's just here to help. :)
 3. Done.  
 
 You should now see your email contents
-
 
 ## Quick Start (locally)
 1. Clone the repository
@@ -41,7 +53,6 @@ npm install
 npm start
 ```
 A browser window should open with the application running.
-
 
 ## Development
 1. Clone the repository
@@ -62,34 +73,16 @@ npm run dev
 
 A browser window should open with the application running. The application will automatically reload when changes are made to the source code.
 
-## Other Commands
+## Build Process
+The application uses browserify to bundle the JavaScript modules and tailwindcss for styling.
 
-### Deloy to GitHub Pages
-```bash
-npm run deploy
-```
-This will build the application and deploy it to GitHub Pages.
-
-### Watch
-```bash
-npm run watch
-```
-This will watch the code for changes and bundle the code using browserify.
-
-### Build
-
-```bash
-npm run build
-```
-This will bundle the code using browserify and output the bundled code to the `dist` directory inside the `bundle.js`.
-
-### Build it brick by brick
-
-Bundle the code the hard way:
-```bash
-npx browserify src/msgreader.js -o dist/bundle.js
-```
-
+### Build Commands
+- `npm run build` - Builds both JavaScript and CSS
+- `npm run build:js` - Bundles JavaScript modules
+- `npm run build:css` - Compiles Tailwind CSS
+- `npm run watch` - Watches for changes and rebuilds
+- `npm run dev` - Runs development server with live reload
+- `npm run deploy` - Deploys to GitHub Pages
 
 ## Other links
 
@@ -118,12 +111,23 @@ Windows 11 Account page showing an active Microsoft 365 Single subscription
 An error message stating that the msg file can't be opened, because it requires an active subscription
 ![An error message stating that the msg file can't be opened, because it requires an active subscription](doc/res/new-outlook-error-message.png)
 
-## Possible Improvements
-- [ ] allow other file types (like .eml)
-- [ ] allow to download the email as a .eml file
-- [ ] allow to upload multiple files at once
-  - [ ] make drop area fill the whole screen
-  - [ ] show a list of all imported emails on the side, like the inbox of an email client 
-  - [ ] sort by date
-  - [ ] show a preview of the currently selected email
-  - [ ] separate subject, recipients & sender, body, attachmentes
+## Completed Features
+- [x] Allow to upload multiple files at once
+- [x] Drop area fills the whole screen
+- [x] Show a list of all imported emails on the side
+- [x] Sort by date
+- [x] Show a preview of the currently selected email
+- [x] Separate subject, recipients & sender, body, attachments
+- [x] Pin important messages
+
+## Future Improvements (maybe)
+- [ ] Allow to download the email as a .eml file
+- [ ] Add search functionality
+- [ ] Add filters
+  - [ ] pinned messages
+  - [ ] attachments
+  - [ ] sender
+  - [ ] subject
+- [ ] Add message categories/tags
+- [ ] Add keyboard shortcuts
+- [ ] Add dark mode support
