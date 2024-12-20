@@ -11,7 +11,7 @@
     "watch:css": "tailwindcss -i src/styles.css -o dist/styles.css --watch",
     "dev": "concurrently \"npm run watch\" \"live-server --watch=dist --port=8080\"",
     "start": "npm run build && npx live-server dist --port=8080",
-    "build-gh-pages": "npm run build && rm -rf .gh-pages && mkdir -p .gh-pages && cp -r dist/* .gh-pages/ && cp index.html .gh-pages/ && cp -r res .gh-pages/ && cp -r doc .gh-pages/",
+    "build-gh-pages": "npm run build && rm -rf .gh-pages && mkdir -p .gh-pages && cp -r dist .gh-pages/ && cp index.html .gh-pages/ && cp -r res .gh-pages/ && cp -r doc .gh-pages/ && cp tailwind.config.js .gh-pages/ && cp postcss.config.js .gh-pages/",
     "deploy": "npm run build-gh-pages && gh-pages -d .gh-pages"
   },
   "keywords": [],
