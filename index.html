@@ -13,7 +13,7 @@
 <body>
     <!-- Drop Overlay -->
     <div class="drop-overlay">
-        <div class="drop-message">drop .msg file here</div>
+        <div class="drop-message">drop .msg/.eml files here</div>
     </div>
 
     <!-- Welcome Screen -->
@@ -25,7 +25,7 @@
             msgReader
         </div>
         <div class="welcome-content">
-            drop .msg files here or <label class="browse-button">pick files<input type="file" id="fileInput" class="hidden" accept=".msg" multiple></label>
+            drop .msg/.eml files here or <label class="browse-button">pick files<input type="file" id="fileInput" class="hidden" accept=".msg,.eml" multiple></label>
         </div>
         <a href="https://github.com/Rasalas/msg-reader" class="read-more-link" target="_blank" rel="noopener noreferrer">
             <span>made with ❤️ by Torben Buck</span>
@@ -44,8 +44,8 @@
             </div>
             <div class="upload-area rounded-2xl border-2 border-slate-300">
                 <label>
-                    drop .msg files here or click to upload
-                    <input type="file" id="fileInputInApp" class="hidden" accept=".msg" multiple>
+                    drop .msg/.eml files here or click to upload
+                    <input type="file" id="fileInputInApp" class="hidden" accept=".msg,.eml" multiple>
                 </label>
             </div>
             <div id="messageItems" class="message-items">
