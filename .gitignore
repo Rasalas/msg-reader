@@ -2,3 +2,5 @@ node_modules/
 .gh-pages/*
 dist/*
 .DS_Store
+doc/eml/multipart_nested.eml
+doc/msg/*.msg
