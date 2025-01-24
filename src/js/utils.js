@@ -98,12 +98,8 @@ function extractEml(fileBuffer) {
         const decoder = new TextDecoder('utf-8');
         const emailString = decoder.decode(fileBuffer);
         
-        console.log('Parsing email...');
-
-        // Hilfsfunktion zum Parsen von Multipart-Inhalten
+        // Helper function for parsing multipart content
         function parseMultipartContent(content, boundary, depth = 0) {
-            console.log(`Parsing multipart content at depth ${depth}, boundary: ${boundary}`);
-            
             const results = {
                 bodyHTML: '',
                 bodyText: '',
@@ -141,19 +137,11 @@ function extractEml(fileBuffer) {
                 const contentDisposition = partHeadersObj['content-disposition'] || '';
                 const contentId = partHeadersObj['content-id'] || '';
 
-                console.log(`Processing part at depth ${depth}:`, {
-                    contentType,
-                    contentTransferEncoding,
-                    contentDisposition,
-                    contentId
-                });
-
                 // Check for nested multipart
                 const nestedBoundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
                 if (nestedBoundaryMatch) {
-                    console.log(`Found nested multipart at depth ${depth}`);
                     const nestedResults = parseMultipartContent(partContent, nestedBoundaryMatch[1], depth + 1);
-                    // Behalte vorhandenen Inhalt und füge neuen hinzu
+                    // Keep existing content and add new
                     if (nestedResults.bodyHTML) {
                         results.bodyHTML = results.bodyHTML 
                             ? results.bodyHTML + '\n' + nestedResults.bodyHTML 
@@ -187,12 +175,12 @@ function extractEml(fileBuffer) {
 
                 // Handle content types
                 if (contentType.startsWith('text/html')) {
-                    // Füge HTML-Inhalt hinzu
+                    // Add HTML content
                     results.bodyHTML = results.bodyHTML 
                         ? results.bodyHTML + '\n' + decodedContent 
                         : decodedContent;
                 } else if (contentType.startsWith('text/plain')) {
-                    // Füge Text-Inhalt hinzu
+                    // Add text content
                     results.bodyText = results.bodyText 
                         ? results.bodyText + '\n' + decodedContent 
                         : decodedContent;
@@ -211,14 +199,26 @@ function extractEml(fileBuffer) {
                         contentBase64: `data:${contentType.split(';')[0]};base64,${base64Content}`
                     };
 
+                    // Extract Content-ID in various ways
                     if (contentId) {
-                        attachment.contentId = contentId.replace(/[<>]/g, '');
-                        // Ersetze alle cid: Referenzen im HTML-Inhalt
-                        if (results.bodyHTML && attachment.contentId) {
-                            results.bodyHTML = results.bodyHTML.replace(
-                                new RegExp(`cid:${attachment.contentId}`, 'gi'),
-                                attachment.contentBase64
-                            );
+                        // Remove < and > and everything except the actual ID part
+                        attachment.contentId = contentId.replace(/[<>]/g, '').trim();
+                        
+                        // Replace various forms of CID references
+                        if (results.bodyHTML) {
+                            const cidPatterns = [
+                                `src=["']?cid:${attachment.contentId}["']?`,
+                                `src=["']?CID:${attachment.contentId}["']?`,
+                                `src=["']?cid:${attachment.contentId}:1["']?`,
+                                `src=["']?${attachment.contentId}["']?`
+                            ];
+                            
+                            cidPatterns.forEach(pattern => {
+                                results.bodyHTML = results.bodyHTML.replace(
+                                    new RegExp(pattern, 'gi'),
+                                    `src="${attachment.contentBase64}"`
+                                );
+                            });
                         }
                     }
 
@@ -226,16 +226,31 @@ function extractEml(fileBuffer) {
                 }
             });
 
-            // Ersetze auch alle verbleibenden cid: Referenzen durch die entsprechenden Anhänge
+            // Final check for remaining CID references
             if (results.bodyHTML) {
                 results.attachments.forEach(attachment => {
                     if (attachment.contentId) {
-                        results.bodyHTML = results.bodyHTML.replace(
-                            new RegExp(`cid:${attachment.contentId}`, 'gi'),
-                            attachment.contentBase64
-                        );
+                        const cidPatterns = [
+                            `src=["']?cid:${attachment.contentId}["']?`,
+                            `src=["']?CID:${attachment.contentId}["']?`,
+                            `src=["']?cid:${attachment.contentId}:1["']?`,
+                            `src=["']?${attachment.contentId}["']?`
+                        ];
+                        
+                        cidPatterns.forEach(pattern => {
+                            results.bodyHTML = results.bodyHTML.replace(
+                                new RegExp(pattern, 'gi'),
+                                `src="${attachment.contentBase64}"`
+                            );
+                        });
                     }
                 });
+
+                // Replace remaining cid: references only if no matching attachment was found
+                results.bodyHTML = results.bodyHTML.replace(
+                    /src=["']?cid:[^"'\s>]+["']?/gi,
+                    'src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRzZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+"'
+                );
             }
 
             return results;
@@ -248,7 +263,6 @@ function extractEml(fileBuffer) {
         }
         
         const [_, headersPart, bodyContent] = headerBodySplit;
-        console.log('Headers:', headersPart);
 
         // Parse headers
         const headers = {};
