@@ -9,13 +9,31 @@ class MessageHandler {
         // Generate hash from message properties
         const hashInput = `${msgInfo.senderEmail}-${msgInfo.messageDeliveryTime}-${msgInfo.subject}-${fileName}`;
         const hash = md5(hashInput);
-        
+
+        // Robust date parsing: try multiple fields
+        const dateFields = [
+            msgInfo.messageDeliveryTime,
+            msgInfo.clientSubmitTime,
+            msgInfo.creationTime,
+            msgInfo.lastModificationTime
+        ];
+        let parsedDate = null;
+        for (const val of dateFields) {
+            if (val) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    parsedDate = d;
+                    break;
+                }
+            }
+        }
+
         // Add message to list
         const message = {
             ...msgInfo,
             fileName,
             messageHash: hash,
-            timestamp: new Date(msgInfo.messageDeliveryTime)
+            timestamp: parsedDate
         };
 
         this.messages.unshift(message);

@@ -62,6 +62,17 @@ class UIManager {
 
         // Process email content to scope styles
         let emailContent = msgInfo.bodyContentHTML || msgInfo.bodyContent;
+        // If no HTML, convert plain text to HTML with paragraphs and line breaks
+        if (!msgInfo.bodyContentHTML && emailContent) {
+            // Normalize line endings
+            let text = emailContent.replace(/\r\n/g, '\n');
+            // Split into paragraphs by double line breaks
+            const paragraphs = text.split(/\n{2,}/).map(p => {
+                // Replace single line breaks in paragraph with <br>
+                return p.replace(/\n/g, '<br>');
+            });
+            emailContent = '<p>' + paragraphs.join('</p><p>') + '</p>';
+        }
         if (emailContent) {
             // Create a temporary container to parse the HTML
             const tempDiv = document.createElement('div');
@@ -167,6 +178,10 @@ class UIManager {
     }
 
     formatMessageDate(date) {
+        // Defensive: handle undefined/null/invalid dates
+        if (!date || Object.prototype.toString.call(date) !== '[object Date]' || isNaN(date.getTime())) {
+            return 'Unknown date';
+        }
         const now = new Date();
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);

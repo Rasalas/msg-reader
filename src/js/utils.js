@@ -53,11 +53,43 @@ function extractMsg(fileBuffer) {
         console.error("Error creating a MsgReader instance:", error);
     }
 
-    let emailBodyContent = msgInfo.bodyHTML || msgInfo.body;
+    let emailBodyContent = msgInfo && (msgInfo.bodyHTML || msgInfo.body);
     let emailBodyContentHTML = '';
 
-    const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
-    emailBodyContentHTML = convertRTFToHTML(decompressedRtf);
+    if (msgInfo && msgInfo.compressedRtf) {
+        try {
+            const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
+            emailBodyContentHTML = convertRTFToHTML(decompressedRtf);
+        } catch (err) {
+            console.error('Failed to decompress or convert RTF:', err);
+            emailBodyContentHTML = emailBodyContent || '';
+        }
+    } else if (msgInfo && msgInfo.html && typeof msgInfo.html === 'object') {
+        // Try to decode HTML from Uint8Array
+        try {
+            let htmlArr;
+            if (Array.isArray(msgInfo.html)) {
+                htmlArr = Uint8Array.from(msgInfo.html);
+            } else {
+                // msgInfo.html is likely an object with numeric keys
+                htmlArr = Uint8Array.from(Object.values(msgInfo.html));
+            }
+            // Try TextDecoder first, fallback to Buffer
+            let htmlStr = '';
+            if (typeof TextDecoder !== 'undefined') {
+                htmlStr = new TextDecoder('utf-8').decode(htmlArr);
+            } else {
+                htmlStr = Buffer.from(htmlArr).toString('utf-8');
+            }
+            emailBodyContentHTML = htmlStr;
+        } catch (err) {
+            console.log('Failed to decode HTML from Uint8Array:', err);
+            emailBodyContentHTML = emailBodyContent || '';
+        }
+    } else {
+        console.log('Missing compressedRtf in msgInfo:', msgInfo);
+        emailBodyContentHTML = emailBodyContent || '';
+    }
 
     // Extract images and attachments
     if (msgInfo.attachments && msgInfo.attachments.length > 0) {
@@ -79,11 +111,11 @@ function extractMsg(fileBuffer) {
         });
     }
 
-    return {
+    return msgInfo ? {
         ...msgInfo,
         bodyContent: emailBodyContent,
         bodyContentHTML: emailBodyContentHTML
-    };
+    } : null;
 }
 
 // Function for converting the decompressed RTF content to HTML
