@@ -17816,13 +17816,31 @@ class MessageHandler {
         // Generate hash from message properties
         const hashInput = `${msgInfo.senderEmail}-${msgInfo.messageDeliveryTime}-${msgInfo.subject}-${fileName}`;
         const hash = md5(hashInput);
-        
+
+        // Robust date parsing: try multiple fields
+        const dateFields = [
+            msgInfo.messageDeliveryTime,
+            msgInfo.clientSubmitTime,
+            msgInfo.creationTime,
+            msgInfo.lastModificationTime
+        ];
+        let parsedDate = null;
+        for (const val of dateFields) {
+            if (val) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    parsedDate = d;
+                    break;
+                }
+            }
+        }
+
         // Add message to list
         const message = {
             ...msgInfo,
             fileName,
             messageHash: hash,
-            timestamp: new Date(msgInfo.messageDeliveryTime)
+            timestamp: parsedDate
         };
 
         this.messages.unshift(message);
@@ -17940,6 +17958,17 @@ class UIManager {
 
         // Process email content to scope styles
         let emailContent = msgInfo.bodyContentHTML || msgInfo.bodyContent;
+        // If no HTML, convert plain text to HTML with paragraphs and line breaks
+        if (!msgInfo.bodyContentHTML && emailContent) {
+            // Normalize line endings
+            let text = emailContent.replace(/\r\n/g, '\n');
+            // Split into paragraphs by double line breaks
+            const paragraphs = text.split(/\n{2,}/).map(p => {
+                // Replace single line breaks in paragraph with <br>
+                return p.replace(/\n/g, '<br>');
+            });
+            emailContent = '<p>' + paragraphs.join('</p><p>') + '</p>';
+        }
         if (emailContent) {
             // Create a temporary container to parse the HTML
             const tempDiv = document.createElement('div');
@@ -18045,6 +18074,10 @@ class UIManager {
     }
 
     formatMessageDate(date) {
+        // Defensive: handle undefined/null/invalid dates
+        if (!date || Object.prototype.toString.call(date) !== '[object Date]' || isNaN(date.getTime())) {
+            return 'Unknown date';
+        }
         const now = new Date();
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
@@ -18180,11 +18213,43 @@ function extractMsg(fileBuffer) {
         console.error("Error creating a MsgReader instance:", error);
     }
 
-    let emailBodyContent = msgInfo.bodyHTML || msgInfo.body;
+    let emailBodyContent = msgInfo && (msgInfo.bodyHTML || msgInfo.body);
     let emailBodyContentHTML = '';
 
-    const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
-    emailBodyContentHTML = convertRTFToHTML(decompressedRtf);
+    if (msgInfo && msgInfo.compressedRtf) {
+        try {
+            const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
+            emailBodyContentHTML = convertRTFToHTML(decompressedRtf);
+        } catch (err) {
+            console.error('Failed to decompress or convert RTF:', err);
+            emailBodyContentHTML = emailBodyContent || '';
+        }
+    } else if (msgInfo && msgInfo.html && typeof msgInfo.html === 'object') {
+        // Try to decode HTML from Uint8Array
+        try {
+            let htmlArr;
+            if (Array.isArray(msgInfo.html)) {
+                htmlArr = Uint8Array.from(msgInfo.html);
+            } else {
+                // msgInfo.html is likely an object with numeric keys
+                htmlArr = Uint8Array.from(Object.values(msgInfo.html));
+            }
+            // Try TextDecoder first, fallback to Buffer
+            let htmlStr = '';
+            if (typeof TextDecoder !== 'undefined') {
+                htmlStr = new TextDecoder('utf-8').decode(htmlArr);
+            } else {
+                htmlStr = Buffer.from(htmlArr).toString('utf-8');
+            }
+            emailBodyContentHTML = htmlStr;
+        } catch (err) {
+            console.log('Failed to decode HTML from Uint8Array:', err);
+            emailBodyContentHTML = emailBodyContent || '';
+        }
+    } else {
+        console.log('Missing compressedRtf in msgInfo:', msgInfo);
+        emailBodyContentHTML = emailBodyContent || '';
+    }
 
     // Extract images and attachments
     if (msgInfo.attachments && msgInfo.attachments.length > 0) {
@@ -18206,11 +18271,11 @@ function extractMsg(fileBuffer) {
         });
     }
 
-    return {
+    return msgInfo ? {
         ...msgInfo,
         bodyContent: emailBodyContent,
         bodyContentHTML: emailBodyContentHTML
-    };
+    } : null;
 }
 
 // Function for converting the decompressed RTF content to HTML
