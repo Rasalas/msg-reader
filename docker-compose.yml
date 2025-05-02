@@ -1,0 +1,7 @@
+services:
+  app:
+    container_name: msg-reader
+    restart: unless-stopped
+    build: .
+    ports:
+      - "3000:3000"
