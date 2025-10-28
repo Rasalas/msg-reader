@@ -18170,7 +18170,7 @@ window.md5 = md5;
 // Function to decode MIME encoded-word format
 function decodeMIMEWord(str) {
     if (!str) return '';
-    
+
     // Replace all encoded words in the string
     return str.replace(/=\?([^?]+)\?([BQbq])\?([^?]*)\?=/g, (match, charset, encoding, text) => {
         try {
@@ -18181,7 +18181,7 @@ function decodeMIMEWord(str) {
             } else if (encoding.toUpperCase() === 'Q') {
                 // Quoted-printable encoded
                 text = text.replace(/_/g, ' ');
-                const bytes = text.replace(/=([0-9A-F]{2})/gi, (_, hex) => 
+                const bytes = text.replace(/=([0-9A-F]{2})/gi, (_, hex) =>
                     String.fromCharCode(parseInt(hex, 16))
                 );
                 return iconvLite.decode(Buffer.from(bytes, 'binary'), charset);
@@ -18236,10 +18236,22 @@ function extractMsg(fileBuffer) {
             }
             // Try TextDecoder first, fallback to Buffer
             let htmlStr = '';
+            let charset = 'utf-8';
+            if (msgInfo.internetCodepage === 936) {
+                charset = 'gbk'; // Simplified Chinese
+            } else if (msgInfo.internetCodepage === 950) {
+                charset = 'big5'; // Traditional Chinese
+            } else if (msgInfo.internetCodepage === 932) {
+                charset = 'shift_jis'; // Japanese
+            } else if (msgInfo.internetCodepage === 949) {
+                charset = 'euc-kr'; // Korean
+            } else if (msgInfo.internetCodepage === 928) {
+                charset = 'gb2312'; // Simplified Chinese
+            }
             if (typeof TextDecoder !== 'undefined') {
-                htmlStr = new TextDecoder('utf-8').decode(htmlArr);
+                htmlStr = new TextDecoder(charset).decode(htmlArr);
             } else {
-                htmlStr = Buffer.from(htmlArr).toString('utf-8');
+                htmlStr = Buffer.from(htmlArr).toString(charset);
             }
             emailBodyContentHTML = htmlStr;
         } catch (err) {
@@ -18254,7 +18266,7 @@ function extractMsg(fileBuffer) {
     // Extract images and attachments
     if (msgInfo.attachments && msgInfo.attachments.length > 0) {
         msgInfo.attachments.forEach((attachment, index) => {
-            
+
             const contentUint8Array = msgReader.getAttachment(attachment).content;
             const contentBuffer = Buffer.from(contentUint8Array);
             const contentBase64 = contentBuffer.toString('base64');
@@ -18287,11 +18299,10 @@ function convertRTFToHTML(rtfContent) {
 function extractEml(fileBuffer) {
     try {
         // Convert ArrayBuffer to String
-        const decoder = new TextDecoder('utf-8');
-        const emailString = decoder.decode(fileBuffer);
-        
+        const emailString = Buffer.from(fileBuffer).toString('binary');
+
         // Helper function for parsing multipart content
-        function parseMultipartContent(content, boundary, depth = 0) {
+        function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'utf-8') {
             const results = {
                 bodyHTML: '',
                 bodyText: '',
@@ -18306,7 +18317,7 @@ function extractEml(fileBuffer) {
                 if (!partMatch) return;
 
                 const [_, partHeaders, partContent] = partMatch;
-                
+
                 // Parse part headers
                 const partHeadersObj = {};
                 let currentHeader = '';
@@ -18329,19 +18340,23 @@ function extractEml(fileBuffer) {
                 const contentDisposition = partHeadersObj['content-disposition'] || '';
                 const contentId = partHeadersObj['content-id'] || '';
 
+                // Extract charset from part's content-type
+                const partCharsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
+                const partCharset = partCharsetMatch ? partCharsetMatch[1] : defaultCharset;
+
                 // Check for nested multipart
                 const nestedBoundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
                 if (nestedBoundaryMatch) {
-                    const nestedResults = parseMultipartContent(partContent, nestedBoundaryMatch[1], depth + 1);
+                    const nestedResults = parseMultipartContent(partContent, nestedBoundaryMatch[1], depth + 1, partCharset);
                     // Keep existing content and add new
                     if (nestedResults.bodyHTML) {
-                        results.bodyHTML = results.bodyHTML 
-                            ? results.bodyHTML + '\n' + nestedResults.bodyHTML 
+                        results.bodyHTML = results.bodyHTML
+                            ? results.bodyHTML + '\n' + nestedResults.bodyHTML
                             : nestedResults.bodyHTML;
                     }
                     if (nestedResults.bodyText) {
-                        results.bodyText = results.bodyText 
-                            ? results.bodyText + '\n' + nestedResults.bodyText 
+                        results.bodyText = results.bodyText
+                            ? results.bodyText + '\n' + nestedResults.bodyText
                             : nestedResults.bodyText;
                     }
                     results.attachments.push(...nestedResults.attachments);
@@ -18353,36 +18368,38 @@ function extractEml(fileBuffer) {
                 if (contentTransferEncoding.toLowerCase() === 'base64') {
                     if (contentType.startsWith('text/')) {
                         try {
-                            decodedContent = Buffer.from(partContent.replace(/\s/g, ''), 'base64').toString('utf-8');
+                            const decodedBytes = Buffer.from(partContent.replace(/\s/g, ''), 'base64');
+                            decodedContent = iconvLite.decode(decodedBytes, partCharset);
                         } catch (error) {
                             console.error('Error decoding base64 content:', error);
                         }
                     }
                 } else if (contentTransferEncoding.toLowerCase() === 'quoted-printable') {
-                    decodedContent = partContent.replace(/=\r?\n/g, '')
-                        .replace(/=([0-9A-F]{2})/gi, (_, hex) => 
-                            String.fromCharCode(parseInt(hex, 16))
-                        );
+                    // Decode quoted-printable hex codes first
+                    const qpContent = partContent.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+                    // Then decode with proper charset
+                    const decodedBytes = Buffer.from(qpContent, 'binary');
+                    decodedContent = iconvLite.decode(decodedBytes, partCharset);
                 }
 
                 // Handle content types
                 if (contentType.startsWith('text/html')) {
                     // Add HTML content
-                    results.bodyHTML = results.bodyHTML 
-                        ? results.bodyHTML + '\n' + decodedContent 
-                        : decodedContent;
+                    results.bodyHTML = results.bodyHTML ? results.bodyHTML + '\n' + decodedContent : decodedContent;
                 } else if (contentType.startsWith('text/plain')) {
                     // Add text content
-                    results.bodyText = results.bodyText 
-                        ? results.bodyText + '\n' + decodedContent 
-                        : decodedContent;
+                    results.bodyText = results.bodyText ? results.bodyText + '\n' + decodedContent : decodedContent;
                 } else if (contentType.startsWith('image/') || contentType.startsWith('application/')) {
                     const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
                     const filename = filenameMatch ? filenameMatch[1] : 'attachment';
-                    
-                    const base64Content = contentTransferEncoding.toLowerCase() === 'base64' 
-                        ? partContent.replace(/\s/g, '')
-                        : Buffer.from(partContent).toString('base64');
+
+                    let base64Content;
+                    if (contentTransferEncoding.toLowerCase() === 'base64') {
+                        base64Content = partContent.replace(/\s/g, '');
+                    } else {
+                        // Convert binary string to base64
+                        base64Content = Buffer.from(partContent, 'binary').toString('base64');
+                    }
 
                     const attachment = {
                         fileName: filename,
@@ -18395,55 +18412,17 @@ function extractEml(fileBuffer) {
                     if (contentId) {
                         // Remove < and > and everything except the actual ID part
                         attachment.contentId = contentId.replace(/[<>]/g, '').trim();
-                        
-                        // Replace various forms of CID references
-                        if (results.bodyHTML) {
-                            const cidPatterns = [
-                                `src=["']?cid:${attachment.contentId}["']?`,
-                                `src=["']?CID:${attachment.contentId}["']?`,
-                                `src=["']?cid:${attachment.contentId}:1["']?`,
-                                `src=["']?${attachment.contentId}["']?`
-                            ];
-                            
-                            cidPatterns.forEach(pattern => {
-                                results.bodyHTML = results.bodyHTML.replace(
-                                    new RegExp(pattern, 'gi'),
-                                    `src="${attachment.contentBase64}"`
-                                );
-                            });
+                    } else {
+                        // Try to extract Content-ID from Content-Location if Content-ID is missing
+                        const contentLocation = partHeadersObj['content-location'] || '';
+                        if (contentLocation) {
+                            attachment.contentId = contentLocation.replace(/[<>]/g, '').trim();
                         }
                     }
 
                     results.attachments.push(attachment);
                 }
             });
-
-            // Final check for remaining CID references
-            if (results.bodyHTML) {
-                results.attachments.forEach(attachment => {
-                    if (attachment.contentId) {
-                        const cidPatterns = [
-                            `src=["']?cid:${attachment.contentId}["']?`,
-                            `src=["']?CID:${attachment.contentId}["']?`,
-                            `src=["']?cid:${attachment.contentId}:1["']?`,
-                            `src=["']?${attachment.contentId}["']?`
-                        ];
-                        
-                        cidPatterns.forEach(pattern => {
-                            results.bodyHTML = results.bodyHTML.replace(
-                                new RegExp(pattern, 'gi'),
-                                `src="${attachment.contentBase64}"`
-                            );
-                        });
-                    }
-                });
-
-                // Replace remaining cid: references only if no matching attachment was found
-                results.bodyHTML = results.bodyHTML.replace(
-                    /src=["']?cid:[^"'\s>]+["']?/gi,
-                    'src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+"'
-                );
-            }
 
             return results;
         }
@@ -18453,7 +18432,7 @@ function extractEml(fileBuffer) {
         if (!headerBodySplit) {
             throw new Error('Could not split email into headers and body');
         }
-        
+
         const [_, headersPart, bodyContent] = headerBodySplit;
 
         // Parse headers
@@ -18489,13 +18468,51 @@ function extractEml(fileBuffer) {
         const contentType = headers['content-type'] || '';
         const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
 
+        // Extract charset from content-type
+        const contentTypeCharsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
+        const detectedCharset = contentTypeCharsetMatch ? contentTypeCharsetMatch[1] : 'utf-8';
+
         if (boundaryMatch) {
-            results = parseMultipartContent(bodyContent, boundaryMatch[1]);
+            results = parseMultipartContent(bodyContent, boundaryMatch[1], 0, detectedCharset);
+            // Now perform CID replacement after all attachments have been collected
+            if (results.bodyHTML && results.attachments.length > 0) {
+                // Debug: Check what CID references exist in HTML BEFORE replacement
+
+                // First pass: replace with actual attachment content
+                results.attachments.forEach(attachment => {
+                    if (attachment.contentId) {
+                        // Also try without stripping < > in case Content-ID format varies
+                        const cidIdWithoutBrackets = attachment.contentId.replace(/[<>]/g, '');
+                        const cidPatterns = [`src=["']?cid:${attachment.contentId}["']?`, `src=["']?CID:${attachment.contentId}["']?`, `src=["']?cid:${cidIdWithoutBrackets}["']?`, `src=["']?CID:${cidIdWithoutBrackets}["']?`, `src=["']?cid:${attachment.contentId}:1["']?`, `src=["']?${attachment.contentId}["']?`];
+
+                        cidPatterns.forEach(pattern => {
+                            results.bodyHTML = results.bodyHTML.replace(new RegExp(pattern, 'gi'), `src="${attachment.contentBase64}"`);
+                        });
+                    }
+                });
+
+                // Second pass: try to match images by Content-ID more broadly
+                results.attachments.forEach(attachment => {
+                    if (attachment.contentId && attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
+                        // Try various Content-ID formats
+                        const rawContentId = attachment.contentId;
+                        const cleanContentId = rawContentId.replace(/[<>]/g, '').trim();
+
+                        // Match cid: followed by any variation of the ID
+                        const broadPattern = new RegExp(`src=["']?cid:${cleanContentId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"'\\s>]*["']?`, 'gi');
+
+                        results.bodyHTML = results.bodyHTML.replace(broadPattern, `src="${attachment.contentBase64}"`);
+                    }
+                });
+
+                // Replace remaining cid: references only if no matching attachment was found
+                results.bodyHTML = results.bodyHTML.replace(/src=["']?cid:[^"'\s>]+["']?/gi, 'src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+"');
+            }
         } else {
             // Single part handling
             const contentTransferEncoding = headers['content-transfer-encoding'] || '';
             const contentDisposition = headers['content-disposition'] || '';
-            
+
             results = {
                 bodyHTML: '',
                 bodyText: '',
@@ -18505,8 +18522,8 @@ function extractEml(fileBuffer) {
             if (contentType.startsWith('application/') || contentType.startsWith('image/')) {
                 const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
                 const filename = filenameMatch ? filenameMatch[1] : 'attachment';
-                
-                const base64Content = contentTransferEncoding.toLowerCase() === 'base64' 
+
+                const base64Content = contentTransferEncoding.toLowerCase() === 'base64'
                     ? bodyContent.replace(/\s/g, '')
                     : Buffer.from(bodyContent).toString('base64');
 
@@ -18526,7 +18543,7 @@ function extractEml(fileBuffer) {
                     }
                 } else if (contentTransferEncoding.toLowerCase() === 'quoted-printable') {
                     content = content.replace(/=\r?\n/g, '')
-                        .replace(/=([0-9A-F]{2})/gi, (_, hex) => 
+                        .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
                             String.fromCharCode(parseInt(hex, 16))
                         );
                 }
@@ -18566,6 +18583,7 @@ function extractEml(fileBuffer) {
 module.exports = {
     extractMsg,
     extractEml
-}; 
+};
+
 }).call(this)}).call(this,require("buffer").Buffer)
 },{"@kenjiuno/decompressrtf":1,"@kenjiuno/msgreader":12,"buffer":16,"iconv-lite":39,"md5":44,"rtf-stream-parser":59}]},{},[86]);
