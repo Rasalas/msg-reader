@@ -74,30 +74,32 @@ function extractMsg(fileBuffer) {
                 // msgInfo.html is likely an object with numeric keys
                 htmlArr = Uint8Array.from(Object.values(msgInfo.html));
             }
-            // Try TextDecoder first, fallback to Buffer
+            // Choose charset via dual mapping for browser (TextDecoder) vs Node (iconv-lite)
+            // Unknown/unexpected codepages fall back to utf-8
+            const codepageMap = {
+                936: { td: 'gb18030', iconv: 'gb18030' },
+                950: { td: 'big5', iconv: 'big5' },
+                932: { td: 'shift_jis', iconv: 'shift_jis' },
+                949: { td: 'euc-kr', iconv: 'cp949' },
+                65001: { td: 'utf-8', iconv: 'utf-8' }
+                // 928: no verified mapping; intentionally omitted
+            };
+
+            const usingTextDecoder = (typeof TextDecoder !== 'undefined');
+            const targetKey = usingTextDecoder ? 'td' : 'iconv';
+            const preferredCharset = (codepageMap[msgInfo.internetCodepage] && codepageMap[msgInfo.internetCodepage][targetKey]) || 'utf-8';
+            const iconvCharset = (codepageMap[msgInfo.internetCodepage] && codepageMap[msgInfo.internetCodepage]['iconv']) || 'utf-8';
+
+            // Try TextDecoder first if available; fallback to iconv-lite for unsupported charsets
             let htmlStr = '';
-            let charset = 'utf-8';
-            if (msgInfo.internetCodepage === 936) {
-                charset = 'gbk'; // Simplified Chinese
-            } else if (msgInfo.internetCodepage === 950) {
-                charset = 'big5'; // Traditional Chinese
-            } else if (msgInfo.internetCodepage === 932) {
-                charset = 'shift_jis'; // Japanese
-            } else if (msgInfo.internetCodepage === 949) {
-                charset = 'cp949'; // Korean
-            } else if (msgInfo.internetCodepage === 928) {
-                charset = 'gb2312'; // Simplified Chinese
-            }
-            if (typeof TextDecoder !== 'undefined') {
+            if (usingTextDecoder) {
                 try {
-                    htmlStr = new TextDecoder(charset).decode(htmlArr);
+                    htmlStr = new TextDecoder(preferredCharset).decode(htmlArr);
                 } catch (e) {
-                    // Fallback for charsets not supported by TextDecoder
-                    htmlStr = iconvLite.decode(Buffer.from(htmlArr), charset);
+                    htmlStr = iconvLite.decode(Buffer.from(htmlArr), iconvCharset);
                 }
             } else {
-                // Node fallback: support broader set of encodings via iconv-lite
-                htmlStr = iconvLite.decode(Buffer.from(htmlArr), charset);
+                htmlStr = iconvLite.decode(Buffer.from(htmlArr), iconvCharset);
             }
             emailBodyContentHTML = htmlStr;
         } catch (err) {
