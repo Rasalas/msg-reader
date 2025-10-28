@@ -18244,14 +18244,20 @@ function extractMsg(fileBuffer) {
             } else if (msgInfo.internetCodepage === 932) {
                 charset = 'shift_jis'; // Japanese
             } else if (msgInfo.internetCodepage === 949) {
-                charset = 'euc-kr'; // Korean
+                charset = 'cp949'; // Korean
             } else if (msgInfo.internetCodepage === 928) {
                 charset = 'gb2312'; // Simplified Chinese
             }
             if (typeof TextDecoder !== 'undefined') {
-                htmlStr = new TextDecoder(charset).decode(htmlArr);
+                try {
+                    htmlStr = new TextDecoder(charset).decode(htmlArr);
+                } catch (e) {
+                    // Fallback for charsets not supported by TextDecoder
+                    htmlStr = iconvLite.decode(Buffer.from(htmlArr), charset);
+                }
             } else {
-                htmlStr = Buffer.from(htmlArr).toString(charset);
+                // Node fallback: support broader set of encodings via iconv-lite
+                htmlStr = iconvLite.decode(Buffer.from(htmlArr), charset);
             }
             emailBodyContentHTML = htmlStr;
         } catch (err) {
