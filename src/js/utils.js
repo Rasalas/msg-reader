@@ -84,21 +84,19 @@ function extractMsg(fileBuffer) {
                 65001: { td: 'utf-8', iconv: 'utf-8' }
                 // 928: no verified mapping; intentionally omitted
             };
-
             const usingTextDecoder = (typeof TextDecoder !== 'undefined');
             const targetKey = usingTextDecoder ? 'td' : 'iconv';
             const preferredCharset = (codepageMap[msgInfo.internetCodepage] && codepageMap[msgInfo.internetCodepage][targetKey]) || 'utf-8';
             const iconvCharset = (codepageMap[msgInfo.internetCodepage] && codepageMap[msgInfo.internetCodepage]['iconv']) || 'utf-8';
-
-            // Try TextDecoder first if available; fallback to iconv-lite for unsupported charsets
-            let htmlStr = '';
             if (usingTextDecoder) {
                 try {
                     htmlStr = new TextDecoder(preferredCharset).decode(htmlArr);
                 } catch (e) {
+                    // Fallback for charsets not supported by TextDecoder
                     htmlStr = iconvLite.decode(Buffer.from(htmlArr), iconvCharset);
                 }
             } else {
+                // Node fallback: support broader set of encodings via iconv-lite
                 htmlStr = iconvLite.decode(Buffer.from(htmlArr), iconvCharset);
             }
             emailBodyContentHTML = htmlStr;
