@@ -1,12 +1,12 @@
-Content-Type: multipart/mixed; boundary="===============3810389161130638196=="
+Content-Type: multipart/mixed; boundary="===============5210084813599448197=="
 MIME-Version: 1.0
 Subject: Found a bug in the compiler - nanoseconds matter!
 From: Grace Hopper <grace.hopper@cobol.mil>
 To: Alan Turing <alan.turing@enigma.gov.uk>
-Date: Wed, 18 Dec 2024 15:48:57 +0000
-Message-ID: <6270191@cobol.mil>
+Date: Wed, 10 Dec 2025 19:24:45 +0000
+Message-ID: <4453514@cobol.mil>
 
---===============3810389161130638196==
+--===============5210084813599448197==
 Content-Type: text/html; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
@@ -41,4 +41,26 @@ Content-Transfer-Encoding: 7bit
 </p>
 </body>
 </html>
---===============3810389161130638196==--
+--===============5210084813599448197==
+Content-Type: image/svg+xml
+MIME-Version: 1.0
+Content-Transfer-Encoding: base64
+Content-ID: <company-logo>
+Content-Disposition: inline
+
+PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMDAg
+MTAwIj4KICA8IS0tIEJhY2tncm91bmQgQ2FyZCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTAiIHdp
+ZHRoPSI4MCIgaGVpZ2h0PSI4MCIgcng9IjUiIGZpbGw9IiMwMDU2YjMiIC8+CiAgCiAgPCEtLSBQ
+dW5jaCBDYXJkIEhvbGVzIFBhdHRlcm4gLS0+CiAgPGcgZmlsbD0iI2ZmZmZmZiI+CiAgICA8Y2ly
+Y2xlIGN4PSIzMCIgY3k9IjMwIiByPSI0IiAvPgogICAgPGNpcmNsZSBjeD0iNTAiIGN5PSIzMCIg
+cj0iNCIgLz4KICAgIDxjaXJjbGUgY3g9IjcwIiBjeT0iMzAiIHI9IjQiIC8+CiAgICAKICAgIDxj
+aXJjbGUgY3g9IjMwIiBjeT0iNTAiIHI9IjQiIC8+CiAgICA8Y2lyY2xlIGN4PSI3MCIgY3k9IjUw
+IiByPSI0IiAvPgogICAgCiAgICA8Y2lyY2xlIGN4PSIzMCIgY3k9IjcwIiByPSI0IiAvPgogICAg
+PGNpcmNsZSBjeD0iNTAiIGN5PSI3MCIgcj0iNCIgLz4KICAgIDxjaXJjbGUgY3g9IjcwIiBjeT0i
+NzAiIHI9IjQiIC8+CiAgPC9nPgogIAogIDwhLS0gVGV4dCAtLT4KICA8dGV4dCB4PSIxMTAiIHk9
+IjQ1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSJib2xkIiBm
+b250LXNpemU9IjI4IiBmaWxsPSIjMDA1NmIzIj5DT0JPTDwvdGV4dD4KICA8dGV4dCB4PSIxMTAi
+IHk9Ijc1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTgiIGZp
+bGw9IiM2NjYiPlNZU1RFTVMgSU5DLjwvdGV4dD4KPC9zdmc+Cg==
+
+--===============5210084813599448197==--

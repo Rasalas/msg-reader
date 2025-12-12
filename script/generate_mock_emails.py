@@ -132,6 +132,10 @@ def get_company_logo(persona):
         logo_path = 'doc/res/logos/aes_logo.svg'
     elif persona['name'] == 'Alan Turing':
         logo_path = 'doc/res/logos/bpr_logo.svg'
+    elif persona['name'] == 'Charles Babbage':
+        logo_path = 'doc/res/logos/dew_logo.svg'
+    elif persona['name'] == 'Grace Hopper':
+        logo_path = 'doc/res/logos/csi_logo.svg'
     else:
         return None
         
@@ -200,8 +204,7 @@ def generate_mock_emails():
 
         # Get logo if needed
         logo_data = None
-        if email_data['needs_attachments']:
-            logo_data = get_company_logo(email_data['from'])
+        logo_data = get_company_logo(email_data['from'])
 
         # Create content based on email type
         if email_data['type'] == 'invoice':
