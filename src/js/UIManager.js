@@ -1,3 +1,5 @@
+const { sanitizeHTML } = require('./sanitizer');
+
 class UIManager {
     constructor(messageHandler) {
         this.messageHandler = messageHandler;
@@ -107,6 +109,9 @@ class UIManager {
             // Update the email content
             emailContent = tempDiv.innerHTML;
         }
+
+        // Sanitize HTML to prevent XSS attacks
+        emailContent = sanitizeHTML(emailContent);
 
         const messageContent = `
             <div class="message-header">
@@ -244,10 +249,12 @@ class UIManager {
             img.alt = attachment.fileName;
             this.attachmentModalContent.appendChild(img);
         } else if (this.isPdf(attachment.attachMimeTag)) {
-            const iframe = document.createElement('iframe');
-            iframe.src = attachment.contentBase64;
-            iframe.title = attachment.fileName;
-            this.attachmentModalContent.appendChild(iframe);
+            // Use object tag for better PDF compatibility with data: URLs
+            const pdfObject = document.createElement('object');
+            pdfObject.data = attachment.contentBase64;
+            pdfObject.type = 'application/pdf';
+            pdfObject.innerHTML = `<p class="text-center p-4">PDF kann nicht angezeigt werden. <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-blue-500 underline">Hier herunterladen</a></p>`;
+            this.attachmentModalContent.appendChild(pdfObject);
         } else if (this.isText(attachment.attachMimeTag)) {
             // Decode base64 to text
             const base64Data = attachment.contentBase64.split(',')[1];
@@ -410,6 +417,90 @@ class UIManager {
 
     hideDropOverlay() {
         this.dropOverlay.classList.remove('active');
+    }
+
+    /**
+     * Shows an error toast notification
+     * @param {string} message - Error message to display
+     * @param {number} [duration=5000] - Duration in ms before auto-dismiss
+     */
+    showError(message, duration = 5000) {
+        this.showToast(message, 'error', duration);
+    }
+
+    /**
+     * Shows a warning toast notification
+     * @param {string} message - Warning message to display
+     * @param {number} [duration=4000] - Duration in ms before auto-dismiss
+     */
+    showWarning(message, duration = 4000) {
+        this.showToast(message, 'warning', duration);
+    }
+
+    /**
+     * Shows an info toast notification
+     * @param {string} message - Info message to display
+     * @param {number} [duration=3000] - Duration in ms before auto-dismiss
+     */
+    showInfo(message, duration = 3000) {
+        this.showToast(message, 'info', duration);
+    }
+
+    /**
+     * Shows a toast notification
+     * @param {string} message - Message to display
+     * @param {string} type - Toast type: 'error', 'warning', 'info'
+     * @param {number} duration - Duration in ms
+     */
+    showToast(message, type = 'info', duration = 3000) {
+        // Create toast container if it doesn't exist
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'fixed bottom-4 right-4 z-50 flex flex-col gap-2';
+            document.body.appendChild(container);
+        }
+
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type} flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full opacity-0`;
+
+        // Set background color based on type
+        const bgColors = {
+            error: 'bg-red-500 text-white',
+            warning: 'bg-yellow-500 text-black',
+            info: 'bg-blue-500 text-white'
+        };
+        toast.className += ` ${bgColors[type] || bgColors.info}`;
+
+        // Add icon based on type
+        const icons = {
+            error: '<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+            warning: '<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>',
+            info: '<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+        };
+
+        toast.innerHTML = `
+            ${icons[type] || icons.info}
+            <span class="flex-grow">${message}</span>
+            <button class="ml-2 hover:opacity-75 focus:outline-none" onclick="this.parentElement.remove()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        `;
+
+        container.appendChild(toast);
+
+        // Animate in
+        requestAnimationFrame(() => {
+            toast.classList.remove('translate-x-full', 'opacity-0');
+        });
+
+        // Auto-dismiss
+        setTimeout(() => {
+            toast.classList.add('translate-x-full', 'opacity-0');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
     }
 }
 

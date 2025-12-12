@@ -4,20 +4,49 @@ const { deEncapsulateSync } = require('rtf-stream-parser');
 const iconvLite = require('iconv-lite');
 const md5 = require('md5');
 
+const { getCharsetFromCodepage, extractCharset, extractBoundary, extractFilename } = require('./helpers');
+const { PLACEHOLDER_IMAGE_SVG } = require('./constants');
+const { replaceCidReferences } = require('./cidReplacer');
+
 // Export md5 for global use
 window.md5 = md5;
 
-// Function to sanitize attachment filenames (removes null terminators, control characters, BOM)
+/**
+ * Sanitizes attachment filenames to prevent path traversal attacks
+ * and remove dangerous characters
+ * @param {string} filename - The original filename
+ * @returns {string} Sanitized filename safe for filesystem operations
+ */
 function sanitizeFilename(filename) {
     if (!filename) return 'attachment';
-    return filename
-        .replace(/[\x00-\x1f\x7f]/g, '')  // Remove control characters (including null)
+
+    let sanitized = filename
+        // Remove path traversal sequences
+        .replace(/\.\.\//g, '')            // Remove ../
+        .replace(/\.\.\\/g, '')            // Remove ..\
+        .replace(/^\/+/g, '')              // Remove leading forward slashes
+        .replace(/^[A-Za-z]:[\\\/]/g, '')  // Remove Windows drive letters (C:\, D:/)
+        // Remove control characters
+        .replace(/[\x00-\x1f\x7f]/g, '')   // Remove control characters (including null)
         .replace(/\ufeff/g, '')            // Remove UTF-16 BOM
         .replace(/\ufffd/g, '')            // Remove replacement character
+        // Replace Windows reserved characters
+        .replace(/[<>:"|?*]/g, '_')        // Replace chars invalid in Windows filenames
         .trim();
+
+    // Extract only the filename (remove any remaining path components)
+    sanitized = sanitized.split('/').pop().split('\\').pop();
+
+    // Ensure we have a valid filename
+    return sanitized || 'attachment';
 }
 
-// Function to decode MIME encoded-word format
+/**
+ * Decodes MIME encoded-word format strings (RFC 2047)
+ * Handles both Base64 (B) and Quoted-Printable (Q) encodings
+ * @param {string} str - String containing encoded words (e.g., "=?UTF-8?B?SGVsbG8=?=")
+ * @returns {string} Decoded string
+ */
 function decodeMIMEWord(str) {
     if (!str) return '';
 
@@ -43,6 +72,11 @@ function decodeMIMEWord(str) {
     });
 }
 
+/**
+ * Extracts email data from a Microsoft Outlook MSG file
+ * @param {ArrayBuffer} fileBuffer - The raw MSG file content
+ * @returns {Object|null} Parsed email object with subject, sender, recipients, body, attachments
+ */
 function extractMsg(fileBuffer) {
     let msgInfo = null;
     let msgReader = null;
@@ -86,18 +120,7 @@ function extractMsg(fileBuffer) {
             }
             // Try TextDecoder first, fallback to Buffer
             let htmlStr = '';
-            let charset = 'utf-8';
-            if (msgInfo.internetCodepage === 936) {
-                charset = 'gbk'; // Simplified Chinese
-            } else if (msgInfo.internetCodepage === 950) {
-                charset = 'big5'; // Traditional Chinese
-            } else if (msgInfo.internetCodepage === 932) {
-                charset = 'shift_jis'; // Japanese
-            } else if (msgInfo.internetCodepage === 949) {
-                charset = 'cp949'; // Korean
-            } else if (msgInfo.internetCodepage === 928) {
-                charset = 'gb2312'; // Simplified Chinese
-            }
+            const charset = getCharsetFromCodepage(msgInfo.internetCodepage);
             if (typeof TextDecoder !== 'undefined') {
                 try {
                     htmlStr = new TextDecoder(charset).decode(htmlArr);
@@ -133,82 +156,8 @@ function extractMsg(fileBuffer) {
             msgInfo.attachments[index].fileName = sanitizeFilename(attachment.fileName);
         });
 
-        // Second pass: replace CID references in HTML with base64 data
-        msgInfo.attachments.forEach((attachment) => {
-            const base64String = attachment.contentBase64;
-
-            // Get Content-ID from pidContentId or contentId field
-            const contentId = attachment.pidContentId || attachment.contentId || '';
-            const fileName = attachment.fileName || '';
-
-            // Helper to escape regex special characters
-            const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-            // Helper to try URL-decoded version of a pattern
-            const tryUrlDecoded = (str) => {
-                try {
-                    const decoded = decodeURIComponent(str);
-                    return decoded !== str ? decoded : null;
-                } catch (e) {
-                    return null;
-                }
-            };
-
-            if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
-                const cidIdWithoutBrackets = contentId ? contentId.replace(/[<>]/g, '').trim() : '';
-                const urlDecodedCid = cidIdWithoutBrackets ? tryUrlDecoded(cidIdWithoutBrackets) : null;
-
-                // Build comprehensive list of CID patterns
-                const cidPatterns = [];
-
-                if (cidIdWithoutBrackets) {
-                    // Standard cid: patterns
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                    cidPatterns.push(`src=["']?cid:<${escapeRegex(cidIdWithoutBrackets)}>["']?`);
-                    // Without cid: prefix
-                    cidPatterns.push(`src=["']?${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                    // Broad pattern for cid: with trailing content (e.g., cid:id@domain:1)
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}[^"'\\s>]*["']?`);
-
-                    // URL-decoded version if different
-                    if (urlDecodedCid) {
-                        cidPatterns.push(`src=["']?cid:${escapeRegex(urlDecodedCid)}["']?`);
-                        cidPatterns.push(`src=["']?${escapeRegex(urlDecodedCid)}["']?`);
-                    }
-                }
-
-                // Filename-based patterns (fallback when CID is missing or doesn't match)
-                if (fileName) {
-                    // cid:filename.ext pattern (common in Outlook)
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}["']?`);
-                    // cid:filename.ext with trailing content (e.g., cid:image001.jpg@01D9D85E)
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}[^"'\\s>]*["']?`);
-                    // Just filename (relative reference)
-                    cidPatterns.push(`src=["']?${escapeRegex(fileName)}["']?`);
-                }
-
-                // Apply all patterns
-                cidPatterns.forEach(pattern => {
-                    emailBodyContentHTML = emailBodyContentHTML.replace(
-                        new RegExp(pattern, 'gi'),
-                        `src="${base64String}"`
-                    );
-                });
-            } else if (contentId) {
-                // Non-image attachments: replace href references
-                const cidIdWithoutBrackets = contentId.replace(/[<>]/g, '').trim();
-                emailBodyContentHTML = emailBodyContentHTML.replace(
-                    new RegExp(`href=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`, 'gi'),
-                    `href="${base64String}"`
-                );
-            }
-        });
-
-        // Replace remaining cid: references with placeholder for missing images
-        emailBodyContentHTML = emailBodyContentHTML.replace(
-            /src=["']?cid:[^"'\s>]+["']?/gi,
-            'src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+"'
-        );
+        // Replace CID references in HTML with base64 attachment data
+        emailBodyContentHTML = replaceCidReferences(emailBodyContentHTML, msgInfo.attachments);
     }
 
     return msgInfo ? {
@@ -218,12 +167,22 @@ function extractMsg(fileBuffer) {
     } : null;
 }
 
-// Function for converting the decompressed RTF content to HTML
+/**
+ * Converts decompressed RTF content to HTML
+ * @param {string} rtfContent - Decompressed RTF content
+ * @returns {string} HTML representation of the RTF content
+ */
 function convertRTFToHTML(rtfContent) {
     const result = deEncapsulateSync(rtfContent, { decode: iconvLite.decode });
     return result.text;
 }
 
+/**
+ * Extracts email data from an EML (RFC 5322) file
+ * @param {ArrayBuffer} fileBuffer - The raw EML file content
+ * @returns {Object} Parsed email object with subject, sender, recipients, body, attachments
+ * @throws {Error} If the EML file cannot be parsed
+ */
 function extractEml(fileBuffer) {
     try {
         // Convert ArrayBuffer to String
@@ -402,74 +361,9 @@ function extractEml(fileBuffer) {
 
         if (boundaryMatch) {
             results = parseMultipartContent(bodyContent, boundaryMatch[1], 0, detectedCharset);
-            // Now perform CID replacement after all attachments have been collected
+            // Replace CID references with base64 attachment data
             if (results.bodyHTML && results.attachments.length > 0) {
-                // Helper to escape regex special characters
-                const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-                // Helper to try URL-decoded version of a pattern
-                const tryUrlDecoded = (str) => {
-                    try {
-                        const decoded = decodeURIComponent(str);
-                        return decoded !== str ? decoded : null;
-                    } catch (e) {
-                        return null;
-                    }
-                };
-
-                // Replace CID references with attachment content
-                results.attachments.forEach(attachment => {
-                    if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
-                        const contentId = attachment.contentId || '';
-                        const fileName = attachment.fileName || '';
-                        const cidIdWithoutBrackets = contentId ? contentId.replace(/[<>]/g, '').trim() : '';
-                        const urlDecodedCid = cidIdWithoutBrackets ? tryUrlDecoded(cidIdWithoutBrackets) : null;
-
-                        // Build comprehensive list of CID patterns
-                        const cidPatterns = [];
-
-                        if (cidIdWithoutBrackets) {
-                            // Standard cid: patterns
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                            cidPatterns.push(`src=["']?cid:<${escapeRegex(cidIdWithoutBrackets)}>["']?`);
-                            // Without cid: prefix
-                            cidPatterns.push(`src=["']?${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                            // With trailing content (e.g., cid:id@domain:1)
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}[^"'\\s>]*["']?`);
-
-                            // URL-decoded version if different
-                            if (urlDecodedCid) {
-                                cidPatterns.push(`src=["']?cid:${escapeRegex(urlDecodedCid)}["']?`);
-                                cidPatterns.push(`src=["']?${escapeRegex(urlDecodedCid)}["']?`);
-                            }
-                        }
-
-                        // Filename-based patterns (fallback when CID is missing or doesn't match)
-                        if (fileName) {
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}["']?`);
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}[^"'\\s>]*["']?`);
-                            cidPatterns.push(`src=["']?${escapeRegex(fileName)}["']?`);
-                        }
-
-                        // Apply all patterns
-                        cidPatterns.forEach(pattern => {
-                            results.bodyHTML = results.bodyHTML.replace(
-                                new RegExp(pattern, 'gi'),
-                                `src="${attachment.contentBase64}"`
-                            );
-                        });
-                    } else if (attachment.contentId) {
-                        // Non-image attachments: replace href references
-                        const cidIdWithoutBrackets = attachment.contentId.replace(/[<>]/g, '').trim();
-                        results.bodyHTML = results.bodyHTML.replace(
-                            new RegExp(`href=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`, 'gi'),
-                            `href="${attachment.contentBase64}"`
-                        );
-                    }
-                });
-
-                // Replace remaining cid: references only if no matching attachment was found
-                results.bodyHTML = results.bodyHTML.replace(/src=["']?cid:[^"'\s>]+["']?/gi, 'src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+"');
+                results.bodyHTML = replaceCidReferences(results.bodyHTML, results.attachments);
             }
         } else {
             // Single part handling

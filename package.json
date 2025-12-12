@@ -12,7 +12,10 @@
     "dev": "concurrently \"npm run watch\" \"live-server --watch=dist --port=8080\"",
     "start": "npm run build && npx live-server dist --port=8080",
     "build-gh-pages": "npm run build && rm -rf .gh-pages && mkdir -p .gh-pages && cp -r dist .gh-pages/ && cp index.html .gh-pages/ && cp -r res .gh-pages/ && cp -r doc .gh-pages/ && cp tailwind.config.js .gh-pages/ && cp postcss.config.js .gh-pages/",
-    "deploy": "npm run build-gh-pages && gh-pages -d .gh-pages"
+    "deploy": "npm run build-gh-pages && gh-pages -d .gh-pages",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +24,7 @@
   "dependencies": {
     "@kenjiuno/decompressrtf": "^0.1.4",
     "@kenjiuno/msgreader": "^1.22.0",
+    "dompurify": "^3.3.1",
     "emailjs-mime-codec": "^2.0.9",
     "iconv-lite": "^0.6.3",
     "md5": "^2.3.0",
@@ -32,6 +36,8 @@
     "concurrently": "^8.2.2",
     "cpx": "^1.5.0",
     "gh-pages": "^6.1.1",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "live-server": "^1.2.2",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.0",

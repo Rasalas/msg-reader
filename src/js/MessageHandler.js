@@ -1,8 +1,19 @@
+const { storage } = require('./storage');
+
+/**
+ * Manages email messages and their state
+ * Handles message storage, pinning, sorting, and current selection
+ */
 class MessageHandler {
-    constructor() {
+    /**
+     * Creates a new MessageHandler instance
+     * @param {Storage} [storageInstance] - Optional storage instance for dependency injection
+     */
+    constructor(storageInstance = null) {
+        this.storage = storageInstance || storage;
         this.messages = [];
         this.currentMessage = null;
-        this.pinnedMessages = new Set(JSON.parse(localStorage.getItem('pinnedMessages') || '[]'));
+        this.pinnedMessages = new Set(this.storage.get('pinnedMessages', []));
     }
 
     addMessage(msgInfo, fileName) {
@@ -69,7 +80,7 @@ class MessageHandler {
     }
 
     savePinnedMessages() {
-        localStorage.setItem('pinnedMessages', JSON.stringify([...this.pinnedMessages]));
+        this.storage.set('pinnedMessages', [...this.pinnedMessages]);
     }
 
     setCurrentMessage(message) {

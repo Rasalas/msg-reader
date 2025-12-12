@@ -398,11 +398,13 @@
         object-fit: contain;
     }
 
-    .attachment-modal-content:has(iframe) {
+    .attachment-modal-content:has(iframe),
+    .attachment-modal-content:has(object) {
         padding: 0;
     }
 
-    .attachment-modal-content iframe {
+    .attachment-modal-content iframe,
+    .attachment-modal-content object {
         width: 80vw;
         height: 80vh;
         border: none;
