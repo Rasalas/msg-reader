@@ -1,12 +1,12 @@
-Content-Type: multipart/mixed; boundary="===============4674224405783213946=="
+Content-Type: multipart/mixed; boundary="===============8639564614965789441=="
 MIME-Version: 1.0
 Subject: Found a bug in the compiler - nanoseconds matter!
 From: Grace Hopper <grace.hopper@cobol.mil>
 To: Alan Turing <alan.turing@enigma.gov.uk>
-Date: Wed, 10 Dec 2025 21:57:14 +0000
-Message-ID: <8495648@cobol.mil>
+Date: Wed, 10 Dec 2025 22:37:04 +0000
+Message-ID: <7189217@cobol.mil>
 
---===============4674224405783213946==
+--===============8639564614965789441==
 Content-Type: text/html; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
@@ -14,7 +14,7 @@ Content-Transfer-Encoding: 7bit
 <!DOCTYPE html><html><body style="font-family: Arial; padding: 20px;">
                 <p>Dear Alan Turing,</p><p>Found a bug in the compiler.</p>
                 <img src="cid:company-logo" style="max-width: 200px;"></body></html>
---===============4674224405783213946==
+--===============8639564614965789441==
 Content-Type: image/svg+xml
 MIME-Version: 1.0
 Content-Transfer-Encoding: base64
@@ -36,4 +36,4 @@ b250LXNpemU9IjI4IiBmaWxsPSIjMDA1NmIzIj5DT0JPTDwvdGV4dD4KICA8dGV4dCB4PSIxMTAi
 IHk9Ijc1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTgiIGZp
 bGw9IiM2NjYiPlNZU1RFTVMgSU5DLjwvdGV4dD4KPC9zdmc+Cg==
 
---===============4674224405783213946==--
+--===============8639564614965789441==--

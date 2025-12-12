@@ -2372,7 +2372,7 @@ if (Uint8Array.prototype.BYTES_PER_ELEMENT === undefined) {
     Object.defineProperties(Float64Array.prototype, { BYTES_PER_ELEMENT: { value: Float64Array.BYTES_PER_ELEMENT } });
 }
 
-},{"iconv-lite":39}],5:[function(require,module,exports){
+},{"iconv-lite":40}],5:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -5784,7 +5784,7 @@ function numberIsNaN (obj) {
 }
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"base64-js":14,"buffer":16,"ieee754":41}],17:[function(require,module,exports){
+},{"base64-js":14,"buffer":16,"ieee754":42}],17:[function(require,module,exports){
 var charenc = {
   // UTF-8 encoding
   utf8: {
@@ -5918,6 +5918,1402 @@ module.exports = charenc;
 })();
 
 },{}],19:[function(require,module,exports){
+/*! @license DOMPurify 3.3.1 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.3.1/LICENSE */
+
+(function (global, factory) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
+  typeof define === 'function' && define.amd ? define(factory) :
+  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.DOMPurify = factory());
+})(this, (function () { 'use strict';
+
+  const {
+    entries,
+    setPrototypeOf,
+    isFrozen,
+    getPrototypeOf,
+    getOwnPropertyDescriptor
+  } = Object;
+  let {
+    freeze,
+    seal,
+    create
+  } = Object; // eslint-disable-line import/no-mutable-exports
+  let {
+    apply,
+    construct
+  } = typeof Reflect !== 'undefined' && Reflect;
+  if (!freeze) {
+    freeze = function freeze(x) {
+      return x;
+    };
+  }
+  if (!seal) {
+    seal = function seal(x) {
+      return x;
+    };
+  }
+  if (!apply) {
+    apply = function apply(func, thisArg) {
+      for (var _len = arguments.length, args = new Array(_len > 2 ? _len - 2 : 0), _key = 2; _key < _len; _key++) {
+        args[_key - 2] = arguments[_key];
+      }
+      return func.apply(thisArg, args);
+    };
+  }
+  if (!construct) {
+    construct = function construct(Func) {
+      for (var _len2 = arguments.length, args = new Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
+        args[_key2 - 1] = arguments[_key2];
+      }
+      return new Func(...args);
+    };
+  }
+  const arrayForEach = unapply(Array.prototype.forEach);
+  const arrayLastIndexOf = unapply(Array.prototype.lastIndexOf);
+  const arrayPop = unapply(Array.prototype.pop);
+  const arrayPush = unapply(Array.prototype.push);
+  const arraySplice = unapply(Array.prototype.splice);
+  const stringToLowerCase = unapply(String.prototype.toLowerCase);
+  const stringToString = unapply(String.prototype.toString);
+  const stringMatch = unapply(String.prototype.match);
+  const stringReplace = unapply(String.prototype.replace);
+  const stringIndexOf = unapply(String.prototype.indexOf);
+  const stringTrim = unapply(String.prototype.trim);
+  const objectHasOwnProperty = unapply(Object.prototype.hasOwnProperty);
+  const regExpTest = unapply(RegExp.prototype.test);
+  const typeErrorCreate = unconstruct(TypeError);
+  /**
+   * Creates a new function that calls the given function with a specified thisArg and arguments.
+   *
+   * @param func - The function to be wrapped and called.
+   * @returns A new function that calls the given function with a specified thisArg and arguments.
+   */
+  function unapply(func) {
+    return function (thisArg) {
+      if (thisArg instanceof RegExp) {
+        thisArg.lastIndex = 0;
+      }
+      for (var _len3 = arguments.length, args = new Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
+        args[_key3 - 1] = arguments[_key3];
+      }
+      return apply(func, thisArg, args);
+    };
+  }
+  /**
+   * Creates a new function that constructs an instance of the given constructor function with the provided arguments.
+   *
+   * @param func - The constructor function to be wrapped and called.
+   * @returns A new function that constructs an instance of the given constructor function with the provided arguments.
+   */
+  function unconstruct(Func) {
+    return function () {
+      for (var _len4 = arguments.length, args = new Array(_len4), _key4 = 0; _key4 < _len4; _key4++) {
+        args[_key4] = arguments[_key4];
+      }
+      return construct(Func, args);
+    };
+  }
+  /**
+   * Add properties to a lookup table
+   *
+   * @param set - The set to which elements will be added.
+   * @param array - The array containing elements to be added to the set.
+   * @param transformCaseFunc - An optional function to transform the case of each element before adding to the set.
+   * @returns The modified set with added elements.
+   */
+  function addToSet(set, array) {
+    let transformCaseFunc = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : stringToLowerCase;
+    if (setPrototypeOf) {
+      // Make 'in' and truthy checks like Boolean(set.constructor)
+      // independent of any properties defined on Object.prototype.
+      // Prevent prototype setters from intercepting set as a this value.
+      setPrototypeOf(set, null);
+    }
+    let l = array.length;
+    while (l--) {
+      let element = array[l];
+      if (typeof element === 'string') {
+        const lcElement = transformCaseFunc(element);
+        if (lcElement !== element) {
+          // Config presets (e.g. tags.js, attrs.js) are immutable.
+          if (!isFrozen(array)) {
+            array[l] = lcElement;
+          }
+          element = lcElement;
+        }
+      }
+      set[element] = true;
+    }
+    return set;
+  }
+  /**
+   * Clean up an array to harden against CSPP
+   *
+   * @param array - The array to be cleaned.
+   * @returns The cleaned version of the array
+   */
+  function cleanArray(array) {
+    for (let index = 0; index < array.length; index++) {
+      const isPropertyExist = objectHasOwnProperty(array, index);
+      if (!isPropertyExist) {
+        array[index] = null;
+      }
+    }
+    return array;
+  }
+  /**
+   * Shallow clone an object
+   *
+   * @param object - The object to be cloned.
+   * @returns A new object that copies the original.
+   */
+  function clone(object) {
+    const newObject = create(null);
+    for (const [property, value] of entries(object)) {
+      const isPropertyExist = objectHasOwnProperty(object, property);
+      if (isPropertyExist) {
+        if (Array.isArray(value)) {
+          newObject[property] = cleanArray(value);
+        } else if (value && typeof value === 'object' && value.constructor === Object) {
+          newObject[property] = clone(value);
+        } else {
+          newObject[property] = value;
+        }
+      }
+    }
+    return newObject;
+  }
+  /**
+   * This method automatically checks if the prop is function or getter and behaves accordingly.
+   *
+   * @param object - The object to look up the getter function in its prototype chain.
+   * @param prop - The property name for which to find the getter function.
+   * @returns The getter function found in the prototype chain or a fallback function.
+   */
+  function lookupGetter(object, prop) {
+    while (object !== null) {
+      const desc = getOwnPropertyDescriptor(object, prop);
+      if (desc) {
+        if (desc.get) {
+          return unapply(desc.get);
+        }
+        if (typeof desc.value === 'function') {
+          return unapply(desc.value);
+        }
+      }
+      object = getPrototypeOf(object);
+    }
+    function fallbackValue() {
+      return null;
+    }
+    return fallbackValue;
+  }
+
+  const html$1 = freeze(['a', 'abbr', 'acronym', 'address', 'area', 'article', 'aside', 'audio', 'b', 'bdi', 'bdo', 'big', 'blink', 'blockquote', 'body', 'br', 'button', 'canvas', 'caption', 'center', 'cite', 'code', 'col', 'colgroup', 'content', 'data', 'datalist', 'dd', 'decorator', 'del', 'details', 'dfn', 'dialog', 'dir', 'div', 'dl', 'dt', 'element', 'em', 'fieldset', 'figcaption', 'figure', 'font', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hgroup', 'hr', 'html', 'i', 'img', 'input', 'ins', 'kbd', 'label', 'legend', 'li', 'main', 'map', 'mark', 'marquee', 'menu', 'menuitem', 'meter', 'nav', 'nobr', 'ol', 'optgroup', 'option', 'output', 'p', 'picture', 'pre', 'progress', 'q', 'rp', 'rt', 'ruby', 's', 'samp', 'search', 'section', 'select', 'shadow', 'slot', 'small', 'source', 'spacer', 'span', 'strike', 'strong', 'style', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th', 'thead', 'time', 'tr', 'track', 'tt', 'u', 'ul', 'var', 'video', 'wbr']);
+  const svg$1 = freeze(['svg', 'a', 'altglyph', 'altglyphdef', 'altglyphitem', 'animatecolor', 'animatemotion', 'animatetransform', 'circle', 'clippath', 'defs', 'desc', 'ellipse', 'enterkeyhint', 'exportparts', 'filter', 'font', 'g', 'glyph', 'glyphref', 'hkern', 'image', 'inputmode', 'line', 'lineargradient', 'marker', 'mask', 'metadata', 'mpath', 'part', 'path', 'pattern', 'polygon', 'polyline', 'radialgradient', 'rect', 'stop', 'style', 'switch', 'symbol', 'text', 'textpath', 'title', 'tref', 'tspan', 'view', 'vkern']);
+  const svgFilters = freeze(['feBlend', 'feColorMatrix', 'feComponentTransfer', 'feComposite', 'feConvolveMatrix', 'feDiffuseLighting', 'feDisplacementMap', 'feDistantLight', 'feDropShadow', 'feFlood', 'feFuncA', 'feFuncB', 'feFuncG', 'feFuncR', 'feGaussianBlur', 'feImage', 'feMerge', 'feMergeNode', 'feMorphology', 'feOffset', 'fePointLight', 'feSpecularLighting', 'feSpotLight', 'feTile', 'feTurbulence']);
+  // List of SVG elements that are disallowed by default.
+  // We still need to know them so that we can do namespace
+  // checks properly in case one wants to add them to
+  // allow-list.
+  const svgDisallowed = freeze(['animate', 'color-profile', 'cursor', 'discard', 'font-face', 'font-face-format', 'font-face-name', 'font-face-src', 'font-face-uri', 'foreignobject', 'hatch', 'hatchpath', 'mesh', 'meshgradient', 'meshpatch', 'meshrow', 'missing-glyph', 'script', 'set', 'solidcolor', 'unknown', 'use']);
+  const mathMl$1 = freeze(['math', 'menclose', 'merror', 'mfenced', 'mfrac', 'mglyph', 'mi', 'mlabeledtr', 'mmultiscripts', 'mn', 'mo', 'mover', 'mpadded', 'mphantom', 'mroot', 'mrow', 'ms', 'mspace', 'msqrt', 'mstyle', 'msub', 'msup', 'msubsup', 'mtable', 'mtd', 'mtext', 'mtr', 'munder', 'munderover', 'mprescripts']);
+  // Similarly to SVG, we want to know all MathML elements,
+  // even those that we disallow by default.
+  const mathMlDisallowed = freeze(['maction', 'maligngroup', 'malignmark', 'mlongdiv', 'mscarries', 'mscarry', 'msgroup', 'mstack', 'msline', 'msrow', 'semantics', 'annotation', 'annotation-xml', 'mprescripts', 'none']);
+  const text = freeze(['#text']);
+
+  const html = freeze(['accept', 'action', 'align', 'alt', 'autocapitalize', 'autocomplete', 'autopictureinpicture', 'autoplay', 'background', 'bgcolor', 'border', 'capture', 'cellpadding', 'cellspacing', 'checked', 'cite', 'class', 'clear', 'color', 'cols', 'colspan', 'controls', 'controlslist', 'coords', 'crossorigin', 'datetime', 'decoding', 'default', 'dir', 'disabled', 'disablepictureinpicture', 'disableremoteplayback', 'download', 'draggable', 'enctype', 'enterkeyhint', 'exportparts', 'face', 'for', 'headers', 'height', 'hidden', 'high', 'href', 'hreflang', 'id', 'inert', 'inputmode', 'integrity', 'ismap', 'kind', 'label', 'lang', 'list', 'loading', 'loop', 'low', 'max', 'maxlength', 'media', 'method', 'min', 'minlength', 'multiple', 'muted', 'name', 'nonce', 'noshade', 'novalidate', 'nowrap', 'open', 'optimum', 'part', 'pattern', 'placeholder', 'playsinline', 'popover', 'popovertarget', 'popovertargetaction', 'poster', 'preload', 'pubdate', 'radiogroup', 'readonly', 'rel', 'required', 'rev', 'reversed', 'role', 'rows', 'rowspan', 'spellcheck', 'scope', 'selected', 'shape', 'size', 'sizes', 'slot', 'span', 'srclang', 'start', 'src', 'srcset', 'step', 'style', 'summary', 'tabindex', 'title', 'translate', 'type', 'usemap', 'valign', 'value', 'width', 'wrap', 'xmlns', 'slot']);
+  const svg = freeze(['accent-height', 'accumulate', 'additive', 'alignment-baseline', 'amplitude', 'ascent', 'attributename', 'attributetype', 'azimuth', 'basefrequency', 'baseline-shift', 'begin', 'bias', 'by', 'class', 'clip', 'clippathunits', 'clip-path', 'clip-rule', 'color', 'color-interpolation', 'color-interpolation-filters', 'color-profile', 'color-rendering', 'cx', 'cy', 'd', 'dx', 'dy', 'diffuseconstant', 'direction', 'display', 'divisor', 'dur', 'edgemode', 'elevation', 'end', 'exponent', 'fill', 'fill-opacity', 'fill-rule', 'filter', 'filterunits', 'flood-color', 'flood-opacity', 'font-family', 'font-size', 'font-size-adjust', 'font-stretch', 'font-style', 'font-variant', 'font-weight', 'fx', 'fy', 'g1', 'g2', 'glyph-name', 'glyphref', 'gradientunits', 'gradienttransform', 'height', 'href', 'id', 'image-rendering', 'in', 'in2', 'intercept', 'k', 'k1', 'k2', 'k3', 'k4', 'kerning', 'keypoints', 'keysplines', 'keytimes', 'lang', 'lengthadjust', 'letter-spacing', 'kernelmatrix', 'kernelunitlength', 'lighting-color', 'local', 'marker-end', 'marker-mid', 'marker-start', 'markerheight', 'markerunits', 'markerwidth', 'maskcontentunits', 'maskunits', 'max', 'mask', 'mask-type', 'media', 'method', 'mode', 'min', 'name', 'numoctaves', 'offset', 'operator', 'opacity', 'order', 'orient', 'orientation', 'origin', 'overflow', 'paint-order', 'path', 'pathlength', 'patterncontentunits', 'patterntransform', 'patternunits', 'points', 'preservealpha', 'preserveaspectratio', 'primitiveunits', 'r', 'rx', 'ry', 'radius', 'refx', 'refy', 'repeatcount', 'repeatdur', 'restart', 'result', 'rotate', 'scale', 'seed', 'shape-rendering', 'slope', 'specularconstant', 'specularexponent', 'spreadmethod', 'startoffset', 'stddeviation', 'stitchtiles', 'stop-color', 'stop-opacity', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-opacity', 'stroke', 'stroke-width', 'style', 'surfacescale', 'systemlanguage', 'tabindex', 'tablevalues', 'targetx', 'targety', 'transform', 'transform-origin', 'text-anchor', 'text-decoration', 'text-rendering', 'textlength', 'type', 'u1', 'u2', 'unicode', 'values', 'viewbox', 'visibility', 'version', 'vert-adv-y', 'vert-origin-x', 'vert-origin-y', 'width', 'word-spacing', 'wrap', 'writing-mode', 'xchannelselector', 'ychannelselector', 'x', 'x1', 'x2', 'xmlns', 'y', 'y1', 'y2', 'z', 'zoomandpan']);
+  const mathMl = freeze(['accent', 'accentunder', 'align', 'bevelled', 'close', 'columnsalign', 'columnlines', 'columnspan', 'denomalign', 'depth', 'dir', 'display', 'displaystyle', 'encoding', 'fence', 'frame', 'height', 'href', 'id', 'largeop', 'length', 'linethickness', 'lspace', 'lquote', 'mathbackground', 'mathcolor', 'mathsize', 'mathvariant', 'maxsize', 'minsize', 'movablelimits', 'notation', 'numalign', 'open', 'rowalign', 'rowlines', 'rowspacing', 'rowspan', 'rspace', 'rquote', 'scriptlevel', 'scriptminsize', 'scriptsizemultiplier', 'selection', 'separator', 'separators', 'stretchy', 'subscriptshift', 'supscriptshift', 'symmetric', 'voffset', 'width', 'xmlns']);
+  const xml = freeze(['xlink:href', 'xml:id', 'xlink:title', 'xml:space', 'xmlns:xlink']);
+
+  // eslint-disable-next-line unicorn/better-regex
+  const MUSTACHE_EXPR = seal(/\{\{[\w\W]*|[\w\W]*\}\}/gm); // Specify template detection regex for SAFE_FOR_TEMPLATES mode
+  const ERB_EXPR = seal(/<%[\w\W]*|[\w\W]*%>/gm);
+  const TMPLIT_EXPR = seal(/\$\{[\w\W]*/gm); // eslint-disable-line unicorn/better-regex
+  const DATA_ATTR = seal(/^data-[\-\w.\u00B7-\uFFFF]+$/); // eslint-disable-line no-useless-escape
+  const ARIA_ATTR = seal(/^aria-[\-\w]+$/); // eslint-disable-line no-useless-escape
+  const IS_ALLOWED_URI = seal(/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i // eslint-disable-line no-useless-escape
+  );
+  const IS_SCRIPT_OR_DATA = seal(/^(?:\w+script|data):/i);
+  const ATTR_WHITESPACE = seal(/[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g // eslint-disable-line no-control-regex
+  );
+  const DOCTYPE_NAME = seal(/^html$/i);
+  const CUSTOM_ELEMENT = seal(/^[a-z][.\w]*(-[.\w]+)+$/i);
+
+  var EXPRESSIONS = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    ARIA_ATTR: ARIA_ATTR,
+    ATTR_WHITESPACE: ATTR_WHITESPACE,
+    CUSTOM_ELEMENT: CUSTOM_ELEMENT,
+    DATA_ATTR: DATA_ATTR,
+    DOCTYPE_NAME: DOCTYPE_NAME,
+    ERB_EXPR: ERB_EXPR,
+    IS_ALLOWED_URI: IS_ALLOWED_URI,
+    IS_SCRIPT_OR_DATA: IS_SCRIPT_OR_DATA,
+    MUSTACHE_EXPR: MUSTACHE_EXPR,
+    TMPLIT_EXPR: TMPLIT_EXPR
+  });
+
+  /* eslint-disable @typescript-eslint/indent */
+  // https://developer.mozilla.org/en-US/docs/Web/API/Node/nodeType
+  const NODE_TYPE = {
+    element: 1,
+    attribute: 2,
+    text: 3,
+    cdataSection: 4,
+    entityReference: 5,
+    // Deprecated
+    entityNode: 6,
+    // Deprecated
+    progressingInstruction: 7,
+    comment: 8,
+    document: 9,
+    documentType: 10,
+    documentFragment: 11,
+    notation: 12 // Deprecated
+  };
+  const getGlobal = function getGlobal() {
+    return typeof window === 'undefined' ? null : window;
+  };
+  /**
+   * Creates a no-op policy for internal use only.
+   * Don't export this function outside this module!
+   * @param trustedTypes The policy factory.
+   * @param purifyHostElement The Script element used to load DOMPurify (to determine policy name suffix).
+   * @return The policy created (or null, if Trusted Types
+   * are not supported or creating the policy failed).
+   */
+  const _createTrustedTypesPolicy = function _createTrustedTypesPolicy(trustedTypes, purifyHostElement) {
+    if (typeof trustedTypes !== 'object' || typeof trustedTypes.createPolicy !== 'function') {
+      return null;
+    }
+    // Allow the callers to control the unique policy name
+    // by adding a data-tt-policy-suffix to the script element with the DOMPurify.
+    // Policy creation with duplicate names throws in Trusted Types.
+    let suffix = null;
+    const ATTR_NAME = 'data-tt-policy-suffix';
+    if (purifyHostElement && purifyHostElement.hasAttribute(ATTR_NAME)) {
+      suffix = purifyHostElement.getAttribute(ATTR_NAME);
+    }
+    const policyName = 'dompurify' + (suffix ? '#' + suffix : '');
+    try {
+      return trustedTypes.createPolicy(policyName, {
+        createHTML(html) {
+          return html;
+        },
+        createScriptURL(scriptUrl) {
+          return scriptUrl;
+        }
+      });
+    } catch (_) {
+      // Policy creation failed (most likely another DOMPurify script has
+      // already run). Skip creating the policy, as this will only cause errors
+      // if TT are enforced.
+      console.warn('TrustedTypes policy ' + policyName + ' could not be created.');
+      return null;
+    }
+  };
+  const _createHooksMap = function _createHooksMap() {
+    return {
+      afterSanitizeAttributes: [],
+      afterSanitizeElements: [],
+      afterSanitizeShadowDOM: [],
+      beforeSanitizeAttributes: [],
+      beforeSanitizeElements: [],
+      beforeSanitizeShadowDOM: [],
+      uponSanitizeAttribute: [],
+      uponSanitizeElement: [],
+      uponSanitizeShadowNode: []
+    };
+  };
+  function createDOMPurify() {
+    let window = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : getGlobal();
+    const DOMPurify = root => createDOMPurify(root);
+    DOMPurify.version = '3.3.1';
+    DOMPurify.removed = [];
+    if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
+      // Not running in a browser, provide a factory function
+      // so that you can pass your own Window
+      DOMPurify.isSupported = false;
+      return DOMPurify;
+    }
+    let {
+      document
+    } = window;
+    const originalDocument = document;
+    const currentScript = originalDocument.currentScript;
+    const {
+      DocumentFragment,
+      HTMLTemplateElement,
+      Node,
+      Element,
+      NodeFilter,
+      NamedNodeMap = window.NamedNodeMap || window.MozNamedAttrMap,
+      HTMLFormElement,
+      DOMParser,
+      trustedTypes
+    } = window;
+    const ElementPrototype = Element.prototype;
+    const cloneNode = lookupGetter(ElementPrototype, 'cloneNode');
+    const remove = lookupGetter(ElementPrototype, 'remove');
+    const getNextSibling = lookupGetter(ElementPrototype, 'nextSibling');
+    const getChildNodes = lookupGetter(ElementPrototype, 'childNodes');
+    const getParentNode = lookupGetter(ElementPrototype, 'parentNode');
+    // As per issue #47, the web-components registry is inherited by a
+    // new document created via createHTMLDocument. As per the spec
+    // (http://w3c.github.io/webcomponents/spec/custom/#creating-and-passing-registries)
+    // a new empty registry is used when creating a template contents owner
+    // document, so we use that as our parent document to ensure nothing
+    // is inherited.
+    if (typeof HTMLTemplateElement === 'function') {
+      const template = document.createElement('template');
+      if (template.content && template.content.ownerDocument) {
+        document = template.content.ownerDocument;
+      }
+    }
+    let trustedTypesPolicy;
+    let emptyHTML = '';
+    const {
+      implementation,
+      createNodeIterator,
+      createDocumentFragment,
+      getElementsByTagName
+    } = document;
+    const {
+      importNode
+    } = originalDocument;
+    let hooks = _createHooksMap();
+    /**
+     * Expose whether this browser supports running the full DOMPurify.
+     */
+    DOMPurify.isSupported = typeof entries === 'function' && typeof getParentNode === 'function' && implementation && implementation.createHTMLDocument !== undefined;
+    const {
+      MUSTACHE_EXPR,
+      ERB_EXPR,
+      TMPLIT_EXPR,
+      DATA_ATTR,
+      ARIA_ATTR,
+      IS_SCRIPT_OR_DATA,
+      ATTR_WHITESPACE,
+      CUSTOM_ELEMENT
+    } = EXPRESSIONS;
+    let {
+      IS_ALLOWED_URI: IS_ALLOWED_URI$1
+    } = EXPRESSIONS;
+    /**
+     * We consider the elements and attributes below to be safe. Ideally
+     * don't add any new ones but feel free to remove unwanted ones.
+     */
+    /* allowed element names */
+    let ALLOWED_TAGS = null;
+    const DEFAULT_ALLOWED_TAGS = addToSet({}, [...html$1, ...svg$1, ...svgFilters, ...mathMl$1, ...text]);
+    /* Allowed attribute names */
+    let ALLOWED_ATTR = null;
+    const DEFAULT_ALLOWED_ATTR = addToSet({}, [...html, ...svg, ...mathMl, ...xml]);
+    /*
+     * Configure how DOMPurify should handle custom elements and their attributes as well as customized built-in elements.
+     * @property {RegExp|Function|null} tagNameCheck one of [null, regexPattern, predicate]. Default: `null` (disallow any custom elements)
+     * @property {RegExp|Function|null} attributeNameCheck one of [null, regexPattern, predicate]. Default: `null` (disallow any attributes not on the allow list)
+     * @property {boolean} allowCustomizedBuiltInElements allow custom elements derived from built-ins if they pass CUSTOM_ELEMENT_HANDLING.tagNameCheck. Default: `false`.
+     */
+    let CUSTOM_ELEMENT_HANDLING = Object.seal(create(null, {
+      tagNameCheck: {
+        writable: true,
+        configurable: false,
+        enumerable: true,
+        value: null
+      },
+      attributeNameCheck: {
+        writable: true,
+        configurable: false,
+        enumerable: true,
+        value: null
+      },
+      allowCustomizedBuiltInElements: {
+        writable: true,
+        configurable: false,
+        enumerable: true,
+        value: false
+      }
+    }));
+    /* Explicitly forbidden tags (overrides ALLOWED_TAGS/ADD_TAGS) */
+    let FORBID_TAGS = null;
+    /* Explicitly forbidden attributes (overrides ALLOWED_ATTR/ADD_ATTR) */
+    let FORBID_ATTR = null;
+    /* Config object to store ADD_TAGS/ADD_ATTR functions (when used as functions) */
+    const EXTRA_ELEMENT_HANDLING = Object.seal(create(null, {
+      tagCheck: {
+        writable: true,
+        configurable: false,
+        enumerable: true,
+        value: null
+      },
+      attributeCheck: {
+        writable: true,
+        configurable: false,
+        enumerable: true,
+        value: null
+      }
+    }));
+    /* Decide if ARIA attributes are okay */
+    let ALLOW_ARIA_ATTR = true;
+    /* Decide if custom data attributes are okay */
+    let ALLOW_DATA_ATTR = true;
+    /* Decide if unknown protocols are okay */
+    let ALLOW_UNKNOWN_PROTOCOLS = false;
+    /* Decide if self-closing tags in attributes are allowed.
+     * Usually removed due to a mXSS issue in jQuery 3.0 */
+    let ALLOW_SELF_CLOSE_IN_ATTR = true;
+    /* Output should be safe for common template engines.
+     * This means, DOMPurify removes data attributes, mustaches and ERB
+     */
+    let SAFE_FOR_TEMPLATES = false;
+    /* Output should be safe even for XML used within HTML and alike.
+     * This means, DOMPurify removes comments when containing risky content.
+     */
+    let SAFE_FOR_XML = true;
+    /* Decide if document with <html>... should be returned */
+    let WHOLE_DOCUMENT = false;
+    /* Track whether config is already set on this instance of DOMPurify. */
+    let SET_CONFIG = false;
+    /* Decide if all elements (e.g. style, script) must be children of
+     * document.body. By default, browsers might move them to document.head */
+    let FORCE_BODY = false;
+    /* Decide if a DOM `HTMLBodyElement` should be returned, instead of a html
+     * string (or a TrustedHTML object if Trusted Types are supported).
+     * If `WHOLE_DOCUMENT` is enabled a `HTMLHtmlElement` will be returned instead
+     */
+    let RETURN_DOM = false;
+    /* Decide if a DOM `DocumentFragment` should be returned, instead of a html
+     * string  (or a TrustedHTML object if Trusted Types are supported) */
+    let RETURN_DOM_FRAGMENT = false;
+    /* Try to return a Trusted Type object instead of a string, return a string in
+     * case Trusted Types are not supported  */
+    let RETURN_TRUSTED_TYPE = false;
+    /* Output should be free from DOM clobbering attacks?
+     * This sanitizes markups named with colliding, clobberable built-in DOM APIs.
+     */
+    let SANITIZE_DOM = true;
+    /* Achieve full DOM Clobbering protection by isolating the namespace of named
+     * properties and JS variables, mitigating attacks that abuse the HTML/DOM spec rules.
+     *
+     * HTML/DOM spec rules that enable DOM Clobbering:
+     *   - Named Access on Window (§7.3.3)
+     *   - DOM Tree Accessors (§3.1.5)
+     *   - Form Element Parent-Child Relations (§4.10.3)
+     *   - Iframe srcdoc / Nested WindowProxies (§4.8.5)
+     *   - HTMLCollection (§4.2.10.2)
+     *
+     * Namespace isolation is implemented by prefixing `id` and `name` attributes
+     * with a constant string, i.e., `user-content-`
+     */
+    let SANITIZE_NAMED_PROPS = false;
+    const SANITIZE_NAMED_PROPS_PREFIX = 'user-content-';
+    /* Keep element content when removing element? */
+    let KEEP_CONTENT = true;
+    /* If a `Node` is passed to sanitize(), then performs sanitization in-place instead
+     * of importing it into a new Document and returning a sanitized copy */
+    let IN_PLACE = false;
+    /* Allow usage of profiles like html, svg and mathMl */
+    let USE_PROFILES = {};
+    /* Tags to ignore content of when KEEP_CONTENT is true */
+    let FORBID_CONTENTS = null;
+    const DEFAULT_FORBID_CONTENTS = addToSet({}, ['annotation-xml', 'audio', 'colgroup', 'desc', 'foreignobject', 'head', 'iframe', 'math', 'mi', 'mn', 'mo', 'ms', 'mtext', 'noembed', 'noframes', 'noscript', 'plaintext', 'script', 'style', 'svg', 'template', 'thead', 'title', 'video', 'xmp']);
+    /* Tags that are safe for data: URIs */
+    let DATA_URI_TAGS = null;
+    const DEFAULT_DATA_URI_TAGS = addToSet({}, ['audio', 'video', 'img', 'source', 'image', 'track']);
+    /* Attributes safe for values like "javascript:" */
+    let URI_SAFE_ATTRIBUTES = null;
+    const DEFAULT_URI_SAFE_ATTRIBUTES = addToSet({}, ['alt', 'class', 'for', 'id', 'label', 'name', 'pattern', 'placeholder', 'role', 'summary', 'title', 'value', 'style', 'xmlns']);
+    const MATHML_NAMESPACE = 'http://www.w3.org/1998/Math/MathML';
+    const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+    const HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+    /* Document namespace */
+    let NAMESPACE = HTML_NAMESPACE;
+    let IS_EMPTY_INPUT = false;
+    /* Allowed XHTML+XML namespaces */
+    let ALLOWED_NAMESPACES = null;
+    const DEFAULT_ALLOWED_NAMESPACES = addToSet({}, [MATHML_NAMESPACE, SVG_NAMESPACE, HTML_NAMESPACE], stringToString);
+    let MATHML_TEXT_INTEGRATION_POINTS = addToSet({}, ['mi', 'mo', 'mn', 'ms', 'mtext']);
+    let HTML_INTEGRATION_POINTS = addToSet({}, ['annotation-xml']);
+    // Certain elements are allowed in both SVG and HTML
+    // namespace. We need to specify them explicitly
+    // so that they don't get erroneously deleted from
+    // HTML namespace.
+    const COMMON_SVG_AND_HTML_ELEMENTS = addToSet({}, ['title', 'style', 'font', 'a', 'script']);
+    /* Parsing of strict XHTML documents */
+    let PARSER_MEDIA_TYPE = null;
+    const SUPPORTED_PARSER_MEDIA_TYPES = ['application/xhtml+xml', 'text/html'];
+    const DEFAULT_PARSER_MEDIA_TYPE = 'text/html';
+    let transformCaseFunc = null;
+    /* Keep a reference to config to pass to hooks */
+    let CONFIG = null;
+    /* Ideally, do not touch anything below this line */
+    /* ______________________________________________ */
+    const formElement = document.createElement('form');
+    const isRegexOrFunction = function isRegexOrFunction(testValue) {
+      return testValue instanceof RegExp || testValue instanceof Function;
+    };
+    /**
+     * _parseConfig
+     *
+     * @param cfg optional config literal
+     */
+    // eslint-disable-next-line complexity
+    const _parseConfig = function _parseConfig() {
+      let cfg = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+      if (CONFIG && CONFIG === cfg) {
+        return;
+      }
+      /* Shield configuration object from tampering */
+      if (!cfg || typeof cfg !== 'object') {
+        cfg = {};
+      }
+      /* Shield configuration object from prototype pollution */
+      cfg = clone(cfg);
+      PARSER_MEDIA_TYPE =
+      // eslint-disable-next-line unicorn/prefer-includes
+      SUPPORTED_PARSER_MEDIA_TYPES.indexOf(cfg.PARSER_MEDIA_TYPE) === -1 ? DEFAULT_PARSER_MEDIA_TYPE : cfg.PARSER_MEDIA_TYPE;
+      // HTML tags and attributes are not case-sensitive, converting to lowercase. Keeping XHTML as is.
+      transformCaseFunc = PARSER_MEDIA_TYPE === 'application/xhtml+xml' ? stringToString : stringToLowerCase;
+      /* Set configuration parameters */
+      ALLOWED_TAGS = objectHasOwnProperty(cfg, 'ALLOWED_TAGS') ? addToSet({}, cfg.ALLOWED_TAGS, transformCaseFunc) : DEFAULT_ALLOWED_TAGS;
+      ALLOWED_ATTR = objectHasOwnProperty(cfg, 'ALLOWED_ATTR') ? addToSet({}, cfg.ALLOWED_ATTR, transformCaseFunc) : DEFAULT_ALLOWED_ATTR;
+      ALLOWED_NAMESPACES = objectHasOwnProperty(cfg, 'ALLOWED_NAMESPACES') ? addToSet({}, cfg.ALLOWED_NAMESPACES, stringToString) : DEFAULT_ALLOWED_NAMESPACES;
+      URI_SAFE_ATTRIBUTES = objectHasOwnProperty(cfg, 'ADD_URI_SAFE_ATTR') ? addToSet(clone(DEFAULT_URI_SAFE_ATTRIBUTES), cfg.ADD_URI_SAFE_ATTR, transformCaseFunc) : DEFAULT_URI_SAFE_ATTRIBUTES;
+      DATA_URI_TAGS = objectHasOwnProperty(cfg, 'ADD_DATA_URI_TAGS') ? addToSet(clone(DEFAULT_DATA_URI_TAGS), cfg.ADD_DATA_URI_TAGS, transformCaseFunc) : DEFAULT_DATA_URI_TAGS;
+      FORBID_CONTENTS = objectHasOwnProperty(cfg, 'FORBID_CONTENTS') ? addToSet({}, cfg.FORBID_CONTENTS, transformCaseFunc) : DEFAULT_FORBID_CONTENTS;
+      FORBID_TAGS = objectHasOwnProperty(cfg, 'FORBID_TAGS') ? addToSet({}, cfg.FORBID_TAGS, transformCaseFunc) : clone({});
+      FORBID_ATTR = objectHasOwnProperty(cfg, 'FORBID_ATTR') ? addToSet({}, cfg.FORBID_ATTR, transformCaseFunc) : clone({});
+      USE_PROFILES = objectHasOwnProperty(cfg, 'USE_PROFILES') ? cfg.USE_PROFILES : false;
+      ALLOW_ARIA_ATTR = cfg.ALLOW_ARIA_ATTR !== false; // Default true
+      ALLOW_DATA_ATTR = cfg.ALLOW_DATA_ATTR !== false; // Default true
+      ALLOW_UNKNOWN_PROTOCOLS = cfg.ALLOW_UNKNOWN_PROTOCOLS || false; // Default false
+      ALLOW_SELF_CLOSE_IN_ATTR = cfg.ALLOW_SELF_CLOSE_IN_ATTR !== false; // Default true
+      SAFE_FOR_TEMPLATES = cfg.SAFE_FOR_TEMPLATES || false; // Default false
+      SAFE_FOR_XML = cfg.SAFE_FOR_XML !== false; // Default true
+      WHOLE_DOCUMENT = cfg.WHOLE_DOCUMENT || false; // Default false
+      RETURN_DOM = cfg.RETURN_DOM || false; // Default false
+      RETURN_DOM_FRAGMENT = cfg.RETURN_DOM_FRAGMENT || false; // Default false
+      RETURN_TRUSTED_TYPE = cfg.RETURN_TRUSTED_TYPE || false; // Default false
+      FORCE_BODY = cfg.FORCE_BODY || false; // Default false
+      SANITIZE_DOM = cfg.SANITIZE_DOM !== false; // Default true
+      SANITIZE_NAMED_PROPS = cfg.SANITIZE_NAMED_PROPS || false; // Default false
+      KEEP_CONTENT = cfg.KEEP_CONTENT !== false; // Default true
+      IN_PLACE = cfg.IN_PLACE || false; // Default false
+      IS_ALLOWED_URI$1 = cfg.ALLOWED_URI_REGEXP || IS_ALLOWED_URI;
+      NAMESPACE = cfg.NAMESPACE || HTML_NAMESPACE;
+      MATHML_TEXT_INTEGRATION_POINTS = cfg.MATHML_TEXT_INTEGRATION_POINTS || MATHML_TEXT_INTEGRATION_POINTS;
+      HTML_INTEGRATION_POINTS = cfg.HTML_INTEGRATION_POINTS || HTML_INTEGRATION_POINTS;
+      CUSTOM_ELEMENT_HANDLING = cfg.CUSTOM_ELEMENT_HANDLING || {};
+      if (cfg.CUSTOM_ELEMENT_HANDLING && isRegexOrFunction(cfg.CUSTOM_ELEMENT_HANDLING.tagNameCheck)) {
+        CUSTOM_ELEMENT_HANDLING.tagNameCheck = cfg.CUSTOM_ELEMENT_HANDLING.tagNameCheck;
+      }
+      if (cfg.CUSTOM_ELEMENT_HANDLING && isRegexOrFunction(cfg.CUSTOM_ELEMENT_HANDLING.attributeNameCheck)) {
+        CUSTOM_ELEMENT_HANDLING.attributeNameCheck = cfg.CUSTOM_ELEMENT_HANDLING.attributeNameCheck;
+      }
+      if (cfg.CUSTOM_ELEMENT_HANDLING && typeof cfg.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements === 'boolean') {
+        CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements = cfg.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements;
+      }
+      if (SAFE_FOR_TEMPLATES) {
+        ALLOW_DATA_ATTR = false;
+      }
+      if (RETURN_DOM_FRAGMENT) {
+        RETURN_DOM = true;
+      }
+      /* Parse profile info */
+      if (USE_PROFILES) {
+        ALLOWED_TAGS = addToSet({}, text);
+        ALLOWED_ATTR = [];
+        if (USE_PROFILES.html === true) {
+          addToSet(ALLOWED_TAGS, html$1);
+          addToSet(ALLOWED_ATTR, html);
+        }
+        if (USE_PROFILES.svg === true) {
+          addToSet(ALLOWED_TAGS, svg$1);
+          addToSet(ALLOWED_ATTR, svg);
+          addToSet(ALLOWED_ATTR, xml);
+        }
+        if (USE_PROFILES.svgFilters === true) {
+          addToSet(ALLOWED_TAGS, svgFilters);
+          addToSet(ALLOWED_ATTR, svg);
+          addToSet(ALLOWED_ATTR, xml);
+        }
+        if (USE_PROFILES.mathMl === true) {
+          addToSet(ALLOWED_TAGS, mathMl$1);
+          addToSet(ALLOWED_ATTR, mathMl);
+          addToSet(ALLOWED_ATTR, xml);
+        }
+      }
+      /* Merge configuration parameters */
+      if (cfg.ADD_TAGS) {
+        if (typeof cfg.ADD_TAGS === 'function') {
+          EXTRA_ELEMENT_HANDLING.tagCheck = cfg.ADD_TAGS;
+        } else {
+          if (ALLOWED_TAGS === DEFAULT_ALLOWED_TAGS) {
+            ALLOWED_TAGS = clone(ALLOWED_TAGS);
+          }
+          addToSet(ALLOWED_TAGS, cfg.ADD_TAGS, transformCaseFunc);
+        }
+      }
+      if (cfg.ADD_ATTR) {
+        if (typeof cfg.ADD_ATTR === 'function') {
+          EXTRA_ELEMENT_HANDLING.attributeCheck = cfg.ADD_ATTR;
+        } else {
+          if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR) {
+            ALLOWED_ATTR = clone(ALLOWED_ATTR);
+          }
+          addToSet(ALLOWED_ATTR, cfg.ADD_ATTR, transformCaseFunc);
+        }
+      }
+      if (cfg.ADD_URI_SAFE_ATTR) {
+        addToSet(URI_SAFE_ATTRIBUTES, cfg.ADD_URI_SAFE_ATTR, transformCaseFunc);
+      }
+      if (cfg.FORBID_CONTENTS) {
+        if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) {
+          FORBID_CONTENTS = clone(FORBID_CONTENTS);
+        }
+        addToSet(FORBID_CONTENTS, cfg.FORBID_CONTENTS, transformCaseFunc);
+      }
+      if (cfg.ADD_FORBID_CONTENTS) {
+        if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) {
+          FORBID_CONTENTS = clone(FORBID_CONTENTS);
+        }
+        addToSet(FORBID_CONTENTS, cfg.ADD_FORBID_CONTENTS, transformCaseFunc);
+      }
+      /* Add #text in case KEEP_CONTENT is set to true */
+      if (KEEP_CONTENT) {
+        ALLOWED_TAGS['#text'] = true;
+      }
+      /* Add html, head and body to ALLOWED_TAGS in case WHOLE_DOCUMENT is true */
+      if (WHOLE_DOCUMENT) {
+        addToSet(ALLOWED_TAGS, ['html', 'head', 'body']);
+      }
+      /* Add tbody to ALLOWED_TAGS in case tables are permitted, see #286, #365 */
+      if (ALLOWED_TAGS.table) {
+        addToSet(ALLOWED_TAGS, ['tbody']);
+        delete FORBID_TAGS.tbody;
+      }
+      if (cfg.TRUSTED_TYPES_POLICY) {
+        if (typeof cfg.TRUSTED_TYPES_POLICY.createHTML !== 'function') {
+          throw typeErrorCreate('TRUSTED_TYPES_POLICY configuration option must provide a "createHTML" hook.');
+        }
+        if (typeof cfg.TRUSTED_TYPES_POLICY.createScriptURL !== 'function') {
+          throw typeErrorCreate('TRUSTED_TYPES_POLICY configuration option must provide a "createScriptURL" hook.');
+        }
+        // Overwrite existing TrustedTypes policy.
+        trustedTypesPolicy = cfg.TRUSTED_TYPES_POLICY;
+        // Sign local variables required by `sanitize`.
+        emptyHTML = trustedTypesPolicy.createHTML('');
+      } else {
+        // Uninitialized policy, attempt to initialize the internal dompurify policy.
+        if (trustedTypesPolicy === undefined) {
+          trustedTypesPolicy = _createTrustedTypesPolicy(trustedTypes, currentScript);
+        }
+        // If creating the internal policy succeeded sign internal variables.
+        if (trustedTypesPolicy !== null && typeof emptyHTML === 'string') {
+          emptyHTML = trustedTypesPolicy.createHTML('');
+        }
+      }
+      // Prevent further manipulation of configuration.
+      // Not available in IE8, Safari 5, etc.
+      if (freeze) {
+        freeze(cfg);
+      }
+      CONFIG = cfg;
+    };
+    /* Keep track of all possible SVG and MathML tags
+     * so that we can perform the namespace checks
+     * correctly. */
+    const ALL_SVG_TAGS = addToSet({}, [...svg$1, ...svgFilters, ...svgDisallowed]);
+    const ALL_MATHML_TAGS = addToSet({}, [...mathMl$1, ...mathMlDisallowed]);
+    /**
+     * @param element a DOM element whose namespace is being checked
+     * @returns Return false if the element has a
+     *  namespace that a spec-compliant parser would never
+     *  return. Return true otherwise.
+     */
+    const _checkValidNamespace = function _checkValidNamespace(element) {
+      let parent = getParentNode(element);
+      // In JSDOM, if we're inside shadow DOM, then parentNode
+      // can be null. We just simulate parent in this case.
+      if (!parent || !parent.tagName) {
+        parent = {
+          namespaceURI: NAMESPACE,
+          tagName: 'template'
+        };
+      }
+      const tagName = stringToLowerCase(element.tagName);
+      const parentTagName = stringToLowerCase(parent.tagName);
+      if (!ALLOWED_NAMESPACES[element.namespaceURI]) {
+        return false;
+      }
+      if (element.namespaceURI === SVG_NAMESPACE) {
+        // The only way to switch from HTML namespace to SVG
+        // is via <svg>. If it happens via any other tag, then
+        // it should be killed.
+        if (parent.namespaceURI === HTML_NAMESPACE) {
+          return tagName === 'svg';
+        }
+        // The only way to switch from MathML to SVG is via`
+        // svg if parent is either <annotation-xml> or MathML
+        // text integration points.
+        if (parent.namespaceURI === MATHML_NAMESPACE) {
+          return tagName === 'svg' && (parentTagName === 'annotation-xml' || MATHML_TEXT_INTEGRATION_POINTS[parentTagName]);
+        }
+        // We only allow elements that are defined in SVG
+        // spec. All others are disallowed in SVG namespace.
+        return Boolean(ALL_SVG_TAGS[tagName]);
+      }
+      if (element.namespaceURI === MATHML_NAMESPACE) {
+        // The only way to switch from HTML namespace to MathML
+        // is via <math>. If it happens via any other tag, then
+        // it should be killed.
+        if (parent.namespaceURI === HTML_NAMESPACE) {
+          return tagName === 'math';
+        }
+        // The only way to switch from SVG to MathML is via
+        // <math> and HTML integration points
+        if (parent.namespaceURI === SVG_NAMESPACE) {
+          return tagName === 'math' && HTML_INTEGRATION_POINTS[parentTagName];
+        }
+        // We only allow elements that are defined in MathML
+        // spec. All others are disallowed in MathML namespace.
+        return Boolean(ALL_MATHML_TAGS[tagName]);
+      }
+      if (element.namespaceURI === HTML_NAMESPACE) {
+        // The only way to switch from SVG to HTML is via
+        // HTML integration points, and from MathML to HTML
+        // is via MathML text integration points
+        if (parent.namespaceURI === SVG_NAMESPACE && !HTML_INTEGRATION_POINTS[parentTagName]) {
+          return false;
+        }
+        if (parent.namespaceURI === MATHML_NAMESPACE && !MATHML_TEXT_INTEGRATION_POINTS[parentTagName]) {
+          return false;
+        }
+        // We disallow tags that are specific for MathML
+        // or SVG and should never appear in HTML namespace
+        return !ALL_MATHML_TAGS[tagName] && (COMMON_SVG_AND_HTML_ELEMENTS[tagName] || !ALL_SVG_TAGS[tagName]);
+      }
+      // For XHTML and XML documents that support custom namespaces
+      if (PARSER_MEDIA_TYPE === 'application/xhtml+xml' && ALLOWED_NAMESPACES[element.namespaceURI]) {
+        return true;
+      }
+      // The code should never reach this place (this means
+      // that the element somehow got namespace that is not
+      // HTML, SVG, MathML or allowed via ALLOWED_NAMESPACES).
+      // Return false just in case.
+      return false;
+    };
+    /**
+     * _forceRemove
+     *
+     * @param node a DOM node
+     */
+    const _forceRemove = function _forceRemove(node) {
+      arrayPush(DOMPurify.removed, {
+        element: node
+      });
+      try {
+        // eslint-disable-next-line unicorn/prefer-dom-node-remove
+        getParentNode(node).removeChild(node);
+      } catch (_) {
+        remove(node);
+      }
+    };
+    /**
+     * _removeAttribute
+     *
+     * @param name an Attribute name
+     * @param element a DOM node
+     */
+    const _removeAttribute = function _removeAttribute(name, element) {
+      try {
+        arrayPush(DOMPurify.removed, {
+          attribute: element.getAttributeNode(name),
+          from: element
+        });
+      } catch (_) {
+        arrayPush(DOMPurify.removed, {
+          attribute: null,
+          from: element
+        });
+      }
+      element.removeAttribute(name);
+      // We void attribute values for unremovable "is" attributes
+      if (name === 'is') {
+        if (RETURN_DOM || RETURN_DOM_FRAGMENT) {
+          try {
+            _forceRemove(element);
+          } catch (_) {}
+        } else {
+          try {
+            element.setAttribute(name, '');
+          } catch (_) {}
+        }
+      }
+    };
+    /**
+     * _initDocument
+     *
+     * @param dirty - a string of dirty markup
+     * @return a DOM, filled with the dirty markup
+     */
+    const _initDocument = function _initDocument(dirty) {
+      /* Create a HTML document */
+      let doc = null;
+      let leadingWhitespace = null;
+      if (FORCE_BODY) {
+        dirty = '<remove></remove>' + dirty;
+      } else {
+        /* If FORCE_BODY isn't used, leading whitespace needs to be preserved manually */
+        const matches = stringMatch(dirty, /^[\r\n\t ]+/);
+        leadingWhitespace = matches && matches[0];
+      }
+      if (PARSER_MEDIA_TYPE === 'application/xhtml+xml' && NAMESPACE === HTML_NAMESPACE) {
+        // Root of XHTML doc must contain xmlns declaration (see https://www.w3.org/TR/xhtml1/normative.html#strict)
+        dirty = '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>' + dirty + '</body></html>';
+      }
+      const dirtyPayload = trustedTypesPolicy ? trustedTypesPolicy.createHTML(dirty) : dirty;
+      /*
+       * Use the DOMParser API by default, fallback later if needs be
+       * DOMParser not work for svg when has multiple root element.
+       */
+      if (NAMESPACE === HTML_NAMESPACE) {
+        try {
+          doc = new DOMParser().parseFromString(dirtyPayload, PARSER_MEDIA_TYPE);
+        } catch (_) {}
+      }
+      /* Use createHTMLDocument in case DOMParser is not available */
+      if (!doc || !doc.documentElement) {
+        doc = implementation.createDocument(NAMESPACE, 'template', null);
+        try {
+          doc.documentElement.innerHTML = IS_EMPTY_INPUT ? emptyHTML : dirtyPayload;
+        } catch (_) {
+          // Syntax error if dirtyPayload is invalid xml
+        }
+      }
+      const body = doc.body || doc.documentElement;
+      if (dirty && leadingWhitespace) {
+        body.insertBefore(document.createTextNode(leadingWhitespace), body.childNodes[0] || null);
+      }
+      /* Work on whole document or just its body */
+      if (NAMESPACE === HTML_NAMESPACE) {
+        return getElementsByTagName.call(doc, WHOLE_DOCUMENT ? 'html' : 'body')[0];
+      }
+      return WHOLE_DOCUMENT ? doc.documentElement : body;
+    };
+    /**
+     * Creates a NodeIterator object that you can use to traverse filtered lists of nodes or elements in a document.
+     *
+     * @param root The root element or node to start traversing on.
+     * @return The created NodeIterator
+     */
+    const _createNodeIterator = function _createNodeIterator(root) {
+      return createNodeIterator.call(root.ownerDocument || root, root,
+      // eslint-disable-next-line no-bitwise
+      NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_PROCESSING_INSTRUCTION | NodeFilter.SHOW_CDATA_SECTION, null);
+    };
+    /**
+     * _isClobbered
+     *
+     * @param element element to check for clobbering attacks
+     * @return true if clobbered, false if safe
+     */
+    const _isClobbered = function _isClobbered(element) {
+      return element instanceof HTMLFormElement && (typeof element.nodeName !== 'string' || typeof element.textContent !== 'string' || typeof element.removeChild !== 'function' || !(element.attributes instanceof NamedNodeMap) || typeof element.removeAttribute !== 'function' || typeof element.setAttribute !== 'function' || typeof element.namespaceURI !== 'string' || typeof element.insertBefore !== 'function' || typeof element.hasChildNodes !== 'function');
+    };
+    /**
+     * Checks whether the given object is a DOM node.
+     *
+     * @param value object to check whether it's a DOM node
+     * @return true is object is a DOM node
+     */
+    const _isNode = function _isNode(value) {
+      return typeof Node === 'function' && value instanceof Node;
+    };
+    function _executeHooks(hooks, currentNode, data) {
+      arrayForEach(hooks, hook => {
+        hook.call(DOMPurify, currentNode, data, CONFIG);
+      });
+    }
+    /**
+     * _sanitizeElements
+     *
+     * @protect nodeName
+     * @protect textContent
+     * @protect removeChild
+     * @param currentNode to check for permission to exist
+     * @return true if node was killed, false if left alive
+     */
+    const _sanitizeElements = function _sanitizeElements(currentNode) {
+      let content = null;
+      /* Execute a hook if present */
+      _executeHooks(hooks.beforeSanitizeElements, currentNode, null);
+      /* Check if element is clobbered or can clobber */
+      if (_isClobbered(currentNode)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Now let's check the element's type and name */
+      const tagName = transformCaseFunc(currentNode.nodeName);
+      /* Execute a hook if present */
+      _executeHooks(hooks.uponSanitizeElement, currentNode, {
+        tagName,
+        allowedTags: ALLOWED_TAGS
+      });
+      /* Detect mXSS attempts abusing namespace confusion */
+      if (SAFE_FOR_XML && currentNode.hasChildNodes() && !_isNode(currentNode.firstElementChild) && regExpTest(/<[/\w!]/g, currentNode.innerHTML) && regExpTest(/<[/\w!]/g, currentNode.textContent)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Remove any occurrence of processing instructions */
+      if (currentNode.nodeType === NODE_TYPE.progressingInstruction) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Remove any kind of possibly harmful comments */
+      if (SAFE_FOR_XML && currentNode.nodeType === NODE_TYPE.comment && regExpTest(/<[/\w]/g, currentNode.data)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Remove element if anything forbids its presence */
+      if (!(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName])) {
+        /* Check if we have a custom element to handle */
+        if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName)) {
+          if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) {
+            return false;
+          }
+          if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(tagName)) {
+            return false;
+          }
+        }
+        /* Keep content except for bad-listed elements */
+        if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
+          const parentNode = getParentNode(currentNode) || currentNode.parentNode;
+          const childNodes = getChildNodes(currentNode) || currentNode.childNodes;
+          if (childNodes && parentNode) {
+            const childCount = childNodes.length;
+            for (let i = childCount - 1; i >= 0; --i) {
+              const childClone = cloneNode(childNodes[i], true);
+              childClone.__removalCount = (currentNode.__removalCount || 0) + 1;
+              parentNode.insertBefore(childClone, getNextSibling(currentNode));
+            }
+          }
+        }
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Check whether element has a valid namespace */
+      if (currentNode instanceof Element && !_checkValidNamespace(currentNode)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Make sure that older browsers don't get fallback-tag mXSS */
+      if ((tagName === 'noscript' || tagName === 'noembed' || tagName === 'noframes') && regExpTest(/<\/no(script|embed|frames)/i, currentNode.innerHTML)) {
+        _forceRemove(currentNode);
+        return true;
+      }
+      /* Sanitize element content to be template-safe */
+      if (SAFE_FOR_TEMPLATES && currentNode.nodeType === NODE_TYPE.text) {
+        /* Get the element's text content */
+        content = currentNode.textContent;
+        arrayForEach([MUSTACHE_EXPR, ERB_EXPR, TMPLIT_EXPR], expr => {
+          content = stringReplace(content, expr, ' ');
+        });
+        if (currentNode.textContent !== content) {
+          arrayPush(DOMPurify.removed, {
+            element: currentNode.cloneNode()
+          });
+          currentNode.textContent = content;
+        }
+      }
+      /* Execute a hook if present */
+      _executeHooks(hooks.afterSanitizeElements, currentNode, null);
+      return false;
+    };
+    /**
+     * _isValidAttribute
+     *
+     * @param lcTag Lowercase tag name of containing element.
+     * @param lcName Lowercase attribute name.
+     * @param value Attribute value.
+     * @return Returns true if `value` is valid, otherwise false.
+     */
+    // eslint-disable-next-line complexity
+    const _isValidAttribute = function _isValidAttribute(lcTag, lcName, value) {
+      /* Make sure attribute cannot clobber */
+      if (SANITIZE_DOM && (lcName === 'id' || lcName === 'name') && (value in document || value in formElement)) {
+        return false;
+      }
+      /* Allow valid data-* attributes: At least one character after "-"
+          (https://html.spec.whatwg.org/multipage/dom.html#embedding-custom-non-visible-data-with-the-data-*-attributes)
+          XML-compatible (https://html.spec.whatwg.org/multipage/infrastructure.html#xml-compatible and http://www.w3.org/TR/xml/#d0e804)
+          We don't need to check the value; it's always URI safe. */
+      if (ALLOW_DATA_ATTR && !FORBID_ATTR[lcName] && regExpTest(DATA_ATTR, lcName)) ; else if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR, lcName)) ; else if (EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag)) ; else if (!ALLOWED_ATTR[lcName] || FORBID_ATTR[lcName]) {
+        if (
+        // First condition does a very basic check if a) it's basically a valid custom element tagname AND
+        // b) if the tagName passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.tagNameCheck
+        // and c) if the attribute name passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.attributeNameCheck
+        _isBasicCustomElement(lcTag) && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, lcTag) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(lcTag)) && (CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.attributeNameCheck, lcName) || CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.attributeNameCheck(lcName, lcTag)) ||
+        // Alternative, second condition checks if it's an `is`-attribute, AND
+        // the value passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.tagNameCheck
+        lcName === 'is' && CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, value) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(value))) ; else {
+          return false;
+        }
+        /* Check value is safe. First, is attr inert? If so, is safe */
+      } else if (URI_SAFE_ATTRIBUTES[lcName]) ; else if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE, ''))) ; else if ((lcName === 'src' || lcName === 'xlink:href' || lcName === 'href') && lcTag !== 'script' && stringIndexOf(value, 'data:') === 0 && DATA_URI_TAGS[lcTag]) ; else if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA, stringReplace(value, ATTR_WHITESPACE, ''))) ; else if (value) {
+        return false;
+      } else ;
+      return true;
+    };
+    /**
+     * _isBasicCustomElement
+     * checks if at least one dash is included in tagName, and it's not the first char
+     * for more sophisticated checking see https://github.com/sindresorhus/validate-element-name
+     *
+     * @param tagName name of the tag of the node to sanitize
+     * @returns Returns true if the tag name meets the basic criteria for a custom element, otherwise false.
+     */
+    const _isBasicCustomElement = function _isBasicCustomElement(tagName) {
+      return tagName !== 'annotation-xml' && stringMatch(tagName, CUSTOM_ELEMENT);
+    };
+    /**
+     * _sanitizeAttributes
+     *
+     * @protect attributes
+     * @protect nodeName
+     * @protect removeAttribute
+     * @protect setAttribute
+     *
+     * @param currentNode to sanitize
+     */
+    const _sanitizeAttributes = function _sanitizeAttributes(currentNode) {
+      /* Execute a hook if present */
+      _executeHooks(hooks.beforeSanitizeAttributes, currentNode, null);
+      const {
+        attributes
+      } = currentNode;
+      /* Check if we have attributes; if not we might have a text node */
+      if (!attributes || _isClobbered(currentNode)) {
+        return;
+      }
+      const hookEvent = {
+        attrName: '',
+        attrValue: '',
+        keepAttr: true,
+        allowedAttributes: ALLOWED_ATTR,
+        forceKeepAttr: undefined
+      };
+      let l = attributes.length;
+      /* Go backwards over all attributes; safely remove bad ones */
+      while (l--) {
+        const attr = attributes[l];
+        const {
+          name,
+          namespaceURI,
+          value: attrValue
+        } = attr;
+        const lcName = transformCaseFunc(name);
+        const initValue = attrValue;
+        let value = name === 'value' ? initValue : stringTrim(initValue);
+        /* Execute a hook if present */
+        hookEvent.attrName = lcName;
+        hookEvent.attrValue = value;
+        hookEvent.keepAttr = true;
+        hookEvent.forceKeepAttr = undefined; // Allows developers to see this is a property they can set
+        _executeHooks(hooks.uponSanitizeAttribute, currentNode, hookEvent);
+        value = hookEvent.attrValue;
+        /* Full DOM Clobbering protection via namespace isolation,
+         * Prefix id and name attributes with `user-content-`
+         */
+        if (SANITIZE_NAMED_PROPS && (lcName === 'id' || lcName === 'name')) {
+          // Remove the attribute with this value
+          _removeAttribute(name, currentNode);
+          // Prefix the value and later re-create the attribute with the sanitized value
+          value = SANITIZE_NAMED_PROPS_PREFIX + value;
+        }
+        /* Work around a security issue with comments inside attributes */
+        if (SAFE_FOR_XML && regExpTest(/((--!?|])>)|<\/(style|title|textarea)/i, value)) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Make sure we cannot easily use animated hrefs, even if animations are allowed */
+        if (lcName === 'attributename' && stringMatch(value, 'href')) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Did the hooks approve of the attribute? */
+        if (hookEvent.forceKeepAttr) {
+          continue;
+        }
+        /* Did the hooks approve of the attribute? */
+        if (!hookEvent.keepAttr) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Work around a security issue in jQuery 3.0 */
+        if (!ALLOW_SELF_CLOSE_IN_ATTR && regExpTest(/\/>/i, value)) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Sanitize attribute content to be template-safe */
+        if (SAFE_FOR_TEMPLATES) {
+          arrayForEach([MUSTACHE_EXPR, ERB_EXPR, TMPLIT_EXPR], expr => {
+            value = stringReplace(value, expr, ' ');
+          });
+        }
+        /* Is `value` valid for this attribute? */
+        const lcTag = transformCaseFunc(currentNode.nodeName);
+        if (!_isValidAttribute(lcTag, lcName, value)) {
+          _removeAttribute(name, currentNode);
+          continue;
+        }
+        /* Handle attributes that require Trusted Types */
+        if (trustedTypesPolicy && typeof trustedTypes === 'object' && typeof trustedTypes.getAttributeType === 'function') {
+          if (namespaceURI) ; else {
+            switch (trustedTypes.getAttributeType(lcTag, lcName)) {
+              case 'TrustedHTML':
+                {
+                  value = trustedTypesPolicy.createHTML(value);
+                  break;
+                }
+              case 'TrustedScriptURL':
+                {
+                  value = trustedTypesPolicy.createScriptURL(value);
+                  break;
+                }
+            }
+          }
+        }
+        /* Handle invalid data-* attribute set by try-catching it */
+        if (value !== initValue) {
+          try {
+            if (namespaceURI) {
+              currentNode.setAttributeNS(namespaceURI, name, value);
+            } else {
+              /* Fallback to setAttribute() for browser-unrecognized namespaces e.g. "x-schema". */
+              currentNode.setAttribute(name, value);
+            }
+            if (_isClobbered(currentNode)) {
+              _forceRemove(currentNode);
+            } else {
+              arrayPop(DOMPurify.removed);
+            }
+          } catch (_) {
+            _removeAttribute(name, currentNode);
+          }
+        }
+      }
+      /* Execute a hook if present */
+      _executeHooks(hooks.afterSanitizeAttributes, currentNode, null);
+    };
+    /**
+     * _sanitizeShadowDOM
+     *
+     * @param fragment to iterate over recursively
+     */
+    const _sanitizeShadowDOM = function _sanitizeShadowDOM(fragment) {
+      let shadowNode = null;
+      const shadowIterator = _createNodeIterator(fragment);
+      /* Execute a hook if present */
+      _executeHooks(hooks.beforeSanitizeShadowDOM, fragment, null);
+      while (shadowNode = shadowIterator.nextNode()) {
+        /* Execute a hook if present */
+        _executeHooks(hooks.uponSanitizeShadowNode, shadowNode, null);
+        /* Sanitize tags and elements */
+        _sanitizeElements(shadowNode);
+        /* Check attributes next */
+        _sanitizeAttributes(shadowNode);
+        /* Deep shadow DOM detected */
+        if (shadowNode.content instanceof DocumentFragment) {
+          _sanitizeShadowDOM(shadowNode.content);
+        }
+      }
+      /* Execute a hook if present */
+      _executeHooks(hooks.afterSanitizeShadowDOM, fragment, null);
+    };
+    // eslint-disable-next-line complexity
+    DOMPurify.sanitize = function (dirty) {
+      let cfg = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      let body = null;
+      let importedNode = null;
+      let currentNode = null;
+      let returnNode = null;
+      /* Make sure we have a string to sanitize.
+        DO NOT return early, as this will return the wrong type if
+        the user has requested a DOM object rather than a string */
+      IS_EMPTY_INPUT = !dirty;
+      if (IS_EMPTY_INPUT) {
+        dirty = '<!-->';
+      }
+      /* Stringify, in case dirty is an object */
+      if (typeof dirty !== 'string' && !_isNode(dirty)) {
+        if (typeof dirty.toString === 'function') {
+          dirty = dirty.toString();
+          if (typeof dirty !== 'string') {
+            throw typeErrorCreate('dirty is not a string, aborting');
+          }
+        } else {
+          throw typeErrorCreate('toString is not a function');
+        }
+      }
+      /* Return dirty HTML if DOMPurify cannot run */
+      if (!DOMPurify.isSupported) {
+        return dirty;
+      }
+      /* Assign config vars */
+      if (!SET_CONFIG) {
+        _parseConfig(cfg);
+      }
+      /* Clean up removed elements */
+      DOMPurify.removed = [];
+      /* Check if dirty is correctly typed for IN_PLACE */
+      if (typeof dirty === 'string') {
+        IN_PLACE = false;
+      }
+      if (IN_PLACE) {
+        /* Do some early pre-sanitization to avoid unsafe root nodes */
+        if (dirty.nodeName) {
+          const tagName = transformCaseFunc(dirty.nodeName);
+          if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
+            throw typeErrorCreate('root node is forbidden and cannot be sanitized in-place');
+          }
+        }
+      } else if (dirty instanceof Node) {
+        /* If dirty is a DOM element, append to an empty document to avoid
+           elements being stripped by the parser */
+        body = _initDocument('<!---->');
+        importedNode = body.ownerDocument.importNode(dirty, true);
+        if (importedNode.nodeType === NODE_TYPE.element && importedNode.nodeName === 'BODY') {
+          /* Node is already a body, use as is */
+          body = importedNode;
+        } else if (importedNode.nodeName === 'HTML') {
+          body = importedNode;
+        } else {
+          // eslint-disable-next-line unicorn/prefer-dom-node-append
+          body.appendChild(importedNode);
+        }
+      } else {
+        /* Exit directly if we have nothing to do */
+        if (!RETURN_DOM && !SAFE_FOR_TEMPLATES && !WHOLE_DOCUMENT &&
+        // eslint-disable-next-line unicorn/prefer-includes
+        dirty.indexOf('<') === -1) {
+          return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(dirty) : dirty;
+        }
+        /* Initialize the document to work on */
+        body = _initDocument(dirty);
+        /* Check we have a DOM node from the data */
+        if (!body) {
+          return RETURN_DOM ? null : RETURN_TRUSTED_TYPE ? emptyHTML : '';
+        }
+      }
+      /* Remove first element node (ours) if FORCE_BODY is set */
+      if (body && FORCE_BODY) {
+        _forceRemove(body.firstChild);
+      }
+      /* Get node iterator */
+      const nodeIterator = _createNodeIterator(IN_PLACE ? dirty : body);
+      /* Now start iterating over the created document */
+      while (currentNode = nodeIterator.nextNode()) {
+        /* Sanitize tags and elements */
+        _sanitizeElements(currentNode);
+        /* Check attributes next */
+        _sanitizeAttributes(currentNode);
+        /* Shadow DOM detected, sanitize it */
+        if (currentNode.content instanceof DocumentFragment) {
+          _sanitizeShadowDOM(currentNode.content);
+        }
+      }
+      /* If we sanitized `dirty` in-place, return it. */
+      if (IN_PLACE) {
+        return dirty;
+      }
+      /* Return sanitized string or DOM */
+      if (RETURN_DOM) {
+        if (RETURN_DOM_FRAGMENT) {
+          returnNode = createDocumentFragment.call(body.ownerDocument);
+          while (body.firstChild) {
+            // eslint-disable-next-line unicorn/prefer-dom-node-append
+            returnNode.appendChild(body.firstChild);
+          }
+        } else {
+          returnNode = body;
+        }
+        if (ALLOWED_ATTR.shadowroot || ALLOWED_ATTR.shadowrootmode) {
+          /*
+            AdoptNode() is not used because internal state is not reset
+            (e.g. the past names map of a HTMLFormElement), this is safe
+            in theory but we would rather not risk another attack vector.
+            The state that is cloned by importNode() is explicitly defined
+            by the specs.
+          */
+          returnNode = importNode.call(originalDocument, returnNode, true);
+        }
+        return returnNode;
+      }
+      let serializedHTML = WHOLE_DOCUMENT ? body.outerHTML : body.innerHTML;
+      /* Serialize doctype if allowed */
+      if (WHOLE_DOCUMENT && ALLOWED_TAGS['!doctype'] && body.ownerDocument && body.ownerDocument.doctype && body.ownerDocument.doctype.name && regExpTest(DOCTYPE_NAME, body.ownerDocument.doctype.name)) {
+        serializedHTML = '<!DOCTYPE ' + body.ownerDocument.doctype.name + '>\n' + serializedHTML;
+      }
+      /* Sanitize final string template-safe */
+      if (SAFE_FOR_TEMPLATES) {
+        arrayForEach([MUSTACHE_EXPR, ERB_EXPR, TMPLIT_EXPR], expr => {
+          serializedHTML = stringReplace(serializedHTML, expr, ' ');
+        });
+      }
+      return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(serializedHTML) : serializedHTML;
+    };
+    DOMPurify.setConfig = function () {
+      let cfg = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+      _parseConfig(cfg);
+      SET_CONFIG = true;
+    };
+    DOMPurify.clearConfig = function () {
+      CONFIG = null;
+      SET_CONFIG = false;
+    };
+    DOMPurify.isValidAttribute = function (tag, attr, value) {
+      /* Initialize shared config vars if necessary. */
+      if (!CONFIG) {
+        _parseConfig({});
+      }
+      const lcTag = transformCaseFunc(tag);
+      const lcName = transformCaseFunc(attr);
+      return _isValidAttribute(lcTag, lcName, value);
+    };
+    DOMPurify.addHook = function (entryPoint, hookFunction) {
+      if (typeof hookFunction !== 'function') {
+        return;
+      }
+      arrayPush(hooks[entryPoint], hookFunction);
+    };
+    DOMPurify.removeHook = function (entryPoint, hookFunction) {
+      if (hookFunction !== undefined) {
+        const index = arrayLastIndexOf(hooks[entryPoint], hookFunction);
+        return index === -1 ? undefined : arraySplice(hooks[entryPoint], index, 1)[0];
+      }
+      return arrayPop(hooks[entryPoint]);
+    };
+    DOMPurify.removeHooks = function (entryPoint) {
+      hooks[entryPoint] = [];
+    };
+    DOMPurify.removeAllHooks = function () {
+      hooks = _createHooksMap();
+    };
+    return DOMPurify;
+  }
+  var purify = createDOMPurify();
+
+  return purify;
+
+}));
+
+
+},{}],20:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6416,7 +7812,7 @@ function eventTargetAgnosticAddListener(emitter, name, listener, flags) {
   }
 }
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 "use strict";
 var Buffer = require("safer-buffer").Buffer;
 
@@ -7015,7 +8411,7 @@ function findIdx(table, val) {
 }
 
 
-},{"safer-buffer":65}],21:[function(require,module,exports){
+},{"safer-buffer":66}],22:[function(require,module,exports){
 "use strict";
 
 // Description of supported double byte encodings and aliases.
@@ -7205,7 +8601,7 @@ module.exports = {
     'xxbig5': 'big5hkscs',
 };
 
-},{"./tables/big5-added.json":27,"./tables/cp936.json":28,"./tables/cp949.json":29,"./tables/cp950.json":30,"./tables/eucjp.json":31,"./tables/gb18030-ranges.json":32,"./tables/gbk-added.json":33,"./tables/shiftjis.json":34}],22:[function(require,module,exports){
+},{"./tables/big5-added.json":28,"./tables/cp936.json":29,"./tables/cp949.json":30,"./tables/cp950.json":31,"./tables/eucjp.json":32,"./tables/gb18030-ranges.json":33,"./tables/gbk-added.json":34,"./tables/shiftjis.json":35}],23:[function(require,module,exports){
 "use strict";
 
 // Update this array if you add/rename/remove files in this directory.
@@ -7230,7 +8626,7 @@ for (var i = 0; i < modules.length; i++) {
             exports[enc] = module[enc];
 }
 
-},{"./dbcs-codec":20,"./dbcs-data":21,"./internal":23,"./sbcs-codec":24,"./sbcs-data":26,"./sbcs-data-generated":25,"./utf16":35,"./utf32":36,"./utf7":37}],23:[function(require,module,exports){
+},{"./dbcs-codec":21,"./dbcs-data":22,"./internal":24,"./sbcs-codec":25,"./sbcs-data":27,"./sbcs-data-generated":26,"./utf16":36,"./utf32":37,"./utf7":38}],24:[function(require,module,exports){
 "use strict";
 var Buffer = require("safer-buffer").Buffer;
 
@@ -7430,7 +8826,7 @@ InternalDecoderCesu8.prototype.end = function() {
     return res;
 }
 
-},{"safer-buffer":65,"string_decoder":81}],24:[function(require,module,exports){
+},{"safer-buffer":66,"string_decoder":82}],25:[function(require,module,exports){
 "use strict";
 var Buffer = require("safer-buffer").Buffer;
 
@@ -7504,7 +8900,7 @@ SBCSDecoder.prototype.write = function(buf) {
 SBCSDecoder.prototype.end = function() {
 }
 
-},{"safer-buffer":65}],25:[function(require,module,exports){
+},{"safer-buffer":66}],26:[function(require,module,exports){
 "use strict";
 
 // Generated data for sbcs codec. Don't edit manually. Regenerate using generation/gen-sbcs.js script.
@@ -7956,7 +9352,7 @@ module.exports = {
     "chars": "���������������������������������กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรฤลฦวศษสหฬอฮฯะัาำิีึืฺุู����฿เแโใไๅๆ็่้๊๋์ํ๎๏๐๑๒๓๔๕๖๗๘๙๚๛����"
   }
 }
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 "use strict";
 
 // Manually added data to be used by sbcs codec in addition to generated one.
@@ -8137,7 +9533,7 @@ module.exports = {
 };
 
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 module.exports=[
 ["8740","䏰䰲䘃䖦䕸𧉧䵷䖳𧲱䳢𧳅㮕䜶䝄䱇䱀𤊿𣘗𧍒𦺋𧃒䱗𪍑䝏䗚䲅𧱬䴇䪤䚡𦬣爥𥩔𡩣𣸆𣽡晍囻"],
 ["8767","綕夝𨮹㷴霴𧯯寛𡵞媤㘥𩺰嫑宷峼杮薓𩥅瑡璝㡵𡵓𣚞𦀡㻬"],
@@ -8261,7 +9657,7 @@ module.exports=[
 ["fea1","𤅟𤩹𨮏孆𨰃𡢞瓈𡦈甎瓩甞𨻙𡩋寗𨺬鎅畍畊畧畮𤾂㼄𤴓疎瑝疞疴瘂瘬癑癏癯癶𦏵皐臯㟸𦤑𦤎皡皥皷盌𦾟葢𥂝𥅽𡸜眞眦着撯𥈠睘𣊬瞯𨥤𨥨𡛁矴砉𡍶𤨒棊碯磇磓隥礮𥗠磗礴碱𧘌辸袄𨬫𦂃𢘜禆褀椂禀𥡗禝𧬹礼禩渪𧄦㺨秆𩄍秔"]
 ]
 
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 module.exports=[
 ["0","\u0000",127,"€"],
 ["8140","丂丄丅丆丏丒丗丟丠両丣並丩丮丯丱丳丵丷丼乀乁乂乄乆乊乑乕乗乚乛乢乣乤乥乧乨乪",5,"乲乴",9,"乿",6,"亇亊"],
@@ -8527,7 +9923,7 @@ module.exports=[
 ["fe40","兀嗀﨎﨏﨑﨓﨔礼﨟蘒﨡﨣﨤﨧﨨﨩"]
 ]
 
-},{}],29:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 module.exports=[
 ["0","\u0000",127],
 ["8141","갂갃갅갆갋",4,"갘갞갟갡갢갣갥",6,"갮갲갳갴"],
@@ -8802,7 +10198,7 @@ module.exports=[
 ["fda1","爻肴酵驍侯候厚后吼喉嗅帿後朽煦珝逅勛勳塤壎焄熏燻薰訓暈薨喧暄煊萱卉喙毁彙徽揮暉煇諱輝麾休携烋畦虧恤譎鷸兇凶匈洶胸黑昕欣炘痕吃屹紇訖欠欽歆吸恰洽翕興僖凞喜噫囍姬嬉希憙憘戱晞曦熙熹熺犧禧稀羲詰"]
 ]
 
-},{}],30:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 module.exports=[
 ["0","\u0000",127],
 ["a140","　，、。．‧；：？！︰…‥﹐﹑﹒·﹔﹕﹖﹗｜–︱—︳╴︴﹏（）︵︶｛｝︷︸〔〕︹︺【】︻︼《》︽︾〈〉︿﹀「」﹁﹂『』﹃﹄﹙﹚"],
@@ -8981,7 +10377,7 @@ module.exports=[
 ["f9a1","龤灨灥糷虪蠾蠽蠿讞貜躩軉靋顳顴飌饡馫驤驦驧鬤鸕鸗齈戇欞爧虌躨钂钀钁驩驨鬮鸙爩虋讟钃鱹麷癵驫鱺鸝灩灪麤齾齉龘碁銹裏墻恒粧嫺╔╦╗╠╬╣╚╩╝╒╤╕╞╪╡╘╧╛╓╥╖╟╫╢╙╨╜║═╭╮╰╯▓"]
 ]
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 module.exports=[
 ["0","\u0000",127],
 ["8ea1","｡",62],
@@ -9165,9 +10561,9 @@ module.exports=[
 ["8feda1","黸黿鼂鼃鼉鼏鼐鼑鼒鼔鼖鼗鼙鼚鼛鼟鼢鼦鼪鼫鼯鼱鼲鼴鼷鼹鼺鼼鼽鼿齁齃",4,"齓齕齖齗齘齚齝齞齨齩齭",4,"齳齵齺齽龏龐龑龒龔龖龗龞龡龢龣龥"]
 ]
 
-},{}],32:[function(require,module,exports){
-module.exports={"uChars":[128,165,169,178,184,216,226,235,238,244,248,251,253,258,276,284,300,325,329,334,364,463,465,467,469,471,473,475,477,506,594,610,712,716,730,930,938,962,970,1026,1104,1106,8209,8215,8218,8222,8231,8241,8244,8246,8252,8365,8452,8454,8458,8471,8482,8556,8570,8596,8602,8713,8720,8722,8726,8731,8737,8740,8742,8748,8751,8760,8766,8777,8781,8787,8802,8808,8816,8854,8858,8870,8896,8979,9322,9372,9548,9588,9616,9622,9634,9652,9662,9672,9676,9680,9702,9735,9738,9793,9795,11906,11909,11913,11917,11928,11944,11947,11951,11956,11960,11964,11979,12284,12292,12312,12319,12330,12351,12436,12447,12535,12543,12586,12842,12850,12964,13200,13215,13218,13253,13263,13267,13270,13384,13428,13727,13839,13851,14617,14703,14801,14816,14964,15183,15471,15585,16471,16736,17208,17325,17330,17374,17623,17997,18018,18212,18218,18301,18318,18760,18811,18814,18820,18823,18844,18848,18872,19576,19620,19738,19887,40870,59244,59336,59367,59413,59417,59423,59431,59437,59443,59452,59460,59478,59493,63789,63866,63894,63976,63986,64016,64018,64021,64025,64034,64037,64042,65074,65093,65107,65112,65127,65132,65375,65510,65536],"gbChars":[0,36,38,45,50,81,89,95,96,100,103,104,105,109,126,133,148,172,175,179,208,306,307,308,309,310,311,312,313,341,428,443,544,545,558,741,742,749,750,805,819,820,7922,7924,7925,7927,7934,7943,7944,7945,7950,8062,8148,8149,8152,8164,8174,8236,8240,8262,8264,8374,8380,8381,8384,8388,8390,8392,8393,8394,8396,8401,8406,8416,8419,8424,8437,8439,8445,8482,8485,8496,8521,8603,8936,8946,9046,9050,9063,9066,9076,9092,9100,9108,9111,9113,9131,9162,9164,9218,9219,11329,11331,11334,11336,11346,11361,11363,11366,11370,11372,11375,11389,11682,11686,11687,11692,11694,11714,11716,11723,11725,11730,11736,11982,11989,12102,12336,12348,12350,12384,12393,12395,12397,12510,12553,12851,12962,12973,13738,13823,13919,13933,14080,14298,14585,14698,15583,15847,16318,16434,16438,16481,16729,17102,17122,17315,17320,17402,17418,17859,17909,17911,17915,17916,17936,17939,17961,18664,18703,18814,18962,19043,33469,33470,33471,33484,33485,33490,33497,33501,33505,33513,33520,33536,33550,37845,37921,37948,38029,38038,38064,38065,38066,38069,38075,38076,38078,39108,39109,39113,39114,39115,39116,39265,39394,189000]}
 },{}],33:[function(require,module,exports){
+module.exports={"uChars":[128,165,169,178,184,216,226,235,238,244,248,251,253,258,276,284,300,325,329,334,364,463,465,467,469,471,473,475,477,506,594,610,712,716,730,930,938,962,970,1026,1104,1106,8209,8215,8218,8222,8231,8241,8244,8246,8252,8365,8452,8454,8458,8471,8482,8556,8570,8596,8602,8713,8720,8722,8726,8731,8737,8740,8742,8748,8751,8760,8766,8777,8781,8787,8802,8808,8816,8854,8858,8870,8896,8979,9322,9372,9548,9588,9616,9622,9634,9652,9662,9672,9676,9680,9702,9735,9738,9793,9795,11906,11909,11913,11917,11928,11944,11947,11951,11956,11960,11964,11979,12284,12292,12312,12319,12330,12351,12436,12447,12535,12543,12586,12842,12850,12964,13200,13215,13218,13253,13263,13267,13270,13384,13428,13727,13839,13851,14617,14703,14801,14816,14964,15183,15471,15585,16471,16736,17208,17325,17330,17374,17623,17997,18018,18212,18218,18301,18318,18760,18811,18814,18820,18823,18844,18848,18872,19576,19620,19738,19887,40870,59244,59336,59367,59413,59417,59423,59431,59437,59443,59452,59460,59478,59493,63789,63866,63894,63976,63986,64016,64018,64021,64025,64034,64037,64042,65074,65093,65107,65112,65127,65132,65375,65510,65536],"gbChars":[0,36,38,45,50,81,89,95,96,100,103,104,105,109,126,133,148,172,175,179,208,306,307,308,309,310,311,312,313,341,428,443,544,545,558,741,742,749,750,805,819,820,7922,7924,7925,7927,7934,7943,7944,7945,7950,8062,8148,8149,8152,8164,8174,8236,8240,8262,8264,8374,8380,8381,8384,8388,8390,8392,8393,8394,8396,8401,8406,8416,8419,8424,8437,8439,8445,8482,8485,8496,8521,8603,8936,8946,9046,9050,9063,9066,9076,9092,9100,9108,9111,9113,9131,9162,9164,9218,9219,11329,11331,11334,11336,11346,11361,11363,11366,11370,11372,11375,11389,11682,11686,11687,11692,11694,11714,11716,11723,11725,11730,11736,11982,11989,12102,12336,12348,12350,12384,12393,12395,12397,12510,12553,12851,12962,12973,13738,13823,13919,13933,14080,14298,14585,14698,15583,15847,16318,16434,16438,16481,16729,17102,17122,17315,17320,17402,17418,17859,17909,17911,17915,17916,17936,17939,17961,18664,18703,18814,18962,19043,33469,33470,33471,33484,33485,33490,33497,33501,33505,33513,33520,33536,33550,37845,37921,37948,38029,38038,38064,38065,38066,38069,38075,38076,38078,39108,39109,39113,39114,39115,39116,39265,39394,189000]}
+},{}],34:[function(require,module,exports){
 module.exports=[
 ["a140","",62],
 ["a180","",32],
@@ -9225,7 +10621,7 @@ module.exports=[
 ["8135f437",""]
 ]
 
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 module.exports=[
 ["0","\u0000",128],
 ["a1","｡",62],
@@ -9352,7 +10748,7 @@ module.exports=[
 ["fc40","髜魵魲鮏鮱鮻鰀鵰鵫鶴鸙黑"]
 ]
 
-},{}],35:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 "use strict";
 var Buffer = require("safer-buffer").Buffer;
 
@@ -9551,7 +10947,7 @@ function detectEncoding(bufs, defaultEncoding) {
 
 
 
-},{"safer-buffer":65}],36:[function(require,module,exports){
+},{"safer-buffer":66}],37:[function(require,module,exports){
 'use strict';
 
 var Buffer = require('safer-buffer').Buffer;
@@ -9872,7 +11268,7 @@ function detectEncoding(bufs, defaultEncoding) {
     return defaultEncoding || 'utf-32le';
 }
 
-},{"safer-buffer":65}],37:[function(require,module,exports){
+},{"safer-buffer":66}],38:[function(require,module,exports){
 "use strict";
 var Buffer = require("safer-buffer").Buffer;
 
@@ -10164,7 +11560,7 @@ Utf7IMAPDecoder.prototype.end = function() {
 
 
 
-},{"safer-buffer":65}],38:[function(require,module,exports){
+},{"safer-buffer":66}],39:[function(require,module,exports){
 "use strict";
 
 var BOMChar = '\uFEFF';
@@ -10218,7 +11614,7 @@ StripBOMWrapper.prototype.end = function() {
 }
 
 
-},{}],39:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 "use strict";
 
 var Buffer = require("safer-buffer").Buffer;
@@ -10400,7 +11796,7 @@ if ("Ā" != "\u0100") {
     console.error("iconv-lite warning: js files use non-utf8 encoding. See https://github.com/ashtuchkin/iconv-lite/wiki/Javascript-source-file-encodings for more info.");
 }
 
-},{"../encodings":22,"./bom-handling":38,"./streams":40,"safer-buffer":65,"stream":15}],40:[function(require,module,exports){
+},{"../encodings":23,"./bom-handling":39,"./streams":41,"safer-buffer":66,"stream":15}],41:[function(require,module,exports){
 "use strict";
 
 var Buffer = require("safer-buffer").Buffer;
@@ -10511,7 +11907,7 @@ module.exports = function(stream_module) {
     };
 };
 
-},{"safer-buffer":65}],41:[function(require,module,exports){
+},{"safer-buffer":66}],42:[function(require,module,exports){
 /*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> */
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
@@ -10598,7 +11994,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],42:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -10627,7 +12023,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],43:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 /*!
  * Determine if an object is a Buffer
  *
@@ -10650,7 +12046,7 @@ function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
 }
 
-},{}],44:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 (function(){
   var crypt = require('crypt'),
       utf8 = require('charenc').utf8,
@@ -10812,7 +12208,7 @@ function isSlowBuffer (obj) {
 
 })();
 
-},{"charenc":17,"crypt":18,"is-buffer":43}],45:[function(require,module,exports){
+},{"charenc":17,"crypt":18,"is-buffer":44}],46:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -10998,7 +12394,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],46:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 (function (Buffer){(function (){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -11215,7 +12611,7 @@ class ProcessTokens extends stream_1.Transform {
 exports.ProcessTokens = ProcessTokens;
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"./decode":48,"./utils":62,"buffer":16,"stream":66}],47:[function(require,module,exports){
+},{"./decode":49,"./utils":63,"buffer":16,"stream":67}],48:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DeEncapsulate = void 0;
@@ -11335,7 +12731,7 @@ class DeEncapsulate extends ProcessTokens_1.ProcessTokens {
 exports.DeEncapsulate = DeEncapsulate;
 exports.default = DeEncapsulate;
 
-},{"./ProcessTokens":46,"./features/checkVersion":49,"./features/countTokens":50,"./features/handleCharacterSet":51,"./features/handleControlsAndDestinations":52,"./features/handleDeEncapsulation":53,"./features/handleFonts":54,"./features/handleGroupState":55,"./features/handleOutput":56,"./features/handleUnicodeSkip":57,"./features/textEscapes":58}],48:[function(require,module,exports){
+},{"./ProcessTokens":47,"./features/checkVersion":50,"./features/countTokens":51,"./features/handleCharacterSet":52,"./features/handleControlsAndDestinations":53,"./features/handleDeEncapsulation":54,"./features/handleFonts":55,"./features/handleGroupState":56,"./features/handleOutput":57,"./features/handleUnicodeSkip":58,"./features/textEscapes":59}],49:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.recodeSymbolFontText = exports.fontToUnicode = void 0;
@@ -11535,7 +12931,7 @@ function recodeSymbolFontText(input, font, unmapped = '?') {
 }
 exports.recodeSymbolFontText = recodeSymbolFontText;
 
-},{"./utils":62}],49:[function(require,module,exports){
+},{"./utils":63}],50:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkVersion = void 0;
@@ -11558,7 +12954,7 @@ exports.checkVersion = {
     }
 };
 
-},{}],50:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.countTokens = void 0;
@@ -11568,7 +12964,7 @@ exports.countTokens = {
     }
 };
 
-},{}],51:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleCharacterSet = void 0;
@@ -11603,7 +12999,7 @@ exports.handleCharacterSet = {
     controlHandlers: characterSetControlHandlers,
 };
 
-},{"../utils":62}],52:[function(require,module,exports){
+},{"../utils":63}],53:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleControlsAndDestinations = void 0;
@@ -11664,7 +13060,7 @@ exports.handleControlsAndDestinations = {
     }
 };
 
-},{"../words":63}],53:[function(require,module,exports){
+},{"../words":64}],54:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleDeEncapsulation = void 0;
@@ -11752,7 +13148,7 @@ exports.handleDeEncapsulation = {
     }
 };
 
-},{}],54:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleFonts = void 0;
@@ -11942,7 +13338,7 @@ exports.handleFonts = {
     outputDataFilter: fontTextHandler
 };
 
-},{"../utils":62}],55:[function(require,module,exports){
+},{"../utils":63}],56:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleGroupState = void 0;
@@ -11980,7 +13376,7 @@ exports.handleGroupState = {
     }
 };
 
-},{}],56:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 (function (Buffer){(function (){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -12034,7 +13430,7 @@ exports.handleOutput = {
 };
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"../utils":62,"buffer":16}],57:[function(require,module,exports){
+},{"../utils":63,"buffer":16}],58:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleUnicodeSkip = void 0;
@@ -12075,7 +13471,7 @@ exports.handleUnicodeSkip = {
     controlHandlers: unicodeSkipControlHandlers,
 };
 
-},{}],58:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleTextEscapes = void 0;
@@ -12099,7 +13495,7 @@ exports.handleTextEscapes = {
     }
 };
 
-},{}],59:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 (function (Buffer){(function (){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
@@ -12165,7 +13561,7 @@ function deEncapsulateStream(streamIn, options) {
 exports.deEncapsulateStream = deEncapsulateStream;
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"./de-encapsulate":47,"./stream-flow":60,"./tokenize":61,"./utils":62,"buffer":16}],60:[function(require,module,exports){
+},{"./de-encapsulate":48,"./stream-flow":61,"./tokenize":62,"./utils":63,"buffer":16}],61:[function(require,module,exports){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -12215,7 +13611,7 @@ function streamFlow(stream1, ...streams) {
 }
 exports.streamFlow = streamFlow;
 
-},{}],61:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 (function (Buffer){(function (){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -12411,7 +13807,7 @@ exports.Tokenize = Tokenize;
 exports.default = Tokenize;
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"./utils":62,"buffer":16,"stream":66}],62:[function(require,module,exports){
+},{"./utils":63,"buffer":16,"stream":67}],63:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isNum = exports.isStr = exports.isDef = void 0;
@@ -12428,7 +13824,7 @@ function isNum(thing) {
 }
 exports.isNum = isNum;
 
-},{}],63:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.words = void 0;
@@ -14247,7 +15643,7 @@ exports.words = {
     "zwnj": 1,
 };
 
-},{}],64:[function(require,module,exports){
+},{}],65:[function(require,module,exports){
 /*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
 /* eslint-disable node/no-deprecated-api */
 var buffer = require('buffer')
@@ -14314,7 +15710,7 @@ SafeBuffer.allocUnsafeSlow = function (size) {
   return buffer.SlowBuffer(size)
 }
 
-},{"buffer":16}],65:[function(require,module,exports){
+},{"buffer":16}],66:[function(require,module,exports){
 (function (process){(function (){
 /* eslint-disable node/no-deprecated-api */
 
@@ -14395,7 +15791,7 @@ if (!safer.constants) {
 module.exports = safer
 
 }).call(this)}).call(this,require('_process'))
-},{"_process":45,"buffer":16}],66:[function(require,module,exports){
+},{"_process":46,"buffer":16}],67:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -14526,7 +15922,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":19,"inherits":42,"readable-stream/lib/_stream_duplex.js":68,"readable-stream/lib/_stream_passthrough.js":69,"readable-stream/lib/_stream_readable.js":70,"readable-stream/lib/_stream_transform.js":71,"readable-stream/lib/_stream_writable.js":72,"readable-stream/lib/internal/streams/end-of-stream.js":76,"readable-stream/lib/internal/streams/pipeline.js":78}],67:[function(require,module,exports){
+},{"events":20,"inherits":43,"readable-stream/lib/_stream_duplex.js":69,"readable-stream/lib/_stream_passthrough.js":70,"readable-stream/lib/_stream_readable.js":71,"readable-stream/lib/_stream_transform.js":72,"readable-stream/lib/_stream_writable.js":73,"readable-stream/lib/internal/streams/end-of-stream.js":77,"readable-stream/lib/internal/streams/pipeline.js":79}],68:[function(require,module,exports){
 'use strict';
 
 function _inheritsLoose(subClass, superClass) { subClass.prototype = Object.create(superClass.prototype); subClass.prototype.constructor = subClass; subClass.__proto__ = superClass; }
@@ -14655,7 +16051,7 @@ createErrorType('ERR_UNKNOWN_ENCODING', function (arg) {
 createErrorType('ERR_STREAM_UNSHIFT_AFTER_END_EVENT', 'stream.unshift() after end event');
 module.exports.codes = codes;
 
-},{}],68:[function(require,module,exports){
+},{}],69:[function(require,module,exports){
 (function (process){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -14784,7 +16180,7 @@ Object.defineProperty(Duplex.prototype, 'destroyed', {
   }
 });
 }).call(this)}).call(this,require('_process'))
-},{"./_stream_readable":70,"./_stream_writable":72,"_process":45,"inherits":42}],69:[function(require,module,exports){
+},{"./_stream_readable":71,"./_stream_writable":73,"_process":46,"inherits":43}],70:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -14822,7 +16218,7 @@ function PassThrough(options) {
 PassThrough.prototype._transform = function (chunk, encoding, cb) {
   cb(null, chunk);
 };
-},{"./_stream_transform":71,"inherits":42}],70:[function(require,module,exports){
+},{"./_stream_transform":72,"inherits":43}],71:[function(require,module,exports){
 (function (process,global){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -15852,7 +17248,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../errors":67,"./_stream_duplex":68,"./internal/streams/async_iterator":73,"./internal/streams/buffer_list":74,"./internal/streams/destroy":75,"./internal/streams/from":77,"./internal/streams/state":79,"./internal/streams/stream":80,"_process":45,"buffer":16,"events":19,"inherits":42,"string_decoder/":81,"util":15}],71:[function(require,module,exports){
+},{"../errors":68,"./_stream_duplex":69,"./internal/streams/async_iterator":74,"./internal/streams/buffer_list":75,"./internal/streams/destroy":76,"./internal/streams/from":78,"./internal/streams/state":80,"./internal/streams/stream":81,"_process":46,"buffer":16,"events":20,"inherits":43,"string_decoder/":82,"util":15}],72:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -16043,7 +17439,7 @@ function done(stream, er, data) {
   if (stream._transformState.transforming) throw new ERR_TRANSFORM_ALREADY_TRANSFORMING();
   return stream.push(null);
 }
-},{"../errors":67,"./_stream_duplex":68,"inherits":42}],72:[function(require,module,exports){
+},{"../errors":68,"./_stream_duplex":69,"inherits":43}],73:[function(require,module,exports){
 (function (process,global){(function (){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -16687,7 +18083,7 @@ Writable.prototype._destroy = function (err, cb) {
   cb(err);
 };
 }).call(this)}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../errors":67,"./_stream_duplex":68,"./internal/streams/destroy":75,"./internal/streams/state":79,"./internal/streams/stream":80,"_process":45,"buffer":16,"inherits":42,"util-deprecate":82}],73:[function(require,module,exports){
+},{"../errors":68,"./_stream_duplex":69,"./internal/streams/destroy":76,"./internal/streams/state":80,"./internal/streams/stream":81,"_process":46,"buffer":16,"inherits":43,"util-deprecate":83}],74:[function(require,module,exports){
 (function (process){(function (){
 'use strict';
 
@@ -16870,7 +18266,7 @@ var createReadableStreamAsyncIterator = function createReadableStreamAsyncIterat
 };
 module.exports = createReadableStreamAsyncIterator;
 }).call(this)}).call(this,require('_process'))
-},{"./end-of-stream":76,"_process":45}],74:[function(require,module,exports){
+},{"./end-of-stream":77,"_process":46}],75:[function(require,module,exports){
 'use strict';
 
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
@@ -17054,7 +18450,7 @@ module.exports = /*#__PURE__*/function () {
   }]);
   return BufferList;
 }();
-},{"buffer":16,"util":15}],75:[function(require,module,exports){
+},{"buffer":16,"util":15}],76:[function(require,module,exports){
 (function (process){(function (){
 'use strict';
 
@@ -17153,7 +18549,7 @@ module.exports = {
   errorOrDestroy: errorOrDestroy
 };
 }).call(this)}).call(this,require('_process'))
-},{"_process":45}],76:[function(require,module,exports){
+},{"_process":46}],77:[function(require,module,exports){
 // Ported from https://github.com/mafintosh/end-of-stream with
 // permission from the author, Mathias Buus (@mafintosh).
 
@@ -17240,12 +18636,12 @@ function eos(stream, opts, callback) {
   };
 }
 module.exports = eos;
-},{"../../../errors":67}],77:[function(require,module,exports){
+},{"../../../errors":68}],78:[function(require,module,exports){
 module.exports = function () {
   throw new Error('Readable.from is not available in the browser')
 };
 
-},{}],78:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 // Ported from https://github.com/mafintosh/pump with
 // permission from the author, Mathias Buus (@mafintosh).
 
@@ -17332,7 +18728,7 @@ function pipeline() {
   return streams.reduce(pipe);
 }
 module.exports = pipeline;
-},{"../../../errors":67,"./end-of-stream":76}],79:[function(require,module,exports){
+},{"../../../errors":68,"./end-of-stream":77}],80:[function(require,module,exports){
 'use strict';
 
 var ERR_INVALID_OPT_VALUE = require('../../../errors').codes.ERR_INVALID_OPT_VALUE;
@@ -17355,10 +18751,10 @@ function getHighWaterMark(state, options, duplexKey, isDuplex) {
 module.exports = {
   getHighWaterMark: getHighWaterMark
 };
-},{"../../../errors":67}],80:[function(require,module,exports){
+},{"../../../errors":68}],81:[function(require,module,exports){
 module.exports = require('events').EventEmitter;
 
-},{"events":19}],81:[function(require,module,exports){
+},{"events":20}],82:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -17655,7 +19051,7 @@ function simpleWrite(buf) {
 function simpleEnd(buf) {
   return buf && buf.length ? this.write(buf) : '';
 }
-},{"safe-buffer":64}],82:[function(require,module,exports){
+},{"safe-buffer":65}],83:[function(require,module,exports){
 (function (global){(function (){
 
 /**
@@ -17726,11 +19122,27 @@ function config (name) {
 }
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],83:[function(require,module,exports){
+},{}],84:[function(require,module,exports){
+const { SUPPORTED_EMAIL_EXTENSIONS } = require('./constants');
+
+/**
+ * Handles file input via drag-and-drop and file input elements
+ * Processes MSG and EML email files
+ */
 class FileHandler {
-    constructor(messageHandler, uiManager) {
+    /**
+     * Creates a new FileHandler instance
+     * @param {MessageHandler} messageHandler - Handler for message operations
+     * @param {UIManager} uiManager - UI manager for display updates
+     * @param {Object} parsers - Parser functions for email files
+     * @param {Function} parsers.extractMsg - MSG file parser
+     * @param {Function} parsers.extractEml - EML file parser
+     */
+    constructor(messageHandler, uiManager, parsers = {}) {
         this.messageHandler = messageHandler;
         this.uiManager = uiManager;
+        this.extractMsg = parsers.extractMsg || null;
+        this.extractEml = parsers.extractEml || null;
         this.setupEventListeners();
     }
 
@@ -17742,7 +19154,7 @@ class FileHandler {
 
         document.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            if (e.clientX <= 0 || e.clientY <= 0 || 
+            if (e.clientX <= 0 || e.clientY <= 0 ||
                 e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
                 this.uiManager.hideDropOverlay();
             }
@@ -17751,67 +19163,122 @@ class FileHandler {
         document.addEventListener('drop', (e) => {
             e.preventDefault();
             this.uiManager.hideDropOverlay();
-            this.handleFiles(e.dataTransfer.files);
+            // Validate dataTransfer exists and has files
+            if (e.dataTransfer?.files?.length > 0) {
+                this.handleFiles(e.dataTransfer.files);
+            }
         });
 
         // File input handlers
-        document.getElementById('fileInput').addEventListener('change', (e) => {
-            this.handleFiles(e.target.files);
-        });
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => {
+                this.handleFiles(e.target.files);
+            });
+        }
 
-        document.getElementById('fileInputInApp').addEventListener('change', (e) => {
-            this.handleFiles(e.target.files);
-        });
+        const fileInputInApp = document.getElementById('fileInputInApp');
+        if (fileInputInApp) {
+            fileInputInApp.addEventListener('change', (e) => {
+                this.handleFiles(e.target.files);
+            });
+        }
     }
 
+    /**
+     * Processes multiple files
+     * @param {FileList} files - Files to process
+     */
     handleFiles(files) {
         Array.from(files).forEach(file => {
             const extension = file.name.toLowerCase().split('.').pop();
-            if (extension === 'msg' || extension === 'eml') {
+            if (SUPPORTED_EMAIL_EXTENSIONS.includes(extension)) {
                 this.handleFile(file);
             }
         });
     }
 
+    /**
+     * Processes a single file
+     * @param {File} file - The file to process
+     */
     handleFile(file) {
         const reader = new FileReader();
-        reader.onload = (e) => {
-            const fileBuffer = e.target.result;
-            const extension = file.name.toLowerCase().split('.').pop();
-            
-            let msgInfo;
-            if (extension === 'msg') {
-                msgInfo = window.extractMsg(fileBuffer);
-            } else if (extension === 'eml') {
-                msgInfo = window.extractEml(fileBuffer);
-            }
-            
-            const message = this.messageHandler.addMessage(msgInfo, file.name);
-            
-            // Hide welcome screen and show app
-            this.uiManager.showAppContainer();
 
-            // Update message list
-            this.uiManager.updateMessageList();
-            
-            // Show first message if it's the only one
-            if (this.messageHandler.getMessages().length === 1) {
-                this.uiManager.showMessage(message);
+        reader.onerror = (error) => {
+            console.error('FileHandler: Error reading file:', error);
+            if (this.uiManager.showError) {
+                this.uiManager.showError(`Failed to read file: ${file.name}`);
             }
         };
+
+        reader.onload = (e) => {
+            try {
+                const fileBuffer = e.target.result;
+                const extension = file.name.toLowerCase().split('.').pop();
+
+                let msgInfo = null;
+                if (extension === 'msg' && this.extractMsg) {
+                    msgInfo = this.extractMsg(fileBuffer);
+                } else if (extension === 'eml' && this.extractEml) {
+                    msgInfo = this.extractEml(fileBuffer);
+                }
+
+                if (!msgInfo) {
+                    throw new Error(`Failed to parse ${extension.toUpperCase()} file`);
+                }
+
+                const message = this.messageHandler.addMessage(msgInfo, file.name);
+
+                // Hide welcome screen and show app
+                this.uiManager.showAppContainer();
+
+                // Update message list
+                this.uiManager.updateMessageList();
+
+                // Show first message if it's the only one
+                if (this.messageHandler.getMessages().length === 1) {
+                    this.uiManager.showMessage(message);
+                }
+            } catch (error) {
+                console.error('FileHandler: Error processing file:', error);
+                if (this.uiManager.showError) {
+                    this.uiManager.showError(`Failed to process email: ${file.name}`);
+                }
+            }
+        };
+
         reader.readAsArrayBuffer(file);
     }
 }
 
-module.exports = FileHandler; 
-},{}],84:[function(require,module,exports){
+module.exports = FileHandler;
+
+},{"./constants":88}],85:[function(require,module,exports){
+const { storage } = require('./storage');
+
+/**
+ * Manages email messages and their state
+ * Handles message storage, pinning, sorting, and current selection
+ */
 class MessageHandler {
-    constructor() {
+    /**
+     * Creates a new MessageHandler instance
+     * @param {Storage} [storageInstance] - Optional storage instance for dependency injection
+     */
+    constructor(storageInstance = null) {
+        this.storage = storageInstance || storage;
         this.messages = [];
         this.currentMessage = null;
-        this.pinnedMessages = new Set(JSON.parse(localStorage.getItem('pinnedMessages') || '[]'));
+        this.pinnedMessages = new Set(this.storage.get('pinnedMessages', []));
     }
 
+    /**
+     * Adds a new message to the handler
+     * @param {Object} msgInfo - Parsed message data
+     * @param {string} fileName - Original filename of the email file
+     * @returns {Object} The added message with hash and timestamp
+     */
     addMessage(msgInfo, fileName) {
         // Generate hash from message properties
         const hashInput = `${msgInfo.senderEmail}-${msgInfo.messageDeliveryTime}-${msgInfo.subject}-${fileName}`;
@@ -17848,10 +19315,18 @@ class MessageHandler {
         return message;
     }
 
+    /**
+     * Sorts messages by timestamp in descending order (newest first)
+     */
     sortMessages() {
         this.messages.sort((a, b) => b.timestamp - a.timestamp);
     }
 
+    /**
+     * Deletes a message at the specified index
+     * @param {number} index - Index of the message to delete
+     * @returns {Object|null} The first remaining message, or null if no messages remain
+     */
     deleteMessage(index) {
         const msgInfo = this.messages[index];
         this.messages.splice(index, 1);
@@ -17860,6 +19335,11 @@ class MessageHandler {
         return this.messages.length > 0 ? this.messages[0] : null;
     }
 
+    /**
+     * Toggles the pinned state of a message
+     * @param {number} index - Index of the message to toggle
+     * @returns {Object} The toggled message
+     */
     togglePin(index) {
         const msgInfo = this.messages[index];
         if (this.isPinned(msgInfo)) {
@@ -17871,30 +19351,61 @@ class MessageHandler {
         return msgInfo;
     }
 
+    /**
+     * Checks if a message is pinned
+     * @param {Object} msgInfo - Message object to check
+     * @returns {boolean} True if the message is pinned
+     */
     isPinned(msgInfo) {
         return this.pinnedMessages.has(msgInfo.messageHash);
     }
 
+    /**
+     * Persists the pinned messages set to storage
+     */
     savePinnedMessages() {
-        localStorage.setItem('pinnedMessages', JSON.stringify([...this.pinnedMessages]));
+        this.storage.set('pinnedMessages', [...this.pinnedMessages]);
     }
 
+    /**
+     * Sets the currently displayed message
+     * @param {Object} message - Message to set as current
+     */
     setCurrentMessage(message) {
         this.currentMessage = message;
     }
 
+    /**
+     * Gets the currently displayed message
+     * @returns {Object|null} The current message or null
+     */
     getCurrentMessage() {
         return this.currentMessage;
     }
 
+    /**
+     * Gets all loaded messages
+     * @returns {Array} Array of message objects
+     */
     getMessages() {
         return this.messages;
     }
 }
 
 module.exports = MessageHandler; 
-},{}],85:[function(require,module,exports){
+},{"./storage":92}],86:[function(require,module,exports){
+const { sanitizeHTML } = require('./sanitizer');
+const { DEFAULT_LOCALE, TOAST_COLORS } = require('./constants');
+
+/**
+ * Manages the user interface for the email reader application
+ * Handles message display, attachment modals, notifications, and UI state
+ */
 class UIManager {
+    /**
+     * Creates a new UIManager instance
+     * @param {MessageHandler} messageHandler - Handler for message operations
+     */
     constructor(messageHandler) {
         this.messageHandler = messageHandler;
         this.welcomeScreen = document.getElementById('welcomeScreen');
@@ -17919,18 +19430,80 @@ class UIManager {
 
         // Initialize modal event listeners
         this.initModalEventListeners();
+
+        // Initialize event delegation for dynamic elements
+        this.initEventDelegation();
     }
 
+    /**
+     * Initializes event delegation for dynamically created elements
+     * This replaces inline onclick handlers for better security and maintainability
+     */
+    initEventDelegation() {
+        // Delegate message item clicks
+        this.messageItems?.addEventListener('click', (event) => {
+            const messageItem = event.target.closest('[data-message-index]');
+            if (messageItem) {
+                const index = parseInt(messageItem.dataset.messageIndex, 10);
+                if (!isNaN(index) && window.app) {
+                    window.app.showMessage(index);
+                }
+            }
+        });
+
+        // Delegate message viewer action buttons (pin, delete)
+        this.messageViewer?.addEventListener('click', (event) => {
+            const actionButton = event.target.closest('[data-action]');
+            if (!actionButton || !window.app) return;
+
+            const action = actionButton.dataset.action;
+            const index = parseInt(actionButton.dataset.index, 10);
+
+            if (action === 'pin' && !isNaN(index)) {
+                window.app.togglePin(index);
+            } else if (action === 'delete' && !isNaN(index)) {
+                window.app.deleteMessage(index);
+            } else if (action === 'preview') {
+                const attachmentIndex = parseInt(actionButton.dataset.attachmentIndex, 10);
+                if (!isNaN(attachmentIndex) && this.currentAttachments?.[attachmentIndex]) {
+                    this.openAttachmentModal(this.currentAttachments[attachmentIndex]);
+                }
+            }
+        });
+
+        // Delegate toast close buttons
+        document.body.addEventListener('click', (event) => {
+            const closeButton = event.target.closest('[data-action="close-toast"]');
+            if (closeButton) {
+                const toast = closeButton.closest('.toast');
+                if (toast) {
+                    toast.classList.add('translate-x-full', 'opacity-0');
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }
+        });
+    }
+
+    /**
+     * Displays the welcome screen and hides the main app container
+     */
     showWelcomeScreen() {
         this.welcomeScreen.style.display = 'flex';
         this.appContainer.style.display = 'none';
     }
 
+    /**
+     * Hides the welcome screen and displays the main app container
+     */
     showAppContainer() {
         this.welcomeScreen.style.display = 'none';
         this.appContainer.style.display = 'flex';
     }
 
+    /**
+     * Updates the message list sidebar with all loaded messages
+     * Highlights the current message and shows pinned status
+     */
     updateMessageList() {
         const currentMessage = this.messageHandler.getCurrentMessage();
         const messages = this.messageHandler.getMessages();
@@ -17945,8 +19518,8 @@ class UIManager {
                 .trim();
 
             return `
-                <div class="message-item ${messages[index] === currentMessage ? 'active' : ''} ${this.messageHandler.isPinned(msg) ? 'pinned' : ''}" 
-                     onclick="window.app.showMessage(${index})" 
+                <div class="message-item ${messages[index] === currentMessage ? 'active' : ''} ${this.messageHandler.isPinned(msg) ? 'pinned' : ''}"
+                     data-message-index="${index}"
                      title="${msg.fileName}">
                     <div class="message-sender">${msg.senderName}</div>
                     <div class="message-subject-line">
@@ -17964,56 +19537,30 @@ class UIManager {
         }).join('');
     }
 
+    /**
+     * Displays a message in the main viewer area
+     * @param {Object} msgInfo - Message object to display
+     */
     showMessage(msgInfo) {
         this.messageHandler.setCurrentMessage(msgInfo);
         this.updateMessageList();
-        
-        const toRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'to')
-            .map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
-        const ccRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'cc')
-            .map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
 
-        // Process email content to scope styles
-        let emailContent = msgInfo.bodyContentHTML || msgInfo.bodyContent;
-        // If no HTML, convert plain text to HTML with paragraphs and line breaks
-        if (!msgInfo.bodyContentHTML && emailContent) {
-            // Normalize line endings
-            let text = emailContent.replace(/\r\n/g, '\n');
-            // Split into paragraphs by double line breaks
-            const paragraphs = text.split(/\n{2,}/).map(p => {
-                // Replace single line breaks in paragraph with <br>
-                return p.replace(/\n/g, '<br>');
-            });
-            emailContent = '<p>' + paragraphs.join('</p><p>') + '</p>';
-        }
-        if (emailContent) {
-            // Create a temporary container to parse the HTML
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = emailContent;
-
-            // Find all style tags and scope them to .email-content
-            const styleTags = tempDiv.getElementsByTagName('style');
-            Array.from(styleTags).forEach(styleTag => {
-                const cssText = styleTag.textContent;
-                // Scope all CSS rules to .email-content
-                const scopedCss = cssText.replace(/([^{}]+){/g, '.email-content $1{');
-                styleTag.textContent = scopedCss;
-            });
-
-            // Update the email content
-            emailContent = tempDiv.innerHTML;
-        }
+        const toRecipients = this.formatRecipients(msgInfo.recipients, 'to');
+        const ccRecipients = this.formatRecipients(msgInfo.recipients, 'cc');
+        const emailContent = this.processEmailContent(msgInfo);
+        const messageIndex = this.messageHandler.getMessages().indexOf(msgInfo);
+        const isPinned = this.messageHandler.isPinned(msgInfo);
 
         const messageContent = `
             <div class="message-header">
                 <div class="message-title pl-6">${msgInfo.subject}</div>
                 <div class="message-actions pr-4">
-                    <button onclick="window.app.togglePin(${this.messageHandler.getMessages().indexOf(msgInfo)})" class="action-button rounded-full ${this.messageHandler.isPinned(msgInfo) ? 'pinned' : ''}" title="bookmark message">
+                    <button data-action="pin" data-index="${messageIndex}" class="action-button rounded-full ${isPinned ? 'pinned' : ''}" title="bookmark message">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
                         </svg>
                     </button>
-                    <button onclick="window.app.deleteMessage(${this.messageHandler.getMessages().indexOf(msgInfo)})" class="action-button rounded-full" title="remove message">
+                    <button data-action="delete" data-index="${messageIndex}" class="action-button rounded-full" title="remove message">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                         </svg>
@@ -18039,7 +19586,72 @@ class UIManager {
         this.messageViewer.innerHTML = messageContent;
     }
 
-    // Modal helper methods
+    /**
+     * Formats recipients of a specific type for display
+     * @param {Array} recipients - Array of recipient objects
+     * @param {string} type - Recipient type ('to' or 'cc')
+     * @returns {string} Formatted recipient string
+     */
+    formatRecipients(recipients, type) {
+        return recipients
+            .filter(recipient => recipient.recipType === type)
+            .map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`)
+            .join(', ');
+    }
+
+    /**
+     * Scopes CSS styles within email content to prevent style leakage
+     * @param {string} htmlContent - HTML content with potential style tags
+     * @returns {string} HTML content with scoped styles
+     */
+    scopeEmailStyles(htmlContent) {
+        if (!htmlContent) return '';
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        // Find all style tags and scope them to .email-content
+        const styleTags = tempDiv.getElementsByTagName('style');
+        Array.from(styleTags).forEach(styleTag => {
+            const cssText = styleTag.textContent;
+            // Scope all CSS rules to .email-content
+            const scopedCss = cssText.replace(/([^{}]+){/g, '.email-content $1{');
+            styleTag.textContent = scopedCss;
+        });
+
+        return tempDiv.innerHTML;
+    }
+
+    /**
+     * Processes email content: converts plain text to HTML if needed and scopes styles
+     * @param {Object} msgInfo - Message object
+     * @returns {string} Processed and sanitized email content
+     */
+    processEmailContent(msgInfo) {
+        let emailContent = msgInfo.bodyContentHTML || msgInfo.bodyContent;
+
+        // If no HTML, convert plain text to HTML with paragraphs and line breaks
+        if (!msgInfo.bodyContentHTML && emailContent) {
+            // Normalize line endings
+            const text = emailContent.replace(/\r\n/g, '\n');
+            // Split into paragraphs by double line breaks
+            const paragraphs = text.split(/\n{2,}/).map(p => {
+                // Replace single line breaks in paragraph with <br>
+                return p.replace(/\n/g, '<br>');
+            });
+            emailContent = '<p>' + paragraphs.join('</p><p>') + '</p>';
+        }
+
+        // Scope styles and sanitize
+        emailContent = this.scopeEmailStyles(emailContent);
+        return sanitizeHTML(emailContent);
+    }
+
+    /**
+     * Checks if a MIME type is a previewable image format
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the MIME type is a previewable image
+     */
     isPreviewableImage(mimeType) {
         if (!mimeType) return false;
         const previewableTypes = [
@@ -18049,11 +19661,21 @@ class UIManager {
         return previewableTypes.includes(mimeType.toLowerCase());
     }
 
+    /**
+     * Checks if a MIME type is PDF
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the MIME type is PDF
+     */
     isPdf(mimeType) {
         if (!mimeType) return false;
         return mimeType.toLowerCase() === 'application/pdf';
     }
 
+    /**
+     * Checks if a MIME type is a text-based format
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the MIME type is text-based
+     */
     isText(mimeType) {
         if (!mimeType) return false;
         const normalizedMime = mimeType.toLowerCase();
@@ -18066,10 +19688,19 @@ class UIManager {
                normalizedMime === 'application/x-diff';
     }
 
+    /**
+     * Checks if an attachment can be previewed in the modal
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the attachment is previewable
+     */
     isPreviewable(mimeType) {
         return this.isPreviewableImage(mimeType) || this.isPdf(mimeType) || this.isText(mimeType);
     }
 
+    /**
+     * Initializes event listeners for the attachment preview modal
+     * Handles close button, backdrop click, navigation, and keyboard shortcuts
+     */
     initModalEventListeners() {
         if (!this.attachmentModal) return;
 
@@ -18097,6 +19728,11 @@ class UIManager {
         });
     }
 
+    /**
+     * Opens the attachment preview modal for a specific attachment
+     * @param {Object} attachment - Attachment object to preview
+     * @param {number} [index=0] - Index of the attachment in the list
+     */
     openAttachmentModal(attachment, index = 0) {
         if (!this.attachmentModal) return;
 
@@ -18122,6 +19758,10 @@ class UIManager {
         document.body.style.overflow = 'hidden';
     }
 
+    /**
+     * Renders the preview content for an attachment in the modal
+     * @param {Object} attachment - Attachment object to render
+     */
     renderAttachmentPreview(attachment) {
         // Set filename
         this.attachmentModalFilename.textContent = attachment.fileName;
@@ -18140,25 +19780,41 @@ class UIManager {
             img.alt = attachment.fileName;
             this.attachmentModalContent.appendChild(img);
         } else if (this.isPdf(attachment.attachMimeTag)) {
-            const iframe = document.createElement('iframe');
-            iframe.src = attachment.contentBase64;
-            iframe.title = attachment.fileName;
-            this.attachmentModalContent.appendChild(iframe);
+            // Use object tag for better PDF compatibility with data: URLs
+            const pdfObject = document.createElement('object');
+            pdfObject.data = attachment.contentBase64;
+            pdfObject.type = 'application/pdf';
+            pdfObject.innerHTML = `<p class="text-center p-4">PDF kann nicht angezeigt werden. <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-blue-500 underline">Hier herunterladen</a></p>`;
+            this.attachmentModalContent.appendChild(pdfObject);
         } else if (this.isText(attachment.attachMimeTag)) {
             // Decode base64 to text
-            const base64Data = attachment.contentBase64.split(',')[1];
-            const textContent = atob(base64Data);
+            try {
+                const base64Data = attachment.contentBase64?.split(',')[1];
+                if (!base64Data) {
+                    throw new Error('Invalid base64 data format');
+                }
+                const textContent = atob(base64Data);
 
-            const pre = document.createElement('pre');
-            pre.className = 'attachment-text-preview';
-            pre.textContent = textContent;
-            this.attachmentModalContent.appendChild(pre);
+                const pre = document.createElement('pre');
+                pre.className = 'attachment-text-preview';
+                pre.textContent = textContent;
+                this.attachmentModalContent.appendChild(pre);
+            } catch (error) {
+                console.error('Error decoding text attachment:', error);
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'text-center p-4 text-gray-500';
+                errorDiv.textContent = 'Unable to preview this file';
+                this.attachmentModalContent.appendChild(errorDiv);
+            }
         }
 
         // Update navigation buttons
         this.updateNavButtons();
     }
 
+    /**
+     * Updates the visibility of navigation buttons based on current attachment position
+     */
     updateNavButtons() {
         const total = this.previewableAttachments.length;
         const hasPrev = this.currentAttachmentIndex > 0;
@@ -18169,6 +19825,9 @@ class UIManager {
         this.attachmentModalNext.style.display = hasNext ? 'flex' : 'none';
     }
 
+    /**
+     * Shows the previous attachment in the modal
+     */
     showPrevAttachment() {
         if (this.currentAttachmentIndex > 0) {
             this.currentAttachmentIndex--;
@@ -18176,6 +19835,9 @@ class UIManager {
         }
     }
 
+    /**
+     * Shows the next attachment in the modal
+     */
     showNextAttachment() {
         if (this.currentAttachmentIndex < this.previewableAttachments.length - 1) {
             this.currentAttachmentIndex++;
@@ -18183,6 +19845,9 @@ class UIManager {
         }
     }
 
+    /**
+     * Closes the attachment preview modal and restores page scroll
+     */
     closeAttachmentModal() {
         if (!this.attachmentModal) return;
 
@@ -18193,6 +19858,11 @@ class UIManager {
         document.body.style.overflow = '';
     }
 
+    /**
+     * Renders the attachments section for a message
+     * @param {Object} msgInfo - Message object containing attachments
+     * @returns {string} HTML string for the attachments section
+     */
     renderAttachments(msgInfo) {
         if (!msgInfo.attachments?.length) return '';
 
@@ -18237,7 +19907,8 @@ class UIManager {
                             // Previewable files: click opens modal
                             return `
                                 <div class="cursor-pointer min-w-[250px] max-w-fit"
-                                     onclick="window.app.uiManager.openAttachmentModal(window.app.uiManager.currentAttachments[${index}])"
+                                     data-action="preview"
+                                     data-attachment-index="${index}"
                                      title="Click to preview">
                                     <div class="flex items-center space-x-2 rounded border p-2 hover:border-primary hover:bg-blue-50 transition-colors">
                                         <div class="border rounded w-10 h-10 flex-shrink-0 flex items-center justify-center overflow-hidden">
@@ -18280,6 +19951,12 @@ class UIManager {
         `;
     }
 
+    /**
+     * Formats a date for display in the message list
+     * Returns relative format (today, yesterday) or absolute date
+     * @param {Date} date - Date to format
+     * @returns {string} Formatted date string
+     */
     formatMessageDate(date) {
         // Defensive: handle undefined/null/invalid dates
         if (!date || Object.prototype.toString.call(date) !== '[object Date]' || isNaN(date.getTime())) {
@@ -18290,45 +19967,555 @@ class UIManager {
         yesterday.setDate(yesterday.getDate() - 1);
         
         if (date.toDateString() === now.toDateString()) {
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleTimeString(DEFAULT_LOCALE, { hour: '2-digit', minute: '2-digit' });
         } else if (date.toDateString() === yesterday.toDateString()) {
             return 'Yesterday';
         } else if (date.getFullYear() === now.getFullYear()) {
-            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); // Returns "Dec. 31" format
+            return date.toLocaleDateString(DEFAULT_LOCALE, { month: 'short', day: 'numeric' }); // Returns "Dec. 31" format
         } else {
             return date.toISOString().split('T')[0]; // Returns "2024-12-31" format in ISO 8601
         }
     }
 
+    /**
+     * Shows the drag-and-drop overlay
+     */
     showDropOverlay() {
         this.dropOverlay.classList.add('active');
     }
 
+    /**
+     * Hides the drag-and-drop overlay
+     */
     hideDropOverlay() {
         this.dropOverlay.classList.remove('active');
+    }
+
+    /**
+     * Shows an error toast notification
+     * @param {string} message - Error message to display
+     * @param {number} [duration=5000] - Duration in ms before auto-dismiss
+     */
+    showError(message, duration = 5000) {
+        this.showToast(message, 'error', duration);
+    }
+
+    /**
+     * Shows a warning toast notification
+     * @param {string} message - Warning message to display
+     * @param {number} [duration=4000] - Duration in ms before auto-dismiss
+     */
+    showWarning(message, duration = 4000) {
+        this.showToast(message, 'warning', duration);
+    }
+
+    /**
+     * Shows an info toast notification
+     * @param {string} message - Info message to display
+     * @param {number} [duration=3000] - Duration in ms before auto-dismiss
+     */
+    showInfo(message, duration = 3000) {
+        this.showToast(message, 'info', duration);
+    }
+
+    /**
+     * Shows a toast notification
+     * @param {string} message - Message to display
+     * @param {string} type - Toast type: 'error', 'warning', 'info'
+     * @param {number} duration - Duration in ms
+     */
+    showToast(message, type = 'info', duration = 3000) {
+        // Create toast container if it doesn't exist
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'fixed bottom-4 right-4 z-50 flex flex-col gap-2';
+            document.body.appendChild(container);
+        }
+
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type} flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full opacity-0`;
+
+        // Set background color based on type
+        toast.className += ` ${TOAST_COLORS[type] || TOAST_COLORS.info}`;
+
+        // Add icon based on type
+        const icons = {
+            error: '<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+            warning: '<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>',
+            info: '<svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+        };
+
+        toast.innerHTML = `
+            ${icons[type] || icons.info}
+            <span class="flex-grow">${message}</span>
+            <button class="ml-2 hover:opacity-75 focus:outline-none" data-action="close-toast">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        `;
+
+        container.appendChild(toast);
+
+        // Animate in
+        requestAnimationFrame(() => {
+            toast.classList.remove('translate-x-full', 'opacity-0');
+        });
+
+        // Auto-dismiss
+        setTimeout(() => {
+            toast.classList.add('translate-x-full', 'opacity-0');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
     }
 }
 
 module.exports = UIManager; 
-},{}],86:[function(require,module,exports){
+},{"./constants":88,"./sanitizer":91}],87:[function(require,module,exports){
+/**
+ * CID Reference Replacer Module
+ * Handles replacement of Content-ID (cid:) references in HTML email content
+ * with base64 encoded attachment data
+ */
+
+const { escapeRegex, tryUrlDecoded, cleanContentId, isImageMimeType } = require('./helpers');
+const { PLACEHOLDER_IMAGE_SVG } = require('./constants');
+
+/**
+ * Builds an array of regex patterns to match CID references
+ * @param {string} contentId - The Content-ID value
+ * @param {string} fileName - The attachment filename
+ * @returns {string[]} Array of regex pattern strings
+ */
+function buildCidPatterns(contentId, fileName) {
+    const patterns = [];
+    const cidIdWithoutBrackets = cleanContentId(contentId);
+    const urlDecodedCid = cidIdWithoutBrackets ? tryUrlDecoded(cidIdWithoutBrackets) : null;
+
+    if (cidIdWithoutBrackets) {
+        // Standard cid: patterns
+        patterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`);
+        patterns.push(`src=["']?cid:<${escapeRegex(cidIdWithoutBrackets)}>["']?`);
+        // Without cid: prefix (some email clients use direct references)
+        patterns.push(`src=["']?${escapeRegex(cidIdWithoutBrackets)}["']?`);
+        // With trailing content (e.g., cid:id@domain:1)
+        patterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}[^"'\\s>]*["']?`);
+
+        // URL-decoded version if different
+        if (urlDecodedCid) {
+            patterns.push(`src=["']?cid:${escapeRegex(urlDecodedCid)}["']?`);
+            patterns.push(`src=["']?${escapeRegex(urlDecodedCid)}["']?`);
+        }
+    }
+
+    // Filename-based patterns (fallback when CID is missing or doesn't match)
+    if (fileName) {
+        // cid:filename.ext pattern (common in Outlook)
+        patterns.push(`src=["']?cid:${escapeRegex(fileName)}["']?`);
+        // cid:filename.ext with trailing content
+        patterns.push(`src=["']?cid:${escapeRegex(fileName)}[^"'\\s>]*["']?`);
+        // Just filename (relative reference)
+        patterns.push(`src=["']?${escapeRegex(fileName)}["']?`);
+    }
+
+    return patterns;
+}
+
+/**
+ * Replaces a single image CID reference with base64 data
+ * @param {string} html - The HTML content
+ * @param {Object} attachment - The attachment object
+ * @returns {string} HTML with replaced CID references
+ */
+function replaceImageCid(html, attachment) {
+    const contentId = attachment.pidContentId || attachment.contentId || '';
+    const fileName = attachment.fileName || '';
+    const base64String = attachment.contentBase64;
+
+    const patterns = buildCidPatterns(contentId, fileName);
+
+    let result = html;
+    patterns.forEach(pattern => {
+        result = result.replace(
+            new RegExp(pattern, 'gi'),
+            `src="${base64String}"`
+        );
+    });
+
+    return result;
+}
+
+/**
+ * Replaces href CID references for non-image attachments
+ * @param {string} html - The HTML content
+ * @param {Object} attachment - The attachment object
+ * @returns {string} HTML with replaced href references
+ */
+function replaceHrefCid(html, attachment) {
+    const contentId = attachment.pidContentId || attachment.contentId || '';
+    if (!contentId) return html;
+
+    const cidIdWithoutBrackets = cleanContentId(contentId);
+    const base64String = attachment.contentBase64;
+
+    return html.replace(
+        new RegExp(`href=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`, 'gi'),
+        `href="${base64String}"`
+    );
+}
+
+/**
+ * Replaces all CID references in HTML with base64 attachment data
+ * @param {string} html - The HTML content containing cid: references
+ * @param {Object[]} attachments - Array of attachment objects with contentBase64, contentId, fileName, attachMimeTag
+ * @returns {string} HTML with all CID references replaced
+ */
+function replaceCidReferences(html, attachments) {
+    if (!html) {
+        return '';
+    }
+
+    let result = html;
+
+    // Process each attachment if we have any
+    if (attachments && attachments.length > 0) {
+        attachments.forEach(attachment => {
+            if (!attachment.contentBase64) return;
+
+            if (isImageMimeType(attachment.attachMimeTag)) {
+                // Image attachments: replace src references
+                result = replaceImageCid(result, attachment);
+            } else if (attachment.contentId || attachment.pidContentId) {
+                // Non-image attachments: replace href references
+                result = replaceHrefCid(result, attachment);
+            }
+        });
+    }
+
+    // Replace remaining unmatched cid: references with placeholder
+    result = result.replace(
+        /src=["']?cid:[^"'\s>]+["']?/gi,
+        `src="${PLACEHOLDER_IMAGE_SVG}"`
+    );
+
+    return result;
+}
+
+module.exports = {
+    replaceCidReferences,
+    buildCidPatterns,
+    replaceImageCid,
+    replaceHrefCid
+};
+
+},{"./constants":88,"./helpers":89}],88:[function(require,module,exports){
+/**
+ * Constants Module
+ * Central location for magic numbers, strings, and configuration values
+ */
+
+/**
+ * Windows code page to charset mapping
+ * Used for decoding email content with specific encodings
+ */
+const CHARSET_CODES = {
+    936: 'gbk',       // Simplified Chinese (GBK)
+    950: 'big5',      // Traditional Chinese (Big5)
+    932: 'shift_jis', // Japanese (Shift_JIS)
+    949: 'cp949',     // Korean (CP949/EUC-KR)
+    928: 'gb2312'     // Simplified Chinese (GB2312)
+};
+
+/**
+ * MIME types that can be previewed as images
+ */
+const PREVIEWABLE_IMAGE_TYPES = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'image/bmp'
+];
+
+/**
+ * MIME types that can be previewed as text
+ */
+const PREVIEWABLE_TEXT_TYPES = [
+    'text/plain',
+    'text/html',
+    'text/css',
+    'text/csv',
+    'text/xml',
+    'application/json',
+    'application/xml',
+    'application/javascript',
+    'application/x-diff'
+];
+
+/**
+ * PDF MIME type
+ */
+const PDF_MIME_TYPE = 'application/pdf';
+
+/**
+ * Placeholder SVG for missing/broken images
+ * Displays "Image not available" text
+ */
+const PLACEHOLDER_IMAGE_SVG = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+';
+
+/**
+ * File types considered safe for download
+ * Used to warn users about potentially dangerous attachments
+ */
+const SAFE_DOWNLOAD_TYPES = new Set([
+    // Images
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp',
+    // Documents
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Text
+    'text/plain', 'text/html', 'text/css', 'text/csv',
+    // Data
+    'application/json', 'application/xml',
+    // Archives
+    'application/zip', 'application/x-rar-compressed', 'application/gzip'
+]);
+
+/**
+ * File extensions considered dangerous
+ * These should trigger a warning before download
+ */
+const DANGEROUS_EXTENSIONS = new Set([
+    'exe', 'bat', 'cmd', 'com', 'msi', 'scr', 'pif',
+    'vbs', 'vbe', 'js', 'jse', 'ws', 'wsf', 'wsc', 'wsh',
+    'ps1', 'ps1xml', 'ps2', 'ps2xml', 'psc1', 'psc2',
+    'jar', 'hta', 'cpl', 'msc', 'inf', 'reg'
+]);
+
+/**
+ * Supported file extensions for email files
+ */
+const SUPPORTED_EMAIL_EXTENSIONS = ['msg', 'eml'];
+
+/**
+ * Default charset for email content
+ */
+const DEFAULT_CHARSET = 'utf-8';
+
+/**
+ * Base64 to binary size conversion factor
+ * Base64 encoded data is ~33% larger than binary
+ * Binary size ≈ base64Length * 0.75
+ */
+const BASE64_SIZE_FACTOR = 0.75;
+
+/**
+ * Default locale for date/time formatting
+ */
+const DEFAULT_LOCALE = 'en-US';
+
+/**
+ * Toast notification durations (milliseconds)
+ */
+const TOAST_DURATIONS = {
+    error: 5000,
+    warning: 4000,
+    info: 3000
+};
+
+/**
+ * Toast background colors (Tailwind CSS classes)
+ */
+const TOAST_COLORS = {
+    error: 'bg-red-500 text-white',
+    warning: 'bg-yellow-500 text-black',
+    info: 'bg-blue-500 text-white'
+};
+
+module.exports = {
+    CHARSET_CODES,
+    PREVIEWABLE_IMAGE_TYPES,
+    PREVIEWABLE_TEXT_TYPES,
+    PDF_MIME_TYPE,
+    PLACEHOLDER_IMAGE_SVG,
+    SAFE_DOWNLOAD_TYPES,
+    DANGEROUS_EXTENSIONS,
+    SUPPORTED_EMAIL_EXTENSIONS,
+    DEFAULT_CHARSET,
+    BASE64_SIZE_FACTOR,
+    DEFAULT_LOCALE,
+    TOAST_DURATIONS,
+    TOAST_COLORS
+};
+
+},{}],89:[function(require,module,exports){
+/**
+ * Helper Functions Module
+ * Shared utility functions used across the application
+ */
+
+const { CHARSET_CODES, DEFAULT_CHARSET } = require('./constants');
+
+/**
+ * Escapes special regex characters in a string
+ * @param {string} str - The string to escape
+ * @returns {string} Escaped string safe for use in RegExp
+ */
+function escapeRegex(str) {
+    if (!str) return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Attempts to URL-decode a string
+ * @param {string} str - The string to decode
+ * @returns {string|null} Decoded string if different from input, null otherwise
+ */
+function tryUrlDecoded(str) {
+    if (!str) return null;
+    try {
+        const decoded = decodeURIComponent(str);
+        return decoded !== str ? decoded : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Gets the charset name from a Windows code page number
+ * @param {number} codepage - The Windows code page number
+ * @returns {string} The charset name (defaults to utf-8)
+ */
+function getCharsetFromCodepage(codepage) {
+    return CHARSET_CODES[codepage] || DEFAULT_CHARSET;
+}
+
+/**
+ * Removes angle brackets from Content-ID values
+ * @param {string} contentId - The Content-ID value (e.g., "<image001@domain.com>")
+ * @returns {string} Clean Content-ID without brackets
+ */
+function cleanContentId(contentId) {
+    if (!contentId) return '';
+    return contentId.replace(/[<>]/g, '').trim();
+}
+
+/**
+ * Checks if a MIME type represents an image
+ * @param {string} mimeType - The MIME type to check
+ * @returns {boolean} True if it's an image type
+ */
+function isImageMimeType(mimeType) {
+    if (!mimeType) return false;
+    return mimeType.toLowerCase().startsWith('image/');
+}
+
+/**
+ * Checks if a MIME type represents a text format
+ * @param {string} mimeType - The MIME type to check
+ * @returns {boolean} True if it's a text-based type
+ */
+function isTextMimeType(mimeType) {
+    if (!mimeType) return false;
+    const normalized = mimeType.toLowerCase();
+    return normalized.startsWith('text/') ||
+           normalized === 'application/json' ||
+           normalized === 'application/xml' ||
+           normalized === 'application/javascript' ||
+           normalized === 'application/x-diff';
+}
+
+/**
+ * Extracts the base MIME type without parameters
+ * @param {string} contentType - Full Content-Type header value
+ * @returns {string} Base MIME type (e.g., "text/html")
+ */
+function extractBaseMimeType(contentType) {
+    if (!contentType) return '';
+    return contentType.split(';')[0].trim().toLowerCase();
+}
+
+/**
+ * Extracts charset from Content-Type header
+ * @param {string} contentType - Full Content-Type header value
+ * @returns {string} Charset or default
+ */
+function extractCharset(contentType) {
+    if (!contentType) return DEFAULT_CHARSET;
+    const match = contentType.match(/charset="?([^";\s]+)"?/i);
+    return match ? match[1] : DEFAULT_CHARSET;
+}
+
+/**
+ * Extracts boundary from multipart Content-Type header
+ * @param {string} contentType - Full Content-Type header value
+ * @returns {string|null} Boundary string or null if not found
+ */
+function extractBoundary(contentType) {
+    if (!contentType) return null;
+    const match = contentType.match(/boundary="?([^";\s]+)"?/);
+    return match ? match[1] : null;
+}
+
+/**
+ * Extracts filename from Content-Disposition header
+ * @param {string} contentDisposition - Full Content-Disposition header value
+ * @returns {string} Filename or 'attachment' as default
+ */
+function extractFilename(contentDisposition) {
+    if (!contentDisposition) return 'attachment';
+    const match = contentDisposition.match(/filename="?([^";\n]+)"?/i);
+    return match ? match[1] : 'attachment';
+}
+
+module.exports = {
+    escapeRegex,
+    tryUrlDecoded,
+    getCharsetFromCodepage,
+    cleanContentId,
+    isImageMimeType,
+    isTextMimeType,
+    extractBaseMimeType,
+    extractCharset,
+    extractBoundary,
+    extractFilename
+};
+
+},{"./constants":88}],90:[function(require,module,exports){
 const MessageHandler = require('./MessageHandler');
 const UIManager = require('./UIManager');
 const FileHandler = require('./FileHandler');
 const { extractMsg, extractEml } = require('./utils');
 
-// Make extractMsg and extractEml available globally
-if (typeof window !== 'undefined') {
-    window.extractMsg = extractMsg;
-    window.extractEml = extractEml;
-}
-
+/**
+ * Main application class
+ * Orchestrates the email reader application
+ */
 class App {
     constructor() {
         this.messageHandler = new MessageHandler();
         this.uiManager = new UIManager(this.messageHandler);
-        this.fileHandler = new FileHandler(this.messageHandler, this.uiManager);
+
+        // Inject parsers into FileHandler (Dependency Injection)
+        this.fileHandler = new FileHandler(
+            this.messageHandler,
+            this.uiManager,
+            { extractMsg, extractEml }
+        );
     }
 
+    /**
+     * Shows a message at the given index
+     * @param {number} index - Message index
+     */
     showMessage(index) {
         const messages = this.messageHandler.getMessages();
         if (messages[index]) {
@@ -18336,16 +20523,24 @@ class App {
         }
     }
 
+    /**
+     * Toggles pin status for a message
+     * @param {number} index - Message index
+     */
     togglePin(index) {
         const message = this.messageHandler.togglePin(index);
         this.uiManager.updateMessageList();
         this.uiManager.showMessage(message);
     }
 
+    /**
+     * Deletes a message at the given index
+     * @param {number} index - Message index
+     */
     deleteMessage(index) {
         const nextMessage = this.messageHandler.deleteMessage(index);
         this.uiManager.updateMessageList();
-        
+
         if (nextMessage) {
             this.uiManager.showMessage(nextMessage);
         } else {
@@ -18362,8 +20557,252 @@ if (typeof window !== 'undefined') {
     });
 }
 
-module.exports = App; 
-},{"./FileHandler":83,"./MessageHandler":84,"./UIManager":85,"./utils":87}],87:[function(require,module,exports){
+module.exports = App;
+
+},{"./FileHandler":84,"./MessageHandler":85,"./UIManager":86,"./utils":93}],91:[function(require,module,exports){
+/**
+ * HTML Sanitization Module
+ * Protects against XSS attacks by sanitizing untrusted HTML content
+ */
+const DOMPurify = require('dompurify');
+
+/**
+ * Configuration for DOMPurify
+ * Allows common email HTML elements while blocking dangerous ones
+ */
+const SANITIZE_CONFIG = {
+    ALLOWED_TAGS: [
+        // Text formatting
+        'p', 'br', 'div', 'span', 'b', 'i', 'u', 'strong', 'em', 'mark', 'small', 'del', 'ins', 'sub', 'sup',
+        // Headings
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        // Lists
+        'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+        // Tables
+        'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot', 'caption', 'colgroup', 'col',
+        // Links and media
+        'a', 'img',
+        // Structure
+        'blockquote', 'pre', 'code', 'hr', 'address',
+        // Styling (scoped in email context)
+        'style',
+        // Font tags (legacy emails)
+        'font', 'center'
+    ],
+    ALLOWED_ATTR: [
+        // Common
+        'class', 'id', 'style', 'title',
+        // Links
+        'href', 'target', 'rel',
+        // Images
+        'src', 'alt', 'width', 'height',
+        // Tables
+        'colspan', 'rowspan', 'cellpadding', 'cellspacing', 'border', 'align', 'valign', 'bgcolor',
+        // Font (legacy)
+        'color', 'face', 'size'
+    ],
+    ALLOW_DATA_ATTR: false,
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'select', 'textarea', 'applet', 'base', 'meta', 'link'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'onkeydown', 'onkeyup', 'onkeypress'],
+    // Allow data: URLs only for images (base64 embedded images are common in emails)
+    ALLOW_UNKNOWN_PROTOCOLS: false,
+    ADD_ATTR: ['target'],
+    // Force all links to open in new tab for security
+    WHOLE_DOCUMENT: false,
+    RETURN_DOM: false,
+    RETURN_DOM_FRAGMENT: false
+};
+
+/**
+ * Sanitizes HTML content to prevent XSS attacks
+ * @param {string} html - The untrusted HTML content
+ * @returns {string} Sanitized HTML safe for innerHTML
+ */
+function sanitizeHTML(html) {
+    if (!html) return '';
+
+    // Create a DOMPurify instance (for browser environment)
+    let cleanHTML;
+    try {
+        cleanHTML = DOMPurify.sanitize(html, SANITIZE_CONFIG);
+    } catch (error) {
+        console.error('Error sanitizing HTML:', error);
+        // Return escaped text as fallback
+        return escapeHTML(html);
+    }
+
+    return cleanHTML;
+}
+
+/**
+ * Escapes HTML special characters
+ * @param {string} text - Plain text to escape
+ * @returns {string} HTML-escaped text
+ */
+function escapeHTML(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Sanitizes a URL to prevent javascript: and data: URL attacks
+ * Allows http:, https:, mailto:, and data:image for embedded images
+ * @param {string} url - The URL to sanitize
+ * @returns {string} Safe URL or empty string if dangerous
+ */
+function sanitizeURL(url) {
+    if (!url) return '';
+
+    const trimmed = url.trim().toLowerCase();
+
+    // Allow safe protocols
+    if (trimmed.startsWith('http://') ||
+        trimmed.startsWith('https://') ||
+        trimmed.startsWith('mailto:')) {
+        return url;
+    }
+
+    // Allow data:image URLs (common in emails for embedded images)
+    if (trimmed.startsWith('data:image/')) {
+        return url;
+    }
+
+    // Block everything else (javascript:, data:text/html, etc.)
+    return '';
+}
+
+module.exports = {
+    sanitizeHTML,
+    escapeHTML,
+    sanitizeURL,
+    SANITIZE_CONFIG
+};
+
+},{"dompurify":19}],92:[function(require,module,exports){
+/**
+ * Storage Module
+ * Provides an abstraction layer for localStorage with error handling
+ * Makes the application more testable and allows swapping storage backends
+ */
+
+class Storage {
+    /**
+     * Creates a new Storage instance
+     * @param {Storage} [backend=localStorage] - The storage backend to use
+     */
+    constructor(backend = null) {
+        this.backend = backend || (typeof localStorage !== 'undefined' ? localStorage : null);
+    }
+
+    /**
+     * Retrieves a value from storage
+     * @param {string} key - The key to retrieve
+     * @param {*} [defaultValue=null] - Default value if key doesn't exist or on error
+     * @returns {*} The stored value (parsed from JSON) or defaultValue
+     */
+    get(key, defaultValue = null) {
+        if (!this.backend) {
+            return defaultValue;
+        }
+
+        try {
+            const item = this.backend.getItem(key);
+            if (item === null) {
+                return defaultValue;
+            }
+            return JSON.parse(item);
+        } catch (error) {
+            console.error(`Storage: Error reading '${key}':`, error);
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Stores a value in storage
+     * @param {string} key - The key to store under
+     * @param {*} value - The value to store (will be JSON stringified)
+     * @returns {boolean} True if successful, false on error
+     */
+    set(key, value) {
+        if (!this.backend) {
+            return false;
+        }
+
+        try {
+            this.backend.setItem(key, JSON.stringify(value));
+            return true;
+        } catch (error) {
+            console.error(`Storage: Error writing '${key}':`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Removes a value from storage
+     * @param {string} key - The key to remove
+     * @returns {boolean} True if successful, false on error
+     */
+    remove(key) {
+        if (!this.backend) {
+            return false;
+        }
+
+        try {
+            this.backend.removeItem(key);
+            return true;
+        } catch (error) {
+            console.error(`Storage: Error removing '${key}':`, error);
+            return false;
+        }
+    }
+
+    /**
+     * Checks if a key exists in storage
+     * @param {string} key - The key to check
+     * @returns {boolean} True if key exists
+     */
+    has(key) {
+        if (!this.backend) {
+            return false;
+        }
+
+        try {
+            return this.backend.getItem(key) !== null;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Clears all storage data
+     * @returns {boolean} True if successful, false on error
+     */
+    clear() {
+        if (!this.backend) {
+            return false;
+        }
+
+        try {
+            this.backend.clear();
+            return true;
+        } catch (error) {
+            console.error('Storage: Error clearing storage:', error);
+            return false;
+        }
+    }
+}
+
+// Export singleton instance for convenience
+const storage = new Storage();
+
+module.exports = {
+    Storage,
+    storage
+};
+
+},{}],93:[function(require,module,exports){
 (function (Buffer){(function (){
 const MsgReaderLib = require('@kenjiuno/msgreader');
 const { decompressRTF } = require('@kenjiuno/decompressrtf');
@@ -18371,20 +20810,49 @@ const { deEncapsulateSync } = require('rtf-stream-parser');
 const iconvLite = require('iconv-lite');
 const md5 = require('md5');
 
+const { getCharsetFromCodepage } = require('./helpers');
+const { BASE64_SIZE_FACTOR } = require('./constants');
+const { replaceCidReferences } = require('./cidReplacer');
+
 // Export md5 for global use
 window.md5 = md5;
 
-// Function to sanitize attachment filenames (removes null terminators, control characters, BOM)
+/**
+ * Sanitizes attachment filenames to prevent path traversal attacks
+ * and remove dangerous characters
+ * @param {string} filename - The original filename
+ * @returns {string} Sanitized filename safe for filesystem operations
+ */
 function sanitizeFilename(filename) {
     if (!filename) return 'attachment';
-    return filename
-        .replace(/[\x00-\x1f\x7f]/g, '')  // Remove control characters (including null)
+
+    let sanitized = filename
+        // Remove path traversal sequences
+        .replace(/\.\.\//g, '')            // Remove ../
+        .replace(/\.\.\\/g, '')            // Remove ..\
+        .replace(/^\/+/g, '')              // Remove leading forward slashes
+        .replace(/^[A-Za-z]:[\\\/]/g, '')  // Remove Windows drive letters (C:\, D:/)
+        // Remove control characters
+        .replace(/[\x00-\x1f\x7f]/g, '')   // Remove control characters (including null)
         .replace(/\ufeff/g, '')            // Remove UTF-16 BOM
         .replace(/\ufffd/g, '')            // Remove replacement character
+        // Replace Windows reserved characters
+        .replace(/[<>:"|?*]/g, '_')        // Replace chars invalid in Windows filenames
         .trim();
+
+    // Extract only the filename (remove any remaining path components)
+    sanitized = sanitized.split('/').pop().split('\\').pop();
+
+    // Ensure we have a valid filename
+    return sanitized || 'attachment';
 }
 
-// Function to decode MIME encoded-word format
+/**
+ * Decodes MIME encoded-word format strings (RFC 2047)
+ * Handles both Base64 (B) and Quoted-Printable (Q) encodings
+ * @param {string} str - String containing encoded words (e.g., "=?UTF-8?B?SGVsbG8=?=")
+ * @returns {string} Decoded string
+ */
 function decodeMIMEWord(str) {
     if (!str) return '';
 
@@ -18410,317 +20878,398 @@ function decodeMIMEWord(str) {
     });
 }
 
-function extractMsg(fileBuffer) {
-    let msgInfo = null;
-    let msgReader = null;
+/**
+ * Parses email headers from a header string
+ * Handles multi-line headers (folded headers)
+ * @param {string} headerString - Raw header string
+ * @returns {Object} Parsed headers as key-value pairs (keys are lowercase)
+ */
+function parseEmailHeaders(headerString) {
+    const headers = {};
+    let currentHeader = '';
+
+    headerString.split(/\r?\n/).forEach(line => {
+        if (line.match(/^\s+/)) {
+            // Continuation of previous header (folded header)
+            if (currentHeader) {
+                headers[currentHeader] += ' ' + line.trim();
+            }
+        } else {
+            const match = line.match(/^([\w-]+):\s*(.*)$/i);
+            if (match) {
+                currentHeader = match[1].toLowerCase().trim();
+                headers[currentHeader] = match[2].trim();
+            }
+        }
+    });
+
+    return headers;
+}
+
+/**
+ * Decodes content based on transfer encoding
+ * @param {string} content - Raw content string
+ * @param {string} encoding - Transfer encoding (base64, quoted-printable, or empty)
+ * @param {string} charset - Character set for decoding
+ * @param {boolean} isText - Whether content is text (affects base64 decoding)
+ * @returns {string} Decoded content
+ */
+function decodeTransferEncoding(content, encoding, charset, isText = true) {
+    const normalizedEncoding = (encoding || '').toLowerCase();
+
+    if (normalizedEncoding === 'base64') {
+        if (isText) {
+            try {
+                const decodedBytes = Buffer.from(content.replace(/\s/g, ''), 'base64');
+                return iconvLite.decode(decodedBytes, charset);
+            } catch (error) {
+                console.error('Error decoding base64 content:', error);
+                return content;
+            }
+        }
+        return content; // Return raw for non-text
+    } else if (normalizedEncoding === 'quoted-printable') {
+        // Decode quoted-printable: remove soft line breaks, then decode hex codes
+        const qpContent = content
+            .replace(/=\r?\n/g, '')
+            .replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+        const decodedBytes = Buffer.from(qpContent, 'binary');
+        return iconvLite.decode(decodedBytes, charset);
+    }
+
+    return content.trim();
+}
+
+/**
+ * Extracts email addresses from a header value
+ * @param {string} str - Header value containing email addresses
+ * @returns {Array<{name: string, address: string}>} Array of email objects
+ */
+function extractEmailAddresses(str) {
+    if (!str) return [];
+
+    const matches = str.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/g) || [];
+    return matches.map(match => {
+        const parts = match.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/);
+        const email = parts[2] || parts[3];
+        const name = parts[1] || email;
+        return { name: decodeMIMEWord(name), address: email };
+    });
+}
+
+/**
+ * Creates an attachment object from parsed data
+ * @param {string} filename - Attachment filename
+ * @param {string} mimeType - MIME type
+ * @param {string} base64Content - Base64 encoded content
+ * @param {string} [contentId] - Optional Content-ID
+ * @returns {Object} Attachment object
+ */
+function createAttachment(filename, mimeType, base64Content, contentId = null) {
+    const attachment = {
+        fileName: sanitizeFilename(filename),
+        attachMimeTag: mimeType,
+        contentLength: Math.floor(base64Content.length * BASE64_SIZE_FACTOR),
+        contentBase64: `data:${mimeType};base64,${base64Content}`
+    };
+
+    if (contentId) {
+        attachment.contentId = contentId.replace(/[<>]/g, '').trim();
+    }
+
+    return attachment;
+}
+
+/**
+ * Parses multipart email content recursively
+ * @param {string} content - Raw multipart content
+ * @param {string} boundary - MIME boundary string
+ * @param {number} [depth=0] - Recursion depth
+ * @param {string} [defaultCharset='utf-8'] - Default charset
+ * @returns {{bodyHTML: string, bodyText: string, attachments: Array}} Parsed content
+ */
+function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'utf-8') {
+    const results = {
+        bodyHTML: '',
+        bodyText: '',
+        attachments: []
+    };
+
+    const boundaryRegExp = new RegExp(`--${boundary}(?:--)?(?:\r?\n|\r|$)`, 'g');
+    const parts = content.split(boundaryRegExp).filter(part => part.trim());
+
+    parts.forEach(part => {
+        const partMatch = part.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
+        if (!partMatch) return;
+
+        const [, partHeadersStr, partContent] = partMatch;
+        const partHeaders = parseEmailHeaders(partHeadersStr);
+
+        const contentType = partHeaders['content-type'] || '';
+        const contentTransferEncoding = partHeaders['content-transfer-encoding'] || '';
+        const contentDisposition = partHeaders['content-disposition'] || '';
+        const contentId = partHeaders['content-id'] || '';
+
+        // Extract charset from part's content-type
+        const partCharsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
+        const partCharset = partCharsetMatch ? partCharsetMatch[1] : defaultCharset;
+
+        // Check for nested multipart
+        const nestedBoundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
+        if (nestedBoundaryMatch) {
+            const nestedResults = parseMultipartContent(
+                partContent,
+                nestedBoundaryMatch[1],
+                depth + 1,
+                partCharset
+            );
+            // Merge nested results
+            if (nestedResults.bodyHTML) {
+                results.bodyHTML = results.bodyHTML
+                    ? results.bodyHTML + '\n' + nestedResults.bodyHTML
+                    : nestedResults.bodyHTML;
+            }
+            if (nestedResults.bodyText) {
+                results.bodyText = results.bodyText
+                    ? results.bodyText + '\n' + nestedResults.bodyText
+                    : nestedResults.bodyText;
+            }
+            results.attachments.push(...nestedResults.attachments);
+            return;
+        }
+
+        // Decode and handle content based on type
+        if (contentType.startsWith('text/html')) {
+            const decodedContent = decodeTransferEncoding(
+                partContent.trim(),
+                contentTransferEncoding,
+                partCharset
+            );
+            results.bodyHTML = results.bodyHTML
+                ? results.bodyHTML + '\n' + decodedContent
+                : decodedContent;
+        } else if (contentType.startsWith('text/plain')) {
+            const decodedContent = decodeTransferEncoding(
+                partContent.trim(),
+                contentTransferEncoding,
+                partCharset
+            );
+            results.bodyText = results.bodyText
+                ? results.bodyText + '\n' + decodedContent
+                : decodedContent;
+        } else if (contentType.startsWith('image/') || contentType.startsWith('application/')) {
+            const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
+            const filename = filenameMatch ? filenameMatch[1] : 'attachment';
+            const mimeType = contentType.split(';')[0];
+
+            let base64Content;
+            if (contentTransferEncoding.toLowerCase() === 'base64') {
+                base64Content = partContent.replace(/\s/g, '');
+            } else {
+                base64Content = Buffer.from(partContent, 'binary').toString('base64');
+            }
+
+            const attachment = createAttachment(filename, mimeType, base64Content, contentId);
+
+            // Fallback: try Content-Location if no Content-ID
+            if (!contentId) {
+                const contentLocation = partHeaders['content-location'] || '';
+                if (contentLocation) {
+                    attachment.contentId = contentLocation.replace(/[<>]/g, '').trim();
+                }
+            }
+
+            results.attachments.push(attachment);
+        }
+    });
+
+    return results;
+}
+
+/**
+ * Initializes MsgReader and extracts file data
+ * @param {ArrayBuffer} fileBuffer - The raw MSG file content
+ * @returns {{reader: Object, info: Object}|null} MsgReader instance and file data
+ */
+function initializeMsgReader(fileBuffer) {
     try {
-        // Check if MsgReader exists as a function/constructor
+        let msgReader = null;
+        let msgInfo = null;
+
         if (typeof MsgReaderLib === 'function') {
             msgReader = new MsgReaderLib(fileBuffer);
             msgInfo = msgReader.getFileData();
-
         } else if (MsgReaderLib && typeof MsgReaderLib.default === 'function') {
             msgReader = new MsgReaderLib.default(fileBuffer);
             msgInfo = msgReader.getFileData();
-
         } else {
             console.error("MsgReader constructor could not be found.");
+            return null;
         }
+
+        return { reader: msgReader, info: msgInfo };
     } catch (error) {
         console.error("Error creating a MsgReader instance:", error);
+        return null;
     }
+}
 
-    let emailBodyContent = msgInfo && (msgInfo.bodyHTML || msgInfo.body);
-    let emailBodyContentHTML = '';
+/**
+ * Extracts HTML content from MSG file data
+ * Handles compressed RTF, raw HTML arrays, and plain text fallback
+ * @param {Object} msgInfo - Parsed MSG file data
+ * @returns {string} HTML content
+ */
+function extractMsgHtmlContent(msgInfo) {
+    const emailBodyContent = msgInfo.bodyHTML || msgInfo.body || '';
 
-    if (msgInfo && msgInfo.compressedRtf) {
+    // Try compressed RTF first
+    if (msgInfo.compressedRtf) {
         try {
             const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
-            emailBodyContentHTML = convertRTFToHTML(decompressedRtf);
-        } catch (err) {
-            console.error('Failed to decompress or convert RTF:', err);
-            emailBodyContentHTML = emailBodyContent || '';
+            return convertRTFToHTML(decompressedRtf);
+        } catch (error) {
+            console.error('Failed to decompress or convert RTF:', error);
+            return emailBodyContent;
         }
-    } else if (msgInfo && msgInfo.html && typeof msgInfo.html === 'object') {
-        // Try to decode HTML from Uint8Array
+    }
+
+    // Try HTML from Uint8Array
+    if (msgInfo.html && typeof msgInfo.html === 'object') {
         try {
-            let htmlArr;
-            if (Array.isArray(msgInfo.html)) {
-                htmlArr = Uint8Array.from(msgInfo.html);
-            } else {
-                // msgInfo.html is likely an object with numeric keys
-                htmlArr = Uint8Array.from(Object.values(msgInfo.html));
-            }
-            // Try TextDecoder first, fallback to Buffer
-            let htmlStr = '';
-            let charset = 'utf-8';
-            if (msgInfo.internetCodepage === 936) {
-                charset = 'gbk'; // Simplified Chinese
-            } else if (msgInfo.internetCodepage === 950) {
-                charset = 'big5'; // Traditional Chinese
-            } else if (msgInfo.internetCodepage === 932) {
-                charset = 'shift_jis'; // Japanese
-            } else if (msgInfo.internetCodepage === 949) {
-                charset = 'cp949'; // Korean
-            } else if (msgInfo.internetCodepage === 928) {
-                charset = 'gb2312'; // Simplified Chinese
-            }
+            const htmlArr = Array.isArray(msgInfo.html)
+                ? Uint8Array.from(msgInfo.html)
+                : Uint8Array.from(Object.values(msgInfo.html));
+
+            const charset = getCharsetFromCodepage(msgInfo.internetCodepage);
+
+            // Try TextDecoder first, fallback to iconv-lite
             if (typeof TextDecoder !== 'undefined') {
                 try {
-                    htmlStr = new TextDecoder(charset).decode(htmlArr);
-                } catch (e) {
-                    // Fallback for charsets not supported by TextDecoder
-                    htmlStr = iconvLite.decode(Buffer.from(htmlArr), charset);
+                    return new TextDecoder(charset).decode(htmlArr);
+                } catch (_e) {
+                    return iconvLite.decode(Buffer.from(htmlArr), charset);
                 }
-            } else {
-                // Node fallback: support broader set of encodings via iconv-lite
-                htmlStr = iconvLite.decode(Buffer.from(htmlArr), charset);
             }
-            emailBodyContentHTML = htmlStr;
-        } catch (err) {
-            console.log('Failed to decode HTML from Uint8Array:', err);
-            emailBodyContentHTML = emailBodyContent || '';
+            return iconvLite.decode(Buffer.from(htmlArr), charset);
+        } catch (error) {
+            console.error('Failed to decode HTML from Uint8Array:', error);
+            return emailBodyContent;
         }
-    } else {
-        console.log('Missing compressedRtf in msgInfo:', msgInfo);
-        emailBodyContentHTML = emailBodyContent || '';
     }
 
-    // Extract images and attachments
+    return emailBodyContent;
+}
+
+/**
+ * Processes MSG attachments: extracts content, sanitizes filenames, converts to base64
+ * @param {Object} msgReader - MsgReader instance
+ * @param {Array} attachments - Array of attachment objects
+ * @returns {Array} Processed attachments with base64 content
+ */
+function processMsgAttachments(msgReader, attachments) {
+    return attachments.map(attachment => {
+        const contentUint8Array = msgReader.getAttachment(attachment).content;
+        const contentBuffer = Buffer.from(contentUint8Array);
+        const contentBase64 = contentBuffer.toString('base64');
+
+        return {
+            ...attachment,
+            fileName: sanitizeFilename(attachment.fileName),
+            contentBase64: `data:${attachment.attachMimeTag};base64,${contentBase64}`
+        };
+    });
+}
+
+/**
+ * Extracts email data from a Microsoft Outlook MSG file
+ * @param {ArrayBuffer} fileBuffer - The raw MSG file content
+ * @returns {Object|null} Parsed email object with subject, sender, recipients, body, attachments
+ */
+function extractMsg(fileBuffer) {
+    const result = initializeMsgReader(fileBuffer);
+    if (!result) return null;
+
+    const { reader: msgReader, info: msgInfo } = result;
+    const emailBodyContent = msgInfo.bodyHTML || msgInfo.body || '';
+
+    // Extract HTML content from various sources
+    let emailBodyContentHTML = extractMsgHtmlContent(msgInfo);
+
+    // Process attachments
     if (msgInfo.attachments && msgInfo.attachments.length > 0) {
-        // First pass: collect all attachments with their base64 data
-        msgInfo.attachments.forEach((attachment, index) => {
-            const contentUint8Array = msgReader.getAttachment(attachment).content;
-            const contentBuffer = Buffer.from(contentUint8Array);
-            const contentBase64 = contentBuffer.toString('base64');
-
-            const base64String = `data:${attachment.attachMimeTag};base64,${contentBase64}`;
-            msgInfo.attachments[index].contentBase64 = base64String;
-            // Sanitize filename to remove null terminators and control characters (fixes #14)
-            msgInfo.attachments[index].fileName = sanitizeFilename(attachment.fileName);
-        });
-
-        // Second pass: replace CID references in HTML with base64 data
-        msgInfo.attachments.forEach((attachment) => {
-            const base64String = attachment.contentBase64;
-
-            // Get Content-ID from pidContentId or contentId field
-            const contentId = attachment.pidContentId || attachment.contentId || '';
-            const fileName = attachment.fileName || '';
-
-            // Helper to escape regex special characters
-            const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-            // Helper to try URL-decoded version of a pattern
-            const tryUrlDecoded = (str) => {
-                try {
-                    const decoded = decodeURIComponent(str);
-                    return decoded !== str ? decoded : null;
-                } catch (e) {
-                    return null;
-                }
-            };
-
-            if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
-                const cidIdWithoutBrackets = contentId ? contentId.replace(/[<>]/g, '').trim() : '';
-                const urlDecodedCid = cidIdWithoutBrackets ? tryUrlDecoded(cidIdWithoutBrackets) : null;
-
-                // Build comprehensive list of CID patterns
-                const cidPatterns = [];
-
-                if (cidIdWithoutBrackets) {
-                    // Standard cid: patterns
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                    cidPatterns.push(`src=["']?cid:<${escapeRegex(cidIdWithoutBrackets)}>["']?`);
-                    // Without cid: prefix
-                    cidPatterns.push(`src=["']?${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                    // Broad pattern for cid: with trailing content (e.g., cid:id@domain:1)
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}[^"'\\s>]*["']?`);
-
-                    // URL-decoded version if different
-                    if (urlDecodedCid) {
-                        cidPatterns.push(`src=["']?cid:${escapeRegex(urlDecodedCid)}["']?`);
-                        cidPatterns.push(`src=["']?${escapeRegex(urlDecodedCid)}["']?`);
-                    }
-                }
-
-                // Filename-based patterns (fallback when CID is missing or doesn't match)
-                if (fileName) {
-                    // cid:filename.ext pattern (common in Outlook)
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}["']?`);
-                    // cid:filename.ext with trailing content (e.g., cid:image001.jpg@01D9D85E)
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}[^"'\\s>]*["']?`);
-                    // Just filename (relative reference)
-                    cidPatterns.push(`src=["']?${escapeRegex(fileName)}["']?`);
-                }
-
-                // Apply all patterns
-                cidPatterns.forEach(pattern => {
-                    emailBodyContentHTML = emailBodyContentHTML.replace(
-                        new RegExp(pattern, 'gi'),
-                        `src="${base64String}"`
-                    );
-                });
-            } else if (contentId) {
-                // Non-image attachments: replace href references
-                const cidIdWithoutBrackets = contentId.replace(/[<>]/g, '').trim();
-                emailBodyContentHTML = emailBodyContentHTML.replace(
-                    new RegExp(`href=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`, 'gi'),
-                    `href="${base64String}"`
-                );
-            }
-        });
-
-        // Replace remaining cid: references with placeholder for missing images
-        emailBodyContentHTML = emailBodyContentHTML.replace(
-            /src=["']?cid:[^"'\s>]+["']?/gi,
-            'src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+"'
-        );
+        msgInfo.attachments = processMsgAttachments(msgReader, msgInfo.attachments);
+        emailBodyContentHTML = replaceCidReferences(emailBodyContentHTML, msgInfo.attachments);
     }
 
-    return msgInfo ? {
+    return {
         ...msgInfo,
         bodyContent: emailBodyContent,
         bodyContentHTML: emailBodyContentHTML
-    } : null;
+    };
 }
 
-// Function for converting the decompressed RTF content to HTML
+/**
+ * Converts decompressed RTF content to HTML
+ * @param {string} rtfContent - Decompressed RTF content
+ * @returns {string} HTML representation of the RTF content
+ */
 function convertRTFToHTML(rtfContent) {
     const result = deEncapsulateSync(rtfContent, { decode: iconvLite.decode });
     return result.text;
 }
 
+/**
+ * Handles single-part (non-multipart) email content
+ * @param {string} bodyContent - Raw body content
+ * @param {string} contentType - Content-Type header value
+ * @param {string} contentTransferEncoding - Content-Transfer-Encoding header value
+ * @param {string} contentDisposition - Content-Disposition header value
+ * @param {string} charset - Character set for decoding
+ * @returns {{bodyHTML: string, bodyText: string, attachments: Array}} Parsed content
+ */
+function handleSinglePartContent(bodyContent, contentType, contentTransferEncoding, contentDisposition, charset) {
+    const results = {
+        bodyHTML: '',
+        bodyText: '',
+        attachments: []
+    };
+
+    if (contentType.startsWith('application/') || contentType.startsWith('image/')) {
+        // Handle as attachment
+        const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
+        const filename = filenameMatch ? filenameMatch[1] : 'attachment';
+        const mimeType = contentType.split(';')[0];
+
+        const base64Content = contentTransferEncoding.toLowerCase() === 'base64'
+            ? bodyContent.replace(/\s/g, '')
+            : Buffer.from(bodyContent).toString('base64');
+
+        results.attachments.push(createAttachment(filename, mimeType, base64Content));
+    } else {
+        // Handle as text content
+        const decodedContent = decodeTransferEncoding(bodyContent, contentTransferEncoding, charset);
+
+        if (contentType.includes('text/html')) {
+            results.bodyHTML = decodedContent;
+        } else {
+            results.bodyText = decodedContent;
+        }
+    }
+
+    return results;
+}
+
+/**
+ * Extracts email data from an EML (RFC 5322) file
+ * @param {ArrayBuffer} fileBuffer - The raw EML file content
+ * @returns {Object} Parsed email object with subject, sender, recipients, body, attachments
+ * @throws {Error} If the EML file cannot be parsed
+ */
 function extractEml(fileBuffer) {
     try {
         // Convert ArrayBuffer to String
         const emailString = Buffer.from(fileBuffer).toString('binary');
-
-        // Helper function for parsing multipart content
-        function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'utf-8') {
-            const results = {
-                bodyHTML: '',
-                bodyText: '',
-                attachments: []
-            };
-
-            const boundaryRegExp = new RegExp(`--${boundary}(?:--)?(?:\r?\n|\r|$)`, 'g');
-            const parts = content.split(boundaryRegExp).filter(part => part.trim());
-
-            parts.forEach(part => {
-                const partMatch = part.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
-                if (!partMatch) return;
-
-                const [_, partHeaders, partContent] = partMatch;
-
-                // Parse part headers
-                const partHeadersObj = {};
-                let currentHeader = '';
-                partHeaders.split(/\r?\n/).forEach(line => {
-                    if (line.match(/^\s+/)) {
-                        if (currentHeader) {
-                            partHeadersObj[currentHeader] += ' ' + line.trim();
-                        }
-                    } else {
-                        const match = line.match(/^([\w-]+):\s*(.*)$/i);
-                        if (match) {
-                            currentHeader = match[1].toLowerCase().trim();
-                            partHeadersObj[currentHeader] = match[2].trim();
-                        }
-                    }
-                });
-
-                const contentType = partHeadersObj['content-type'] || '';
-                const contentTransferEncoding = partHeadersObj['content-transfer-encoding'] || '';
-                const contentDisposition = partHeadersObj['content-disposition'] || '';
-                const contentId = partHeadersObj['content-id'] || '';
-
-                // Extract charset from part's content-type
-                const partCharsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
-                const partCharset = partCharsetMatch ? partCharsetMatch[1] : defaultCharset;
-
-                // Check for nested multipart
-                const nestedBoundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
-                if (nestedBoundaryMatch) {
-                    const nestedResults = parseMultipartContent(partContent, nestedBoundaryMatch[1], depth + 1, partCharset);
-                    // Keep existing content and add new
-                    if (nestedResults.bodyHTML) {
-                        results.bodyHTML = results.bodyHTML
-                            ? results.bodyHTML + '\n' + nestedResults.bodyHTML
-                            : nestedResults.bodyHTML;
-                    }
-                    if (nestedResults.bodyText) {
-                        results.bodyText = results.bodyText
-                            ? results.bodyText + '\n' + nestedResults.bodyText
-                            : nestedResults.bodyText;
-                    }
-                    results.attachments.push(...nestedResults.attachments);
-                    return;
-                }
-
-                // Decode content
-                let decodedContent = partContent.trim();
-                if (contentTransferEncoding.toLowerCase() === 'base64') {
-                    if (contentType.startsWith('text/')) {
-                        try {
-                            const decodedBytes = Buffer.from(partContent.replace(/\s/g, ''), 'base64');
-                            decodedContent = iconvLite.decode(decodedBytes, partCharset);
-                        } catch (error) {
-                            console.error('Error decoding base64 content:', error);
-                        }
-                    }
-                } else if (contentTransferEncoding.toLowerCase() === 'quoted-printable') {
-                    // Decode quoted-printable hex codes first
-                    const qpContent = partContent.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-                    // Then decode with proper charset
-                    const decodedBytes = Buffer.from(qpContent, 'binary');
-                    decodedContent = iconvLite.decode(decodedBytes, partCharset);
-                }
-
-                // Handle content types
-                if (contentType.startsWith('text/html')) {
-                    // Add HTML content
-                    results.bodyHTML = results.bodyHTML ? results.bodyHTML + '\n' + decodedContent : decodedContent;
-                } else if (contentType.startsWith('text/plain')) {
-                    // Add text content
-                    results.bodyText = results.bodyText ? results.bodyText + '\n' + decodedContent : decodedContent;
-                } else if (contentType.startsWith('image/') || contentType.startsWith('application/')) {
-                    const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
-                    const filename = filenameMatch ? filenameMatch[1] : 'attachment';
-
-                    let base64Content;
-                    if (contentTransferEncoding.toLowerCase() === 'base64') {
-                        base64Content = partContent.replace(/\s/g, '');
-                    } else {
-                        // Convert binary string to base64
-                        base64Content = Buffer.from(partContent, 'binary').toString('base64');
-                    }
-
-                    const attachment = {
-                        fileName: sanitizeFilename(filename),
-                        attachMimeTag: contentType.split(';')[0],
-                        contentLength: Math.floor(base64Content.length * 0.75),
-                        contentBase64: `data:${contentType.split(';')[0]};base64,${base64Content}`
-                    };
-
-                    // Extract Content-ID in various ways
-                    if (contentId) {
-                        // Remove < and > and everything except the actual ID part
-                        attachment.contentId = contentId.replace(/[<>]/g, '').trim();
-                    } else {
-                        // Try to extract Content-ID from Content-Location if Content-ID is missing
-                        const contentLocation = partHeadersObj['content-location'] || '';
-                        if (contentLocation) {
-                            attachment.contentId = contentLocation.replace(/[<>]/g, '').trim();
-                        }
-                    }
-
-                    results.attachments.push(attachment);
-                }
-            });
-
-            return results;
-        }
 
         // Split email into headers and body
         const headerBodySplit = emailString.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
@@ -18728,167 +21277,42 @@ function extractEml(fileBuffer) {
             throw new Error('Could not split email into headers and body');
         }
 
-        const [_, headersPart, bodyContent] = headerBodySplit;
+        const [, headersPart, bodyContent] = headerBodySplit;
 
-        // Parse headers
-        const headers = {};
-        let currentHeader = '';
-        headersPart.split(/\r?\n/).forEach(line => {
-            if (line.match(/^\s+/)) {
-                if (currentHeader) {
-                    headers[currentHeader] += ' ' + line.trim();
-                }
-            } else {
-                const match = line.match(/^([\w-]+):\s*(.*)$/i);
-                if (match) {
-                    currentHeader = match[1].toLowerCase().trim();
-                    headers[currentHeader] = match[2].trim();
-                }
-            }
-        });
+        // Parse headers using helper function
+        const headers = parseEmailHeaders(headersPart);
 
-        // Extract email addresses
-        const extractEmails = (str) => {
-            if (!str) return [];
-            const matches = str.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/g) || [];
-            return matches.map(match => {
-                const parts = match.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/);
-                const email = parts[2] || parts[3];
-                const name = parts[1] || email;
-                return { name: decodeMIMEWord(name), address: email };
-            });
-        };
-
-        let results;
+        // Extract content type info
         const contentType = headers['content-type'] || '';
         const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
+        const charsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
+        const detectedCharset = charsetMatch ? charsetMatch[1] : 'utf-8';
 
-        // Extract charset from content-type
-        const contentTypeCharsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
-        const detectedCharset = contentTypeCharsetMatch ? contentTypeCharsetMatch[1] : 'utf-8';
-
+        // Parse content based on whether it's multipart or single-part
+        let results;
         if (boundaryMatch) {
+            // Multipart email
             results = parseMultipartContent(bodyContent, boundaryMatch[1], 0, detectedCharset);
-            // Now perform CID replacement after all attachments have been collected
+
+            // Replace CID references with base64 attachment data
             if (results.bodyHTML && results.attachments.length > 0) {
-                // Helper to escape regex special characters
-                const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-                // Helper to try URL-decoded version of a pattern
-                const tryUrlDecoded = (str) => {
-                    try {
-                        const decoded = decodeURIComponent(str);
-                        return decoded !== str ? decoded : null;
-                    } catch (e) {
-                        return null;
-                    }
-                };
-
-                // Replace CID references with attachment content
-                results.attachments.forEach(attachment => {
-                    if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
-                        const contentId = attachment.contentId || '';
-                        const fileName = attachment.fileName || '';
-                        const cidIdWithoutBrackets = contentId ? contentId.replace(/[<>]/g, '').trim() : '';
-                        const urlDecodedCid = cidIdWithoutBrackets ? tryUrlDecoded(cidIdWithoutBrackets) : null;
-
-                        // Build comprehensive list of CID patterns
-                        const cidPatterns = [];
-
-                        if (cidIdWithoutBrackets) {
-                            // Standard cid: patterns
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                            cidPatterns.push(`src=["']?cid:<${escapeRegex(cidIdWithoutBrackets)}>["']?`);
-                            // Without cid: prefix
-                            cidPatterns.push(`src=["']?${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                            // With trailing content (e.g., cid:id@domain:1)
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}[^"'\\s>]*["']?`);
-
-                            // URL-decoded version if different
-                            if (urlDecodedCid) {
-                                cidPatterns.push(`src=["']?cid:${escapeRegex(urlDecodedCid)}["']?`);
-                                cidPatterns.push(`src=["']?${escapeRegex(urlDecodedCid)}["']?`);
-                            }
-                        }
-
-                        // Filename-based patterns (fallback when CID is missing or doesn't match)
-                        if (fileName) {
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}["']?`);
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}[^"'\\s>]*["']?`);
-                            cidPatterns.push(`src=["']?${escapeRegex(fileName)}["']?`);
-                        }
-
-                        // Apply all patterns
-                        cidPatterns.forEach(pattern => {
-                            results.bodyHTML = results.bodyHTML.replace(
-                                new RegExp(pattern, 'gi'),
-                                `src="${attachment.contentBase64}"`
-                            );
-                        });
-                    } else if (attachment.contentId) {
-                        // Non-image attachments: replace href references
-                        const cidIdWithoutBrackets = attachment.contentId.replace(/[<>]/g, '').trim();
-                        results.bodyHTML = results.bodyHTML.replace(
-                            new RegExp(`href=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`, 'gi'),
-                            `href="${attachment.contentBase64}"`
-                        );
-                    }
-                });
-
-                // Replace remaining cid: references only if no matching attachment was found
-                results.bodyHTML = results.bodyHTML.replace(/src=["']?cid:[^"'\s>]+["']?/gi, 'src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+"');
+                results.bodyHTML = replaceCidReferences(results.bodyHTML, results.attachments);
             }
         } else {
-            // Single part handling
-            const contentTransferEncoding = headers['content-transfer-encoding'] || '';
-            const contentDisposition = headers['content-disposition'] || '';
-
-            results = {
-                bodyHTML: '',
-                bodyText: '',
-                attachments: []
-            };
-
-            if (contentType.startsWith('application/') || contentType.startsWith('image/')) {
-                const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
-                const filename = filenameMatch ? filenameMatch[1] : 'attachment';
-
-                const base64Content = contentTransferEncoding.toLowerCase() === 'base64'
-                    ? bodyContent.replace(/\s/g, '')
-                    : Buffer.from(bodyContent).toString('base64');
-
-                results.attachments.push({
-                    fileName: sanitizeFilename(filename),
-                    attachMimeTag: contentType.split(';')[0],
-                    contentLength: Math.floor(base64Content.length * 0.75),
-                    contentBase64: `data:${contentType.split(';')[0]};base64,${base64Content}`
-                });
-            } else {
-                let content = bodyContent;
-                if (contentTransferEncoding.toLowerCase() === 'base64') {
-                    try {
-                        content = Buffer.from(content.replace(/\s/g, ''), 'base64').toString('utf-8');
-                    } catch (error) {
-                        console.error('Error decoding base64 content:', error);
-                    }
-                } else if (contentTransferEncoding.toLowerCase() === 'quoted-printable') {
-                    content = content.replace(/=\r?\n/g, '')
-                        .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-                            String.fromCharCode(parseInt(hex, 16))
-                        );
-                }
-
-                if (contentType.includes('text/html')) {
-                    results.bodyHTML = content;
-                } else {
-                    results.bodyText = content;
-                }
-            }
+            // Single-part email
+            results = handleSinglePartContent(
+                bodyContent,
+                contentType,
+                headers['content-transfer-encoding'] || '',
+                headers['content-disposition'] || '',
+                detectedCharset
+            );
         }
 
-        const from = extractEmails(headers.from)[0] || { name: '', address: '' };
-        const to = extractEmails(headers.to);
-        const cc = extractEmails(headers.cc);
+        // Extract sender and recipients
+        const from = extractEmailAddresses(headers.from)[0] || { name: '', address: '' };
+        const to = extractEmailAddresses(headers.to);
+        const cc = extractEmailAddresses(headers.cc);
         const date = headers.date ? new Date(headers.date) : new Date();
 
         return {
@@ -18916,4 +21340,4 @@ module.exports = {
 };
 
 }).call(this)}).call(this,require("buffer").Buffer)
-},{"@kenjiuno/decompressrtf":1,"@kenjiuno/msgreader":12,"buffer":16,"iconv-lite":39,"md5":44,"rtf-stream-parser":59}]},{},[86]);
+},{"./cidReplacer":87,"./constants":88,"./helpers":89,"@kenjiuno/decompressrtf":1,"@kenjiuno/msgreader":12,"buffer":16,"iconv-lite":40,"md5":45,"rtf-stream-parser":60}]},{},[90]);
