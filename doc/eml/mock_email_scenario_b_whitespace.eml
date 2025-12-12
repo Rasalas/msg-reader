@@ -1,12 +1,12 @@
-Content-Type: multipart/mixed; boundary="===============8276705031057584890=="
+Content-Type: multipart/mixed; boundary="===============4058839411432860272=="
 MIME-Version: 1.0
 Subject: Kernel Panic on 386 - Patch Enclosed
 From: Linus Torvalds <linus@linux-foundation.org>
 To: Tim Berners-Lee <timbl@w3c.org>
-Date: Fri, 12 Dec 2025 21:57:14 +0000
-Message-ID: <5359685@linux-foundation.org>
+Date: Fri, 12 Dec 2025 22:37:04 +0000
+Message-ID: <2652717@linux-foundation.org>
 
---===============8276705031057584890==
+--===============4058839411432860272==
 Content-Type: text/plain; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
@@ -18,7 +18,7 @@ Your browser crashes the kernel on my new 386 machine.
 See attached patch. 
 
 - Linus
---===============8276705031057584890==
+--===============4058839411432860272==
 Content-Type: image/svg+xml
 MIME-Version: 1.0
 Content-Transfer-Encoding: base64
@@ -38,14 +38,17 @@ emU9IjI0IiBmaWxsPSIjMzMzIj5MSU5VWDwvdGV4dD4KICA8dGV4dCB4PSI5MCIgeT0iNzUiIGZv
 bnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE4IiBmaWxsPSIjNTU1Ij5GT1VOREFU
 SU9OPC90ZXh0Pgo8L3N2Zz4K
 
---===============8276705031057584890==
-Content-Type: application/text/x-diff
+--===============4058839411432860272==
+Content-Type: text/x-diff; charset="us-ascii"
 MIME-Version: 1.0
-Content-Transfer-Encoding: base64
+Content-Transfer-Encoding: 7bit
 Content-Disposition: attachment; filename="panic_fix.diff "
 
-ZGlmZiAtLWdpdCBhL2tlcm5lbC9zY2hlZC5jIGIva2VybmVsL3NjaGVkLmMKaW5kZXggOGI0Zi4u
-LiA5YzNhLi4uCi0tLSBhL2tlcm5lbC9zY2hlZC5jCisrKyBiL2tlcm5lbC9zY2hlZC5jCkBAIC0x
-ICsxIEBACi0gdm9pZCBzY2hlZHVsZSgpOworIHZvaWQgc2NoZWR1bGUodm9pZCk7
-
---===============8276705031057584890==--
+diff --git a/kernel/sched.c b/kernel/sched.c
+index 8b4f... 9c3a...
+--- a/kernel/sched.c
++++ b/kernel/sched.c
+@@ -1 +1 @@
+- void schedule();
++ void schedule(void);
+--===============4058839411432860272==--

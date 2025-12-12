@@ -1,16 +1,16 @@
-Content-Type: multipart/related; boundary="===============7241288072506832567=="
+Content-Type: multipart/related; boundary="===============1590979860676532935=="
 MIME-Version: 1.0
 Subject: First Draft: HyperText Project
 From: Tim Berners-Lee <timbl@w3c.org>
 To: Linus Torvalds <linus@linux-foundation.org>
-Date: Fri, 12 Dec 2025 19:57:14 +0000
-Message-ID: <related-1504@w3c.org>
+Date: Fri, 12 Dec 2025 20:37:04 +0000
+Message-ID: <related-4745@w3c.org>
 
---===============7241288072506832567==
-Content-Type: multipart/alternative; boundary="===============0302880562234187527=="
+--===============1590979860676532935==
+Content-Type: multipart/alternative; boundary="===============4326689847868701671=="
 MIME-Version: 1.0
 
---===============0302880562234187527==
+--===============4326689847868701671==
 Content-Type: text/html; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
@@ -23,9 +23,9 @@ Content-Transfer-Encoding: 7bit
             <p>Let me know what you think about the tags.</p>
             <p>Cheers,<br>Tim</p>
         </body></html>
---===============0302880562234187527==--
+--===============4326689847868701671==--
 
---===============7241288072506832567==
+--===============1590979860676532935==
 Content-Type: image/svg+xml
 MIME-Version: 1.0
 Content-Transfer-Encoding: base64
@@ -46,4 +46,4 @@ IiBmaWxsPSJub25lIiAvPgogIAogIDx0ZXh0IHg9IjEwMCIgeT0iNjUiIGZvbnQtZmFtaWx5PSJB
 cmlhbCwgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZvbnQtc2l6ZT0iNDAiIGZpbGw9
 IiMwMDVBOUMiPlczQzwvdGV4dD4KPC9zdmc+Cg==
 
---===============7241288072506832567==--
+--===============1590979860676532935==--

@@ -1,11 +1,11 @@
-Content-Type: multipart/mixed; boundary="===============3146497845703955696=="
+Content-Type: multipart/mixed; boundary="===============1480976571621163779=="
 MIME-Version: 1.0
 Subject: Fwd: Fwd: The original joke
 From: Charles Babbage <charles.babbage@differencemachine.co.uk>
 To: Alan Turing <alan.turing@enigma.gov.uk>
-Date: Fri, 12 Dec 2025 21:57:14 +0000
+Date: Fri, 12 Dec 2025 22:37:04 +0000
 
---===============3146497845703955696==
+--===============1480976571621163779==
 Content-Type: text/plain; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
@@ -13,14 +13,14 @@ Content-Transfer-Encoding: 7bit
 Have you seen this?
 
 
---===============3146497845703955696==
+--===============1480976571621163779==
 Content-Type: message/rfc822
 MIME-Version: 1.0
 
-Content-Type: multipart/mixed; boundary="===============2534374268246627895=="
+Content-Type: multipart/mixed; boundary="===============3174050733114174438=="
 MIME-Version: 1.0
 
---===============2534374268246627895==
+--===============3174050733114174438==
 Content-Type: text/plain; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
@@ -28,25 +28,25 @@ Content-Transfer-Encoding: 7bit
 Forwarding this...
 
 
---===============2534374268246627895==
+--===============3174050733114174438==
 Content-Type: message/rfc822
 MIME-Version: 1.0
 
-Content-Type: multipart/mixed; boundary="===============9184424840551285833=="
+Content-Type: multipart/mixed; boundary="===============6771711627802274115=="
 MIME-Version: 1.0
 Subject: The original joke
 
---===============9184424840551285833==
+--===============6771711627802274115==
 Content-Type: text/plain; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
 
 Why do programmers mix up Halloween and Christmas? Because Oct 31 == Dec 25.
---===============9184424840551285833==--
+--===============6771711627802274115==--
 
---===============2534374268246627895==--
+--===============3174050733114174438==--
 
---===============3146497845703955696==
+--===============1480976571621163779==
 Content-Type: image/svg+xml
 MIME-Version: 1.0
 Content-Transfer-Encoding: base64
@@ -80,4 +80,4 @@ Z2h0PSJib2xkIiBmb250LXNpemU9IjI0IiBmaWxsPSIjMzMzIj5ESUZGRVJFTkNFPC90ZXh0Pgog
 IDx0ZXh0IHg9IjEwMCIgeT0iNzAiIGZvbnQtZmFtaWx5PSJDb3VyaWVyIE5ldywgbW9ub3NwYWNl
 IiBmb250LXNpemU9IjE4IiBmaWxsPSIjNTU1Ij5FTkdJTkUgV09SS1M8L3RleHQ+Cjwvc3ZnPgo=
 
---===============3146497845703955696==--
+--===============1480976571621163779==--

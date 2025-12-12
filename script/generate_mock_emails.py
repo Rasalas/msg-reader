@@ -256,7 +256,7 @@ def generate_mock_emails():
 
         # Attachment with whitespace
         patch_content = "diff --git a/kernel/sched.c b/kernel/sched.c\nindex 8b4f... 9c3a...\n--- a/kernel/sched.c\n+++ b/kernel/sched.c\n@@ -1 +1 @@\n- void schedule();\n+ void schedule(void);"
-        att = MIMEApplication(patch_content.encode('utf-8'), _subtype='text/x-diff')
+        att = MIMEText(patch_content, _subtype='x-diff')
         # NOTE: Intentionally adding a space at the end of the filename
         att.add_header('Content-Disposition', 'attachment', filename='panic_fix.diff ') 
         msg.attach(att)

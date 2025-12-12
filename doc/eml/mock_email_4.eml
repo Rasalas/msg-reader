@@ -1,12 +1,12 @@
-Content-Type: multipart/mixed; boundary="===============7810208325409716868=="
+Content-Type: multipart/mixed; boundary="===============8349119802274551400=="
 MIME-Version: 1.0
 Subject: Minutes from yesterday's Engine Design Review
 From: Charles Babbage <charles.babbage@differencemachine.co.uk>
 To: Ada Lovelace <ada.lovelace@analyticalengine.co.uk>
-Date: Tue, 09 Dec 2025 21:57:14 +0000
-Message-ID: <3393437@differencemachine.co.uk>
+Date: Tue, 09 Dec 2025 22:37:04 +0000
+Message-ID: <1980906@differencemachine.co.uk>
 
---===============7810208325409716868==
+--===============8349119802274551400==
 Content-Type: text/html; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
@@ -14,7 +14,7 @@ Content-Transfer-Encoding: 7bit
 <!DOCTYPE html><html><body style="font-family: Arial; padding: 20px;">
                 <h2>Meeting Summary</h2><p>Dear Ada Lovelace,</p>
                 <img src="cid:company-logo" style="max-width: 200px;"></body></html>
---===============7810208325409716868==
+--===============8349119802274551400==
 Content-Type: image/svg+xml
 MIME-Version: 1.0
 Content-Transfer-Encoding: base64
@@ -48,4 +48,4 @@ Z2h0PSJib2xkIiBmb250LXNpemU9IjI0IiBmaWxsPSIjMzMzIj5ESUZGRVJFTkNFPC90ZXh0Pgog
 IDx0ZXh0IHg9IjEwMCIgeT0iNzAiIGZvbnQtZmFtaWx5PSJDb3VyaWVyIE5ldywgbW9ub3NwYWNl
 IiBmb250LXNpemU9IjE4IiBmaWxsPSIjNTU1Ij5FTkdJTkUgV09SS1M8L3RleHQ+Cjwvc3ZnPgo=
 
---===============7810208325409716868==--
+--===============8349119802274551400==--
