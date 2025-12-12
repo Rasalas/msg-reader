@@ -38,7 +38,10 @@ class FileHandler {
         document.addEventListener('drop', (e) => {
             e.preventDefault();
             this.uiManager.hideDropOverlay();
-            this.handleFiles(e.dataTransfer.files);
+            // Validate dataTransfer exists and has files
+            if (e.dataTransfer?.files?.length > 0) {
+                this.handleFiles(e.dataTransfer.files);
+            }
         });
 
         // File input handlers

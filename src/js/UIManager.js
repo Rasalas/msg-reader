@@ -1,4 +1,5 @@
 const { sanitizeHTML } = require('./sanitizer');
+const { DEFAULT_LOCALE, TOAST_COLORS } = require('./constants');
 
 class UIManager {
     constructor(messageHandler) {
@@ -25,6 +26,58 @@ class UIManager {
 
         // Initialize modal event listeners
         this.initModalEventListeners();
+
+        // Initialize event delegation for dynamic elements
+        this.initEventDelegation();
+    }
+
+    /**
+     * Initializes event delegation for dynamically created elements
+     * This replaces inline onclick handlers for better security and maintainability
+     */
+    initEventDelegation() {
+        // Delegate message item clicks
+        this.messageItems?.addEventListener('click', (event) => {
+            const messageItem = event.target.closest('[data-message-index]');
+            if (messageItem) {
+                const index = parseInt(messageItem.dataset.messageIndex, 10);
+                if (!isNaN(index) && window.app) {
+                    window.app.showMessage(index);
+                }
+            }
+        });
+
+        // Delegate message viewer action buttons (pin, delete)
+        this.messageViewer?.addEventListener('click', (event) => {
+            const actionButton = event.target.closest('[data-action]');
+            if (!actionButton || !window.app) return;
+
+            const action = actionButton.dataset.action;
+            const index = parseInt(actionButton.dataset.index, 10);
+
+            if (action === 'pin' && !isNaN(index)) {
+                window.app.togglePin(index);
+            } else if (action === 'delete' && !isNaN(index)) {
+                window.app.deleteMessage(index);
+            } else if (action === 'preview') {
+                const attachmentIndex = parseInt(actionButton.dataset.attachmentIndex, 10);
+                if (!isNaN(attachmentIndex) && this.currentAttachments?.[attachmentIndex]) {
+                    this.openAttachmentModal(this.currentAttachments[attachmentIndex]);
+                }
+            }
+        });
+
+        // Delegate toast close buttons
+        document.body.addEventListener('click', (event) => {
+            const closeButton = event.target.closest('[data-action="close-toast"]');
+            if (closeButton) {
+                const toast = closeButton.closest('.toast');
+                if (toast) {
+                    toast.classList.add('translate-x-full', 'opacity-0');
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }
+        });
     }
 
     showWelcomeScreen() {
@@ -51,8 +104,8 @@ class UIManager {
                 .trim();
 
             return `
-                <div class="message-item ${messages[index] === currentMessage ? 'active' : ''} ${this.messageHandler.isPinned(msg) ? 'pinned' : ''}" 
-                     onclick="window.app.showMessage(${index})" 
+                <div class="message-item ${messages[index] === currentMessage ? 'active' : ''} ${this.messageHandler.isPinned(msg) ? 'pinned' : ''}"
+                     data-message-index="${index}"
                      title="${msg.fileName}">
                     <div class="message-sender">${msg.senderName}</div>
                     <div class="message-subject-line">
@@ -73,56 +126,23 @@ class UIManager {
     showMessage(msgInfo) {
         this.messageHandler.setCurrentMessage(msgInfo);
         this.updateMessageList();
-        
-        const toRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'to')
-            .map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
-        const ccRecipients = msgInfo.recipients.filter(recipient => recipient.recipType === 'cc')
-            .map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`).join(', ');
 
-        // Process email content to scope styles
-        let emailContent = msgInfo.bodyContentHTML || msgInfo.bodyContent;
-        // If no HTML, convert plain text to HTML with paragraphs and line breaks
-        if (!msgInfo.bodyContentHTML && emailContent) {
-            // Normalize line endings
-            let text = emailContent.replace(/\r\n/g, '\n');
-            // Split into paragraphs by double line breaks
-            const paragraphs = text.split(/\n{2,}/).map(p => {
-                // Replace single line breaks in paragraph with <br>
-                return p.replace(/\n/g, '<br>');
-            });
-            emailContent = '<p>' + paragraphs.join('</p><p>') + '</p>';
-        }
-        if (emailContent) {
-            // Create a temporary container to parse the HTML
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = emailContent;
-
-            // Find all style tags and scope them to .email-content
-            const styleTags = tempDiv.getElementsByTagName('style');
-            Array.from(styleTags).forEach(styleTag => {
-                const cssText = styleTag.textContent;
-                // Scope all CSS rules to .email-content
-                const scopedCss = cssText.replace(/([^{}]+){/g, '.email-content $1{');
-                styleTag.textContent = scopedCss;
-            });
-
-            // Update the email content
-            emailContent = tempDiv.innerHTML;
-        }
-
-        // Sanitize HTML to prevent XSS attacks
-        emailContent = sanitizeHTML(emailContent);
+        const toRecipients = this.formatRecipients(msgInfo.recipients, 'to');
+        const ccRecipients = this.formatRecipients(msgInfo.recipients, 'cc');
+        const emailContent = this.processEmailContent(msgInfo);
+        const messageIndex = this.messageHandler.getMessages().indexOf(msgInfo);
+        const isPinned = this.messageHandler.isPinned(msgInfo);
 
         const messageContent = `
             <div class="message-header">
                 <div class="message-title pl-6">${msgInfo.subject}</div>
                 <div class="message-actions pr-4">
-                    <button onclick="window.app.togglePin(${this.messageHandler.getMessages().indexOf(msgInfo)})" class="action-button rounded-full ${this.messageHandler.isPinned(msgInfo) ? 'pinned' : ''}" title="bookmark message">
+                    <button data-action="pin" data-index="${messageIndex}" class="action-button rounded-full ${isPinned ? 'pinned' : ''}" title="bookmark message">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
                         </svg>
                     </button>
-                    <button onclick="window.app.deleteMessage(${this.messageHandler.getMessages().indexOf(msgInfo)})" class="action-button rounded-full" title="remove message">
+                    <button data-action="delete" data-index="${messageIndex}" class="action-button rounded-full" title="remove message">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                         </svg>
@@ -146,6 +166,67 @@ class UIManager {
         `;
         
         this.messageViewer.innerHTML = messageContent;
+    }
+
+    /**
+     * Formats recipients of a specific type for display
+     * @param {Array} recipients - Array of recipient objects
+     * @param {string} type - Recipient type ('to' or 'cc')
+     * @returns {string} Formatted recipient string
+     */
+    formatRecipients(recipients, type) {
+        return recipients
+            .filter(recipient => recipient.recipType === type)
+            .map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`)
+            .join(', ');
+    }
+
+    /**
+     * Scopes CSS styles within email content to prevent style leakage
+     * @param {string} htmlContent - HTML content with potential style tags
+     * @returns {string} HTML content with scoped styles
+     */
+    scopeEmailStyles(htmlContent) {
+        if (!htmlContent) return '';
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        // Find all style tags and scope them to .email-content
+        const styleTags = tempDiv.getElementsByTagName('style');
+        Array.from(styleTags).forEach(styleTag => {
+            const cssText = styleTag.textContent;
+            // Scope all CSS rules to .email-content
+            const scopedCss = cssText.replace(/([^{}]+){/g, '.email-content $1{');
+            styleTag.textContent = scopedCss;
+        });
+
+        return tempDiv.innerHTML;
+    }
+
+    /**
+     * Processes email content: converts plain text to HTML if needed and scopes styles
+     * @param {Object} msgInfo - Message object
+     * @returns {string} Processed and sanitized email content
+     */
+    processEmailContent(msgInfo) {
+        let emailContent = msgInfo.bodyContentHTML || msgInfo.bodyContent;
+
+        // If no HTML, convert plain text to HTML with paragraphs and line breaks
+        if (!msgInfo.bodyContentHTML && emailContent) {
+            // Normalize line endings
+            const text = emailContent.replace(/\r\n/g, '\n');
+            // Split into paragraphs by double line breaks
+            const paragraphs = text.split(/\n{2,}/).map(p => {
+                // Replace single line breaks in paragraph with <br>
+                return p.replace(/\n/g, '<br>');
+            });
+            emailContent = '<p>' + paragraphs.join('</p><p>') + '</p>';
+        }
+
+        // Scope styles and sanitize
+        emailContent = this.scopeEmailStyles(emailContent);
+        return sanitizeHTML(emailContent);
     }
 
     // Modal helper methods
@@ -257,13 +338,24 @@ class UIManager {
             this.attachmentModalContent.appendChild(pdfObject);
         } else if (this.isText(attachment.attachMimeTag)) {
             // Decode base64 to text
-            const base64Data = attachment.contentBase64.split(',')[1];
-            const textContent = atob(base64Data);
+            try {
+                const base64Data = attachment.contentBase64?.split(',')[1];
+                if (!base64Data) {
+                    throw new Error('Invalid base64 data format');
+                }
+                const textContent = atob(base64Data);
 
-            const pre = document.createElement('pre');
-            pre.className = 'attachment-text-preview';
-            pre.textContent = textContent;
-            this.attachmentModalContent.appendChild(pre);
+                const pre = document.createElement('pre');
+                pre.className = 'attachment-text-preview';
+                pre.textContent = textContent;
+                this.attachmentModalContent.appendChild(pre);
+            } catch (error) {
+                console.error('Error decoding text attachment:', error);
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'text-center p-4 text-gray-500';
+                errorDiv.textContent = 'Unable to preview this file';
+                this.attachmentModalContent.appendChild(errorDiv);
+            }
         }
 
         // Update navigation buttons
@@ -348,7 +440,8 @@ class UIManager {
                             // Previewable files: click opens modal
                             return `
                                 <div class="cursor-pointer min-w-[250px] max-w-fit"
-                                     onclick="window.app.uiManager.openAttachmentModal(window.app.uiManager.currentAttachments[${index}])"
+                                     data-action="preview"
+                                     data-attachment-index="${index}"
                                      title="Click to preview">
                                     <div class="flex items-center space-x-2 rounded border p-2 hover:border-primary hover:bg-blue-50 transition-colors">
                                         <div class="border rounded w-10 h-10 flex-shrink-0 flex items-center justify-center overflow-hidden">
@@ -401,11 +494,11 @@ class UIManager {
         yesterday.setDate(yesterday.getDate() - 1);
         
         if (date.toDateString() === now.toDateString()) {
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleTimeString(DEFAULT_LOCALE, { hour: '2-digit', minute: '2-digit' });
         } else if (date.toDateString() === yesterday.toDateString()) {
             return 'Yesterday';
         } else if (date.getFullYear() === now.getFullYear()) {
-            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); // Returns "Dec. 31" format
+            return date.toLocaleDateString(DEFAULT_LOCALE, { month: 'short', day: 'numeric' }); // Returns "Dec. 31" format
         } else {
             return date.toISOString().split('T')[0]; // Returns "2024-12-31" format in ISO 8601
         }
@@ -467,12 +560,7 @@ class UIManager {
         toast.className = `toast toast-${type} flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full opacity-0`;
 
         // Set background color based on type
-        const bgColors = {
-            error: 'bg-red-500 text-white',
-            warning: 'bg-yellow-500 text-black',
-            info: 'bg-blue-500 text-white'
-        };
-        toast.className += ` ${bgColors[type] || bgColors.info}`;
+        toast.className += ` ${TOAST_COLORS[type] || TOAST_COLORS.info}`;
 
         // Add icon based on type
         const icons = {
@@ -484,7 +572,7 @@ class UIManager {
         toast.innerHTML = `
             ${icons[type] || icons.info}
             <span class="flex-grow">${message}</span>
-            <button class="ml-2 hover:opacity-75 focus:outline-none" onclick="this.parentElement.remove()">
+            <button class="ml-2 hover:opacity-75 focus:outline-none" data-action="close-toast">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         `;

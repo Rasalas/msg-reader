@@ -4,8 +4,8 @@ const { deEncapsulateSync } = require('rtf-stream-parser');
 const iconvLite = require('iconv-lite');
 const md5 = require('md5');
 
-const { getCharsetFromCodepage, extractCharset, extractBoundary, extractFilename } = require('./helpers');
-const { PLACEHOLDER_IMAGE_SVG } = require('./constants');
+const { getCharsetFromCodepage } = require('./helpers');
+const { BASE64_SIZE_FACTOR } = require('./constants');
 const { replaceCidReferences } = require('./cidReplacer');
 
 // Export md5 for global use
@@ -134,11 +134,11 @@ function extractMsg(fileBuffer) {
             }
             emailBodyContentHTML = htmlStr;
         } catch (err) {
-            console.log('Failed to decode HTML from Uint8Array:', err);
+            console.error('Failed to decode HTML from Uint8Array:', err);
             emailBodyContentHTML = emailBodyContent || '';
         }
     } else {
-        console.log('Missing compressedRtf in msgInfo:', msgInfo);
+        // No RTF or HTML content found, fallback to plain text
         emailBodyContentHTML = emailBodyContent || '';
     }
 
@@ -291,7 +291,7 @@ function extractEml(fileBuffer) {
                     const attachment = {
                         fileName: sanitizeFilename(filename),
                         attachMimeTag: contentType.split(';')[0],
-                        contentLength: Math.floor(base64Content.length * 0.75),
+                        contentLength: Math.floor(base64Content.length * BASE64_SIZE_FACTOR),
                         contentBase64: `data:${contentType.split(';')[0]};base64,${base64Content}`
                     };
 
@@ -387,7 +387,7 @@ function extractEml(fileBuffer) {
                 results.attachments.push({
                     fileName: sanitizeFilename(filename),
                     attachMimeTag: contentType.split(';')[0],
-                    contentLength: Math.floor(base64Content.length * 0.75),
+                    contentLength: Math.floor(base64Content.length * BASE64_SIZE_FACTOR),
                     contentBase64: `data:${contentType.split(';')[0]};base64,${base64Content}`
                 });
             } else {

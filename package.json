@@ -15,7 +15,11 @@
     "deploy": "npm run build-gh-pages && gh-pages -d .gh-pages",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/js/**/*.js",
+    "lint:fix": "eslint src/js/**/*.js --fix",
+    "format": "prettier --write \"src/js/**/*.js\"",
+    "format:check": "prettier --check \"src/js/**/*.js\""
   },
   "keywords": [],
   "author": "",
@@ -35,11 +39,13 @@
     "browserify": "^17.0.0",
     "concurrently": "^8.2.2",
     "cpx": "^1.5.0",
+    "eslint": "^8.57.0",
     "gh-pages": "^6.1.1",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "live-server": "^1.2.2",
     "postcss": "^8.4.32",
+    "prettier": "^3.4.2",
     "tailwindcss": "^3.4.0",
     "watchify": "^4.0.0"
   }

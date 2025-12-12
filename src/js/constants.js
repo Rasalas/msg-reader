@@ -98,6 +98,36 @@ const SUPPORTED_EMAIL_EXTENSIONS = ['msg', 'eml'];
  */
 const DEFAULT_CHARSET = 'utf-8';
 
+/**
+ * Base64 to binary size conversion factor
+ * Base64 encoded data is ~33% larger than binary
+ * Binary size ≈ base64Length * 0.75
+ */
+const BASE64_SIZE_FACTOR = 0.75;
+
+/**
+ * Default locale for date/time formatting
+ */
+const DEFAULT_LOCALE = 'en-US';
+
+/**
+ * Toast notification durations (milliseconds)
+ */
+const TOAST_DURATIONS = {
+    error: 5000,
+    warning: 4000,
+    info: 3000
+};
+
+/**
+ * Toast background colors (Tailwind CSS classes)
+ */
+const TOAST_COLORS = {
+    error: 'bg-red-500 text-white',
+    warning: 'bg-yellow-500 text-black',
+    info: 'bg-blue-500 text-white'
+};
+
 module.exports = {
     CHARSET_CODES,
     PREVIEWABLE_IMAGE_TYPES,
@@ -107,5 +137,9 @@ module.exports = {
     SAFE_DOWNLOAD_TYPES,
     DANGEROUS_EXTENSIONS,
     SUPPORTED_EMAIL_EXTENSIONS,
-    DEFAULT_CHARSET
+    DEFAULT_CHARSET,
+    BASE64_SIZE_FACTOR,
+    DEFAULT_LOCALE,
+    TOAST_DURATIONS,
+    TOAST_COLORS
 };
