@@ -4,20 +4,49 @@ const { deEncapsulateSync } = require('rtf-stream-parser');
 const iconvLite = require('iconv-lite');
 const md5 = require('md5');
 
+const { getCharsetFromCodepage } = require('./helpers');
+const { BASE64_SIZE_FACTOR } = require('./constants');
+const { replaceCidReferences } = require('./cidReplacer');
+
 // Export md5 for global use
 window.md5 = md5;
 
-// Function to sanitize attachment filenames (removes null terminators, control characters, BOM)
+/**
+ * Sanitizes attachment filenames to prevent path traversal attacks
+ * and remove dangerous characters
+ * @param {string} filename - The original filename
+ * @returns {string} Sanitized filename safe for filesystem operations
+ */
 function sanitizeFilename(filename) {
     if (!filename) return 'attachment';
-    return filename
-        .replace(/[\x00-\x1f\x7f]/g, '')  // Remove control characters (including null)
+
+    let sanitized = filename
+        // Remove path traversal sequences
+        .replace(/\.\.\//g, '')            // Remove ../
+        .replace(/\.\.\\/g, '')            // Remove ..\
+        .replace(/^\/+/g, '')              // Remove leading forward slashes
+        .replace(/^[A-Za-z]:[\\\/]/g, '')  // Remove Windows drive letters (C:\, D:/)
+        // Remove control characters
+        .replace(/[\x00-\x1f\x7f]/g, '')   // Remove control characters (including null)
         .replace(/\ufeff/g, '')            // Remove UTF-16 BOM
         .replace(/\ufffd/g, '')            // Remove replacement character
+        // Replace Windows reserved characters
+        .replace(/[<>:"|?*]/g, '_')        // Replace chars invalid in Windows filenames
         .trim();
+
+    // Extract only the filename (remove any remaining path components)
+    sanitized = sanitized.split('/').pop().split('\\').pop();
+
+    // Ensure we have a valid filename
+    return sanitized || 'attachment';
 }
 
-// Function to decode MIME encoded-word format
+/**
+ * Decodes MIME encoded-word format strings (RFC 2047)
+ * Handles both Base64 (B) and Quoted-Printable (Q) encodings
+ * @param {string} str - String containing encoded words (e.g., "=?UTF-8?B?SGVsbG8=?=")
+ * @returns {string} Decoded string
+ */
 function decodeMIMEWord(str) {
     if (!str) return '';
 
@@ -43,317 +72,398 @@ function decodeMIMEWord(str) {
     });
 }
 
-function extractMsg(fileBuffer) {
-    let msgInfo = null;
-    let msgReader = null;
+/**
+ * Parses email headers from a header string
+ * Handles multi-line headers (folded headers)
+ * @param {string} headerString - Raw header string
+ * @returns {Object} Parsed headers as key-value pairs (keys are lowercase)
+ */
+function parseEmailHeaders(headerString) {
+    const headers = {};
+    let currentHeader = '';
+
+    headerString.split(/\r?\n/).forEach(line => {
+        if (line.match(/^\s+/)) {
+            // Continuation of previous header (folded header)
+            if (currentHeader) {
+                headers[currentHeader] += ' ' + line.trim();
+            }
+        } else {
+            const match = line.match(/^([\w-]+):\s*(.*)$/i);
+            if (match) {
+                currentHeader = match[1].toLowerCase().trim();
+                headers[currentHeader] = match[2].trim();
+            }
+        }
+    });
+
+    return headers;
+}
+
+/**
+ * Decodes content based on transfer encoding
+ * @param {string} content - Raw content string
+ * @param {string} encoding - Transfer encoding (base64, quoted-printable, or empty)
+ * @param {string} charset - Character set for decoding
+ * @param {boolean} isText - Whether content is text (affects base64 decoding)
+ * @returns {string} Decoded content
+ */
+function decodeTransferEncoding(content, encoding, charset, isText = true) {
+    const normalizedEncoding = (encoding || '').toLowerCase();
+
+    if (normalizedEncoding === 'base64') {
+        if (isText) {
+            try {
+                const decodedBytes = Buffer.from(content.replace(/\s/g, ''), 'base64');
+                return iconvLite.decode(decodedBytes, charset);
+            } catch (error) {
+                console.error('Error decoding base64 content:', error);
+                return content;
+            }
+        }
+        return content; // Return raw for non-text
+    } else if (normalizedEncoding === 'quoted-printable') {
+        // Decode quoted-printable: remove soft line breaks, then decode hex codes
+        const qpContent = content
+            .replace(/=\r?\n/g, '')
+            .replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+        const decodedBytes = Buffer.from(qpContent, 'binary');
+        return iconvLite.decode(decodedBytes, charset);
+    }
+
+    return content.trim();
+}
+
+/**
+ * Extracts email addresses from a header value
+ * @param {string} str - Header value containing email addresses
+ * @returns {Array<{name: string, address: string}>} Array of email objects
+ */
+function extractEmailAddresses(str) {
+    if (!str) return [];
+
+    const matches = str.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/g) || [];
+    return matches.map(match => {
+        const parts = match.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/);
+        const email = parts[2] || parts[3];
+        const name = parts[1] || email;
+        return { name: decodeMIMEWord(name), address: email };
+    });
+}
+
+/**
+ * Creates an attachment object from parsed data
+ * @param {string} filename - Attachment filename
+ * @param {string} mimeType - MIME type
+ * @param {string} base64Content - Base64 encoded content
+ * @param {string} [contentId] - Optional Content-ID
+ * @returns {Object} Attachment object
+ */
+function createAttachment(filename, mimeType, base64Content, contentId = null) {
+    const attachment = {
+        fileName: sanitizeFilename(filename),
+        attachMimeTag: mimeType,
+        contentLength: Math.floor(base64Content.length * BASE64_SIZE_FACTOR),
+        contentBase64: `data:${mimeType};base64,${base64Content}`
+    };
+
+    if (contentId) {
+        attachment.contentId = contentId.replace(/[<>]/g, '').trim();
+    }
+
+    return attachment;
+}
+
+/**
+ * Parses multipart email content recursively
+ * @param {string} content - Raw multipart content
+ * @param {string} boundary - MIME boundary string
+ * @param {number} [depth=0] - Recursion depth
+ * @param {string} [defaultCharset='utf-8'] - Default charset
+ * @returns {{bodyHTML: string, bodyText: string, attachments: Array}} Parsed content
+ */
+function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'utf-8') {
+    const results = {
+        bodyHTML: '',
+        bodyText: '',
+        attachments: []
+    };
+
+    const boundaryRegExp = new RegExp(`--${boundary}(?:--)?(?:\r?\n|\r|$)`, 'g');
+    const parts = content.split(boundaryRegExp).filter(part => part.trim());
+
+    parts.forEach(part => {
+        const partMatch = part.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
+        if (!partMatch) return;
+
+        const [, partHeadersStr, partContent] = partMatch;
+        const partHeaders = parseEmailHeaders(partHeadersStr);
+
+        const contentType = partHeaders['content-type'] || '';
+        const contentTransferEncoding = partHeaders['content-transfer-encoding'] || '';
+        const contentDisposition = partHeaders['content-disposition'] || '';
+        const contentId = partHeaders['content-id'] || '';
+
+        // Extract charset from part's content-type
+        const partCharsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
+        const partCharset = partCharsetMatch ? partCharsetMatch[1] : defaultCharset;
+
+        // Check for nested multipart
+        const nestedBoundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
+        if (nestedBoundaryMatch) {
+            const nestedResults = parseMultipartContent(
+                partContent,
+                nestedBoundaryMatch[1],
+                depth + 1,
+                partCharset
+            );
+            // Merge nested results
+            if (nestedResults.bodyHTML) {
+                results.bodyHTML = results.bodyHTML
+                    ? results.bodyHTML + '\n' + nestedResults.bodyHTML
+                    : nestedResults.bodyHTML;
+            }
+            if (nestedResults.bodyText) {
+                results.bodyText = results.bodyText
+                    ? results.bodyText + '\n' + nestedResults.bodyText
+                    : nestedResults.bodyText;
+            }
+            results.attachments.push(...nestedResults.attachments);
+            return;
+        }
+
+        // Decode and handle content based on type
+        if (contentType.startsWith('text/html')) {
+            const decodedContent = decodeTransferEncoding(
+                partContent.trim(),
+                contentTransferEncoding,
+                partCharset
+            );
+            results.bodyHTML = results.bodyHTML
+                ? results.bodyHTML + '\n' + decodedContent
+                : decodedContent;
+        } else if (contentType.startsWith('text/plain')) {
+            const decodedContent = decodeTransferEncoding(
+                partContent.trim(),
+                contentTransferEncoding,
+                partCharset
+            );
+            results.bodyText = results.bodyText
+                ? results.bodyText + '\n' + decodedContent
+                : decodedContent;
+        } else if (contentType.startsWith('image/') || contentType.startsWith('application/')) {
+            const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
+            const filename = filenameMatch ? filenameMatch[1] : 'attachment';
+            const mimeType = contentType.split(';')[0];
+
+            let base64Content;
+            if (contentTransferEncoding.toLowerCase() === 'base64') {
+                base64Content = partContent.replace(/\s/g, '');
+            } else {
+                base64Content = Buffer.from(partContent, 'binary').toString('base64');
+            }
+
+            const attachment = createAttachment(filename, mimeType, base64Content, contentId);
+
+            // Fallback: try Content-Location if no Content-ID
+            if (!contentId) {
+                const contentLocation = partHeaders['content-location'] || '';
+                if (contentLocation) {
+                    attachment.contentId = contentLocation.replace(/[<>]/g, '').trim();
+                }
+            }
+
+            results.attachments.push(attachment);
+        }
+    });
+
+    return results;
+}
+
+/**
+ * Initializes MsgReader and extracts file data
+ * @param {ArrayBuffer} fileBuffer - The raw MSG file content
+ * @returns {{reader: Object, info: Object}|null} MsgReader instance and file data
+ */
+function initializeMsgReader(fileBuffer) {
     try {
-        // Check if MsgReader exists as a function/constructor
+        let msgReader = null;
+        let msgInfo = null;
+
         if (typeof MsgReaderLib === 'function') {
             msgReader = new MsgReaderLib(fileBuffer);
             msgInfo = msgReader.getFileData();
-
         } else if (MsgReaderLib && typeof MsgReaderLib.default === 'function') {
             msgReader = new MsgReaderLib.default(fileBuffer);
             msgInfo = msgReader.getFileData();
-
         } else {
             console.error("MsgReader constructor could not be found.");
+            return null;
         }
+
+        return { reader: msgReader, info: msgInfo };
     } catch (error) {
         console.error("Error creating a MsgReader instance:", error);
+        return null;
     }
+}
 
-    let emailBodyContent = msgInfo && (msgInfo.bodyHTML || msgInfo.body);
-    let emailBodyContentHTML = '';
+/**
+ * Extracts HTML content from MSG file data
+ * Handles compressed RTF, raw HTML arrays, and plain text fallback
+ * @param {Object} msgInfo - Parsed MSG file data
+ * @returns {string} HTML content
+ */
+function extractMsgHtmlContent(msgInfo) {
+    const emailBodyContent = msgInfo.bodyHTML || msgInfo.body || '';
 
-    if (msgInfo && msgInfo.compressedRtf) {
+    // Try compressed RTF first
+    if (msgInfo.compressedRtf) {
         try {
             const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
-            emailBodyContentHTML = convertRTFToHTML(decompressedRtf);
-        } catch (err) {
-            console.error('Failed to decompress or convert RTF:', err);
-            emailBodyContentHTML = emailBodyContent || '';
+            return convertRTFToHTML(decompressedRtf);
+        } catch (error) {
+            console.error('Failed to decompress or convert RTF:', error);
+            return emailBodyContent;
         }
-    } else if (msgInfo && msgInfo.html && typeof msgInfo.html === 'object') {
-        // Try to decode HTML from Uint8Array
+    }
+
+    // Try HTML from Uint8Array
+    if (msgInfo.html && typeof msgInfo.html === 'object') {
         try {
-            let htmlArr;
-            if (Array.isArray(msgInfo.html)) {
-                htmlArr = Uint8Array.from(msgInfo.html);
-            } else {
-                // msgInfo.html is likely an object with numeric keys
-                htmlArr = Uint8Array.from(Object.values(msgInfo.html));
-            }
-            // Try TextDecoder first, fallback to Buffer
-            let htmlStr = '';
-            let charset = 'utf-8';
-            if (msgInfo.internetCodepage === 936) {
-                charset = 'gbk'; // Simplified Chinese
-            } else if (msgInfo.internetCodepage === 950) {
-                charset = 'big5'; // Traditional Chinese
-            } else if (msgInfo.internetCodepage === 932) {
-                charset = 'shift_jis'; // Japanese
-            } else if (msgInfo.internetCodepage === 949) {
-                charset = 'cp949'; // Korean
-            } else if (msgInfo.internetCodepage === 928) {
-                charset = 'gb2312'; // Simplified Chinese
-            }
+            const htmlArr = Array.isArray(msgInfo.html)
+                ? Uint8Array.from(msgInfo.html)
+                : Uint8Array.from(Object.values(msgInfo.html));
+
+            const charset = getCharsetFromCodepage(msgInfo.internetCodepage);
+
+            // Try TextDecoder first, fallback to iconv-lite
             if (typeof TextDecoder !== 'undefined') {
                 try {
-                    htmlStr = new TextDecoder(charset).decode(htmlArr);
-                } catch (e) {
-                    // Fallback for charsets not supported by TextDecoder
-                    htmlStr = iconvLite.decode(Buffer.from(htmlArr), charset);
+                    return new TextDecoder(charset).decode(htmlArr);
+                } catch (_e) {
+                    return iconvLite.decode(Buffer.from(htmlArr), charset);
                 }
-            } else {
-                // Node fallback: support broader set of encodings via iconv-lite
-                htmlStr = iconvLite.decode(Buffer.from(htmlArr), charset);
             }
-            emailBodyContentHTML = htmlStr;
-        } catch (err) {
-            console.log('Failed to decode HTML from Uint8Array:', err);
-            emailBodyContentHTML = emailBodyContent || '';
+            return iconvLite.decode(Buffer.from(htmlArr), charset);
+        } catch (error) {
+            console.error('Failed to decode HTML from Uint8Array:', error);
+            return emailBodyContent;
         }
-    } else {
-        console.log('Missing compressedRtf in msgInfo:', msgInfo);
-        emailBodyContentHTML = emailBodyContent || '';
     }
 
-    // Extract images and attachments
+    return emailBodyContent;
+}
+
+/**
+ * Processes MSG attachments: extracts content, sanitizes filenames, converts to base64
+ * @param {Object} msgReader - MsgReader instance
+ * @param {Array} attachments - Array of attachment objects
+ * @returns {Array} Processed attachments with base64 content
+ */
+function processMsgAttachments(msgReader, attachments) {
+    return attachments.map(attachment => {
+        const contentUint8Array = msgReader.getAttachment(attachment).content;
+        const contentBuffer = Buffer.from(contentUint8Array);
+        const contentBase64 = contentBuffer.toString('base64');
+
+        return {
+            ...attachment,
+            fileName: sanitizeFilename(attachment.fileName),
+            contentBase64: `data:${attachment.attachMimeTag};base64,${contentBase64}`
+        };
+    });
+}
+
+/**
+ * Extracts email data from a Microsoft Outlook MSG file
+ * @param {ArrayBuffer} fileBuffer - The raw MSG file content
+ * @returns {Object|null} Parsed email object with subject, sender, recipients, body, attachments
+ */
+function extractMsg(fileBuffer) {
+    const result = initializeMsgReader(fileBuffer);
+    if (!result) return null;
+
+    const { reader: msgReader, info: msgInfo } = result;
+    const emailBodyContent = msgInfo.bodyHTML || msgInfo.body || '';
+
+    // Extract HTML content from various sources
+    let emailBodyContentHTML = extractMsgHtmlContent(msgInfo);
+
+    // Process attachments
     if (msgInfo.attachments && msgInfo.attachments.length > 0) {
-        // First pass: collect all attachments with their base64 data
-        msgInfo.attachments.forEach((attachment, index) => {
-            const contentUint8Array = msgReader.getAttachment(attachment).content;
-            const contentBuffer = Buffer.from(contentUint8Array);
-            const contentBase64 = contentBuffer.toString('base64');
-
-            const base64String = `data:${attachment.attachMimeTag};base64,${contentBase64}`;
-            msgInfo.attachments[index].contentBase64 = base64String;
-            // Sanitize filename to remove null terminators and control characters (fixes #14)
-            msgInfo.attachments[index].fileName = sanitizeFilename(attachment.fileName);
-        });
-
-        // Second pass: replace CID references in HTML with base64 data
-        msgInfo.attachments.forEach((attachment) => {
-            const base64String = attachment.contentBase64;
-
-            // Get Content-ID from pidContentId or contentId field
-            const contentId = attachment.pidContentId || attachment.contentId || '';
-            const fileName = attachment.fileName || '';
-
-            // Helper to escape regex special characters
-            const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-            // Helper to try URL-decoded version of a pattern
-            const tryUrlDecoded = (str) => {
-                try {
-                    const decoded = decodeURIComponent(str);
-                    return decoded !== str ? decoded : null;
-                } catch (e) {
-                    return null;
-                }
-            };
-
-            if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
-                const cidIdWithoutBrackets = contentId ? contentId.replace(/[<>]/g, '').trim() : '';
-                const urlDecodedCid = cidIdWithoutBrackets ? tryUrlDecoded(cidIdWithoutBrackets) : null;
-
-                // Build comprehensive list of CID patterns
-                const cidPatterns = [];
-
-                if (cidIdWithoutBrackets) {
-                    // Standard cid: patterns
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                    cidPatterns.push(`src=["']?cid:<${escapeRegex(cidIdWithoutBrackets)}>["']?`);
-                    // Without cid: prefix
-                    cidPatterns.push(`src=["']?${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                    // Broad pattern for cid: with trailing content (e.g., cid:id@domain:1)
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}[^"'\\s>]*["']?`);
-
-                    // URL-decoded version if different
-                    if (urlDecodedCid) {
-                        cidPatterns.push(`src=["']?cid:${escapeRegex(urlDecodedCid)}["']?`);
-                        cidPatterns.push(`src=["']?${escapeRegex(urlDecodedCid)}["']?`);
-                    }
-                }
-
-                // Filename-based patterns (fallback when CID is missing or doesn't match)
-                if (fileName) {
-                    // cid:filename.ext pattern (common in Outlook)
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}["']?`);
-                    // cid:filename.ext with trailing content (e.g., cid:image001.jpg@01D9D85E)
-                    cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}[^"'\\s>]*["']?`);
-                    // Just filename (relative reference)
-                    cidPatterns.push(`src=["']?${escapeRegex(fileName)}["']?`);
-                }
-
-                // Apply all patterns
-                cidPatterns.forEach(pattern => {
-                    emailBodyContentHTML = emailBodyContentHTML.replace(
-                        new RegExp(pattern, 'gi'),
-                        `src="${base64String}"`
-                    );
-                });
-            } else if (contentId) {
-                // Non-image attachments: replace href references
-                const cidIdWithoutBrackets = contentId.replace(/[<>]/g, '').trim();
-                emailBodyContentHTML = emailBodyContentHTML.replace(
-                    new RegExp(`href=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`, 'gi'),
-                    `href="${base64String}"`
-                );
-            }
-        });
-
-        // Replace remaining cid: references with placeholder for missing images
-        emailBodyContentHTML = emailBodyContentHTML.replace(
-            /src=["']?cid:[^"'\s>]+["']?/gi,
-            'src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+"'
-        );
+        msgInfo.attachments = processMsgAttachments(msgReader, msgInfo.attachments);
+        emailBodyContentHTML = replaceCidReferences(emailBodyContentHTML, msgInfo.attachments);
     }
 
-    return msgInfo ? {
+    return {
         ...msgInfo,
         bodyContent: emailBodyContent,
         bodyContentHTML: emailBodyContentHTML
-    } : null;
+    };
 }
 
-// Function for converting the decompressed RTF content to HTML
+/**
+ * Converts decompressed RTF content to HTML
+ * @param {string} rtfContent - Decompressed RTF content
+ * @returns {string} HTML representation of the RTF content
+ */
 function convertRTFToHTML(rtfContent) {
     const result = deEncapsulateSync(rtfContent, { decode: iconvLite.decode });
     return result.text;
 }
 
+/**
+ * Handles single-part (non-multipart) email content
+ * @param {string} bodyContent - Raw body content
+ * @param {string} contentType - Content-Type header value
+ * @param {string} contentTransferEncoding - Content-Transfer-Encoding header value
+ * @param {string} contentDisposition - Content-Disposition header value
+ * @param {string} charset - Character set for decoding
+ * @returns {{bodyHTML: string, bodyText: string, attachments: Array}} Parsed content
+ */
+function handleSinglePartContent(bodyContent, contentType, contentTransferEncoding, contentDisposition, charset) {
+    const results = {
+        bodyHTML: '',
+        bodyText: '',
+        attachments: []
+    };
+
+    if (contentType.startsWith('application/') || contentType.startsWith('image/')) {
+        // Handle as attachment
+        const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
+        const filename = filenameMatch ? filenameMatch[1] : 'attachment';
+        const mimeType = contentType.split(';')[0];
+
+        const base64Content = contentTransferEncoding.toLowerCase() === 'base64'
+            ? bodyContent.replace(/\s/g, '')
+            : Buffer.from(bodyContent).toString('base64');
+
+        results.attachments.push(createAttachment(filename, mimeType, base64Content));
+    } else {
+        // Handle as text content
+        const decodedContent = decodeTransferEncoding(bodyContent, contentTransferEncoding, charset);
+
+        if (contentType.includes('text/html')) {
+            results.bodyHTML = decodedContent;
+        } else {
+            results.bodyText = decodedContent;
+        }
+    }
+
+    return results;
+}
+
+/**
+ * Extracts email data from an EML (RFC 5322) file
+ * @param {ArrayBuffer} fileBuffer - The raw EML file content
+ * @returns {Object} Parsed email object with subject, sender, recipients, body, attachments
+ * @throws {Error} If the EML file cannot be parsed
+ */
 function extractEml(fileBuffer) {
     try {
         // Convert ArrayBuffer to String
         const emailString = Buffer.from(fileBuffer).toString('binary');
-
-        // Helper function for parsing multipart content
-        function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'utf-8') {
-            const results = {
-                bodyHTML: '',
-                bodyText: '',
-                attachments: []
-            };
-
-            const boundaryRegExp = new RegExp(`--${boundary}(?:--)?(?:\r?\n|\r|$)`, 'g');
-            const parts = content.split(boundaryRegExp).filter(part => part.trim());
-
-            parts.forEach(part => {
-                const partMatch = part.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
-                if (!partMatch) return;
-
-                const [_, partHeaders, partContent] = partMatch;
-
-                // Parse part headers
-                const partHeadersObj = {};
-                let currentHeader = '';
-                partHeaders.split(/\r?\n/).forEach(line => {
-                    if (line.match(/^\s+/)) {
-                        if (currentHeader) {
-                            partHeadersObj[currentHeader] += ' ' + line.trim();
-                        }
-                    } else {
-                        const match = line.match(/^([\w-]+):\s*(.*)$/i);
-                        if (match) {
-                            currentHeader = match[1].toLowerCase().trim();
-                            partHeadersObj[currentHeader] = match[2].trim();
-                        }
-                    }
-                });
-
-                const contentType = partHeadersObj['content-type'] || '';
-                const contentTransferEncoding = partHeadersObj['content-transfer-encoding'] || '';
-                const contentDisposition = partHeadersObj['content-disposition'] || '';
-                const contentId = partHeadersObj['content-id'] || '';
-
-                // Extract charset from part's content-type
-                const partCharsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
-                const partCharset = partCharsetMatch ? partCharsetMatch[1] : defaultCharset;
-
-                // Check for nested multipart
-                const nestedBoundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
-                if (nestedBoundaryMatch) {
-                    const nestedResults = parseMultipartContent(partContent, nestedBoundaryMatch[1], depth + 1, partCharset);
-                    // Keep existing content and add new
-                    if (nestedResults.bodyHTML) {
-                        results.bodyHTML = results.bodyHTML
-                            ? results.bodyHTML + '\n' + nestedResults.bodyHTML
-                            : nestedResults.bodyHTML;
-                    }
-                    if (nestedResults.bodyText) {
-                        results.bodyText = results.bodyText
-                            ? results.bodyText + '\n' + nestedResults.bodyText
-                            : nestedResults.bodyText;
-                    }
-                    results.attachments.push(...nestedResults.attachments);
-                    return;
-                }
-
-                // Decode content
-                let decodedContent = partContent.trim();
-                if (contentTransferEncoding.toLowerCase() === 'base64') {
-                    if (contentType.startsWith('text/')) {
-                        try {
-                            const decodedBytes = Buffer.from(partContent.replace(/\s/g, ''), 'base64');
-                            decodedContent = iconvLite.decode(decodedBytes, partCharset);
-                        } catch (error) {
-                            console.error('Error decoding base64 content:', error);
-                        }
-                    }
-                } else if (contentTransferEncoding.toLowerCase() === 'quoted-printable') {
-                    // Decode quoted-printable hex codes first
-                    const qpContent = partContent.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-                    // Then decode with proper charset
-                    const decodedBytes = Buffer.from(qpContent, 'binary');
-                    decodedContent = iconvLite.decode(decodedBytes, partCharset);
-                }
-
-                // Handle content types
-                if (contentType.startsWith('text/html')) {
-                    // Add HTML content
-                    results.bodyHTML = results.bodyHTML ? results.bodyHTML + '\n' + decodedContent : decodedContent;
-                } else if (contentType.startsWith('text/plain')) {
-                    // Add text content
-                    results.bodyText = results.bodyText ? results.bodyText + '\n' + decodedContent : decodedContent;
-                } else if (contentType.startsWith('image/') || contentType.startsWith('application/')) {
-                    const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
-                    const filename = filenameMatch ? filenameMatch[1] : 'attachment';
-
-                    let base64Content;
-                    if (contentTransferEncoding.toLowerCase() === 'base64') {
-                        base64Content = partContent.replace(/\s/g, '');
-                    } else {
-                        // Convert binary string to base64
-                        base64Content = Buffer.from(partContent, 'binary').toString('base64');
-                    }
-
-                    const attachment = {
-                        fileName: sanitizeFilename(filename),
-                        attachMimeTag: contentType.split(';')[0],
-                        contentLength: Math.floor(base64Content.length * 0.75),
-                        contentBase64: `data:${contentType.split(';')[0]};base64,${base64Content}`
-                    };
-
-                    // Extract Content-ID in various ways
-                    if (contentId) {
-                        // Remove < and > and everything except the actual ID part
-                        attachment.contentId = contentId.replace(/[<>]/g, '').trim();
-                    } else {
-                        // Try to extract Content-ID from Content-Location if Content-ID is missing
-                        const contentLocation = partHeadersObj['content-location'] || '';
-                        if (contentLocation) {
-                            attachment.contentId = contentLocation.replace(/[<>]/g, '').trim();
-                        }
-                    }
-
-                    results.attachments.push(attachment);
-                }
-            });
-
-            return results;
-        }
 
         // Split email into headers and body
         const headerBodySplit = emailString.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
@@ -361,167 +471,42 @@ function extractEml(fileBuffer) {
             throw new Error('Could not split email into headers and body');
         }
 
-        const [_, headersPart, bodyContent] = headerBodySplit;
+        const [, headersPart, bodyContent] = headerBodySplit;
 
-        // Parse headers
-        const headers = {};
-        let currentHeader = '';
-        headersPart.split(/\r?\n/).forEach(line => {
-            if (line.match(/^\s+/)) {
-                if (currentHeader) {
-                    headers[currentHeader] += ' ' + line.trim();
-                }
-            } else {
-                const match = line.match(/^([\w-]+):\s*(.*)$/i);
-                if (match) {
-                    currentHeader = match[1].toLowerCase().trim();
-                    headers[currentHeader] = match[2].trim();
-                }
-            }
-        });
+        // Parse headers using helper function
+        const headers = parseEmailHeaders(headersPart);
 
-        // Extract email addresses
-        const extractEmails = (str) => {
-            if (!str) return [];
-            const matches = str.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/g) || [];
-            return matches.map(match => {
-                const parts = match.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/);
-                const email = parts[2] || parts[3];
-                const name = parts[1] || email;
-                return { name: decodeMIMEWord(name), address: email };
-            });
-        };
-
-        let results;
+        // Extract content type info
         const contentType = headers['content-type'] || '';
         const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
+        const charsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
+        const detectedCharset = charsetMatch ? charsetMatch[1] : 'utf-8';
 
-        // Extract charset from content-type
-        const contentTypeCharsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
-        const detectedCharset = contentTypeCharsetMatch ? contentTypeCharsetMatch[1] : 'utf-8';
-
+        // Parse content based on whether it's multipart or single-part
+        let results;
         if (boundaryMatch) {
+            // Multipart email
             results = parseMultipartContent(bodyContent, boundaryMatch[1], 0, detectedCharset);
-            // Now perform CID replacement after all attachments have been collected
+
+            // Replace CID references with base64 attachment data
             if (results.bodyHTML && results.attachments.length > 0) {
-                // Helper to escape regex special characters
-                const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-                // Helper to try URL-decoded version of a pattern
-                const tryUrlDecoded = (str) => {
-                    try {
-                        const decoded = decodeURIComponent(str);
-                        return decoded !== str ? decoded : null;
-                    } catch (e) {
-                        return null;
-                    }
-                };
-
-                // Replace CID references with attachment content
-                results.attachments.forEach(attachment => {
-                    if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
-                        const contentId = attachment.contentId || '';
-                        const fileName = attachment.fileName || '';
-                        const cidIdWithoutBrackets = contentId ? contentId.replace(/[<>]/g, '').trim() : '';
-                        const urlDecodedCid = cidIdWithoutBrackets ? tryUrlDecoded(cidIdWithoutBrackets) : null;
-
-                        // Build comprehensive list of CID patterns
-                        const cidPatterns = [];
-
-                        if (cidIdWithoutBrackets) {
-                            // Standard cid: patterns
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                            cidPatterns.push(`src=["']?cid:<${escapeRegex(cidIdWithoutBrackets)}>["']?`);
-                            // Without cid: prefix
-                            cidPatterns.push(`src=["']?${escapeRegex(cidIdWithoutBrackets)}["']?`);
-                            // With trailing content (e.g., cid:id@domain:1)
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(cidIdWithoutBrackets)}[^"'\\s>]*["']?`);
-
-                            // URL-decoded version if different
-                            if (urlDecodedCid) {
-                                cidPatterns.push(`src=["']?cid:${escapeRegex(urlDecodedCid)}["']?`);
-                                cidPatterns.push(`src=["']?${escapeRegex(urlDecodedCid)}["']?`);
-                            }
-                        }
-
-                        // Filename-based patterns (fallback when CID is missing or doesn't match)
-                        if (fileName) {
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}["']?`);
-                            cidPatterns.push(`src=["']?cid:${escapeRegex(fileName)}[^"'\\s>]*["']?`);
-                            cidPatterns.push(`src=["']?${escapeRegex(fileName)}["']?`);
-                        }
-
-                        // Apply all patterns
-                        cidPatterns.forEach(pattern => {
-                            results.bodyHTML = results.bodyHTML.replace(
-                                new RegExp(pattern, 'gi'),
-                                `src="${attachment.contentBase64}"`
-                            );
-                        });
-                    } else if (attachment.contentId) {
-                        // Non-image attachments: replace href references
-                        const cidIdWithoutBrackets = attachment.contentId.replace(/[<>]/g, '').trim();
-                        results.bodyHTML = results.bodyHTML.replace(
-                            new RegExp(`href=["']?cid:${escapeRegex(cidIdWithoutBrackets)}["']?`, 'gi'),
-                            `href="${attachment.contentBase64}"`
-                        );
-                    }
-                });
-
-                // Replace remaining cid: references only if no matching attachment was found
-                results.bodyHTML = results.bodyHTML.replace(/src=["']?cid:[^"'\s>]+["']?/gi, 'src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiPjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iNTAiIGZpbGw9IiNlZWUiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM5OTkiPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+"');
+                results.bodyHTML = replaceCidReferences(results.bodyHTML, results.attachments);
             }
         } else {
-            // Single part handling
-            const contentTransferEncoding = headers['content-transfer-encoding'] || '';
-            const contentDisposition = headers['content-disposition'] || '';
-
-            results = {
-                bodyHTML: '',
-                bodyText: '',
-                attachments: []
-            };
-
-            if (contentType.startsWith('application/') || contentType.startsWith('image/')) {
-                const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
-                const filename = filenameMatch ? filenameMatch[1] : 'attachment';
-
-                const base64Content = contentTransferEncoding.toLowerCase() === 'base64'
-                    ? bodyContent.replace(/\s/g, '')
-                    : Buffer.from(bodyContent).toString('base64');
-
-                results.attachments.push({
-                    fileName: sanitizeFilename(filename),
-                    attachMimeTag: contentType.split(';')[0],
-                    contentLength: Math.floor(base64Content.length * 0.75),
-                    contentBase64: `data:${contentType.split(';')[0]};base64,${base64Content}`
-                });
-            } else {
-                let content = bodyContent;
-                if (contentTransferEncoding.toLowerCase() === 'base64') {
-                    try {
-                        content = Buffer.from(content.replace(/\s/g, ''), 'base64').toString('utf-8');
-                    } catch (error) {
-                        console.error('Error decoding base64 content:', error);
-                    }
-                } else if (contentTransferEncoding.toLowerCase() === 'quoted-printable') {
-                    content = content.replace(/=\r?\n/g, '')
-                        .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-                            String.fromCharCode(parseInt(hex, 16))
-                        );
-                }
-
-                if (contentType.includes('text/html')) {
-                    results.bodyHTML = content;
-                } else {
-                    results.bodyText = content;
-                }
-            }
+            // Single-part email
+            results = handleSinglePartContent(
+                bodyContent,
+                contentType,
+                headers['content-transfer-encoding'] || '',
+                headers['content-disposition'] || '',
+                detectedCharset
+            );
         }
 
-        const from = extractEmails(headers.from)[0] || { name: '', address: '' };
-        const to = extractEmails(headers.to);
-        const cc = extractEmails(headers.cc);
+        // Extract sender and recipients
+        const from = extractEmailAddresses(headers.from)[0] || { name: '', address: '' };
+        const to = extractEmailAddresses(headers.to);
+        const cc = extractEmailAddresses(headers.cc);
         const date = headers.date ? new Date(headers.date) : new Date();
 
         return {

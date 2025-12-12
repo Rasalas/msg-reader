@@ -3,19 +3,27 @@ const UIManager = require('./UIManager');
 const FileHandler = require('./FileHandler');
 const { extractMsg, extractEml } = require('./utils');
 
-// Make extractMsg and extractEml available globally
-if (typeof window !== 'undefined') {
-    window.extractMsg = extractMsg;
-    window.extractEml = extractEml;
-}
-
+/**
+ * Main application class
+ * Orchestrates the email reader application
+ */
 class App {
     constructor() {
         this.messageHandler = new MessageHandler();
         this.uiManager = new UIManager(this.messageHandler);
-        this.fileHandler = new FileHandler(this.messageHandler, this.uiManager);
+
+        // Inject parsers into FileHandler (Dependency Injection)
+        this.fileHandler = new FileHandler(
+            this.messageHandler,
+            this.uiManager,
+            { extractMsg, extractEml }
+        );
     }
 
+    /**
+     * Shows a message at the given index
+     * @param {number} index - Message index
+     */
     showMessage(index) {
         const messages = this.messageHandler.getMessages();
         if (messages[index]) {
@@ -23,16 +31,24 @@ class App {
         }
     }
 
+    /**
+     * Toggles pin status for a message
+     * @param {number} index - Message index
+     */
     togglePin(index) {
         const message = this.messageHandler.togglePin(index);
         this.uiManager.updateMessageList();
         this.uiManager.showMessage(message);
     }
 
+    /**
+     * Deletes a message at the given index
+     * @param {number} index - Message index
+     */
     deleteMessage(index) {
         const nextMessage = this.messageHandler.deleteMessage(index);
         this.uiManager.updateMessageList();
-        
+
         if (nextMessage) {
             this.uiManager.showMessage(nextMessage);
         } else {
@@ -49,4 +65,4 @@ if (typeof window !== 'undefined') {
     });
 }
 
-module.exports = App; 
+module.exports = App;
