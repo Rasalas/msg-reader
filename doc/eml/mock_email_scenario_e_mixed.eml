@@ -1,0 +1,75 @@
+Content-Type: multipart/mixed; boundary="===============7953153498494623477=="
+MIME-Version: 1.0
+Subject: Flight Plan & Signature Test
+From: Margaret Hamilton <margaret@nasa.gov>
+To: Grace Hopper <grace.hopper@cobol.mil>
+Date: Fri, 12 Dec 2025 21:57:14 +0000
+
+--===============7953153498494623477==
+Content-Type: multipart/related; boundary="===============5142991225216786152=="
+MIME-Version: 1.0
+
+--===============5142991225216786152==
+Content-Type: text/html; charset="us-ascii"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+
+<html><body>
+            <p>Grace,</p>
+            <p>Attached is the flight plan for the next simulation.</p>
+            <p>Best,</p>
+            <img src="cid:nasa-logo" width="150"><br>
+            Margaret
+        </body></html>
+--===============5142991225216786152==
+Content-Type: image/svg+xml
+MIME-Version: 1.0
+Content-Transfer-Encoding: base64
+Content-ID: <nasa-logo>
+Content-Disposition: inline; filename="nasa_logo.svg"
+
+PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMDAg
+MTAwIj4KICA8IS0tIFJvY2tldCAvIE9yYml0IC0tPgogIDxjaXJjbGUgY3g9IjUwIiBjeT0iNTAi
+IHI9IjIwIiBmaWxsPSIjMEIzRDkxIiAvPgogIDxwYXRoIGQ9Ik0xMCw1MCBRNTAsMCA5MCw1MCBR
+NTAsMTAwIDEwLDUwIiBzdHJva2U9IiNGQzNEMjEiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9u
+ZSIgLz4KICAKICA8dGV4dCB4PSIxMDAiIHk9IjQ1IiBmb250LWZhbWlseT0ic2VyaWYiIGZvbnQt
+d2VpZ2h0PSJib2xkIiBmb250LXNpemU9IjI4IiBmaWxsPSIjMEIzRDkxIj5OQVNBPC90ZXh0Pgog
+IDx0ZXh0IHg9IjEwMCIgeT0iNzUiIGZvbnQtZmFtaWx5PSJzZXJpZiIgZm9udC1zaXplPSIxOCIg
+ZmlsbD0iIzY2NiI+QVBPTExPIFBST0dSQU08L3RleHQ+Cjwvc3ZnPgo=
+
+--===============5142991225216786152==--
+
+--===============7953153498494623477==
+Content-Type: application/pdf
+MIME-Version: 1.0
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="flight_plan.pdf"
+
+JVBERi0xLjMKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgaHR0cDovL3d3
+dy5yZXBvcnRsYWIuY29tCjEgMCBvYmoKPDwKL0YxIDIgMCBSCj4+CmVuZG9iagoyIDAgb2JqCjw8
+Ci9CYXNlRm9udCAvSGVsdmV0aWNhIC9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nIC9OYW1lIC9G
+MSAvU3VidHlwZSAvVHlwZTEgL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRl
+bnRzIDcgMCBSIC9NZWRpYUJveCBbIDAgMCA1OTUuMjc1NiA4NDEuODg5OCBdIC9QYXJlbnQgNiAw
+IFIgL1Jlc291cmNlcyA8PAovRm9udCAxIDAgUiAvUHJvY1NldCBbIC9QREYgL1RleHQgL0ltYWdl
+QiAvSW1hZ2VDIC9JbWFnZUkgXQo+PiAvUm90YXRlIDAgL1RyYW5zIDw8Cgo+PiAKICAvVHlwZSAv
+UGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovUGFnZU1vZGUgL1VzZU5vbmUgL1BhZ2VzIDYgMCBS
+IC9UeXBlIC9DYXRhbG9nCj4+CmVuZG9iago1IDAgb2JqCjw8Ci9BdXRob3IgKGFub255bW91cykg
+L0NyZWF0aW9uRGF0ZSAoRDoyMDI1MTIxMjIxNTcxNCswMScwMCcpIC9DcmVhdG9yIChSZXBvcnRM
+YWIgUERGIExpYnJhcnkgLSB3d3cucmVwb3J0bGFiLmNvbSkgL0tleXdvcmRzICgpIC9Nb2REYXRl
+IChEOjIwMjUxMjEyMjE1NzE0KzAxJzAwJykgL1Byb2R1Y2VyIChSZXBvcnRMYWIgUERGIExpYnJh
+cnkgLSB3d3cucmVwb3J0bGFiLmNvbSkgCiAgL1N1YmplY3QgKHVuc3BlY2lmaWVkKSAvVGl0bGUg
+KHVudGl0bGVkKSAvVHJhcHBlZCAvRmFsc2UKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0NvdW50IDEg
+L0tpZHMgWyAzIDAgUiBdIC9UeXBlIC9QYWdlcwo+PgplbmRvYmoKNyAwIG9iago8PAovRmlsdGVy
+IFsgL0FTQ0lJODVEZWNvZGUgL0ZsYXRlRGVjb2RlIF0gL0xlbmd0aCAxNDQKPj4Kc3RyZWFtCkdh
+cFFoMEU9RiwwVVxIM1RccE5ZVF5RS2s/dGM+SVAsO1cjVTFeMjNpaFBFTV8/Q1c0S0lTaTkwTWpH
+XjIsRlMjPFI+Xi5hXDojLzskYjY3YllySVBicGM2NjwhXlREI2dwTWRgPkc+ZzRaK24jLidZJFRg
+Q2R0Zl5yVEwsY2o1R2habWZxcCEwcSs9Y05+PmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDgKMDAw
+MDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDczIDAwMDAwIG4gCjAwMDAwMDAxMDQgMDAwMDAgbiAK
+MDAwMDAwMDIxMSAwMDAwMCBuIAowMDAwMDAwNDE0IDAwMDAwIG4gCjAwMDAwMDA0ODIgMDAwMDAg
+biAKMDAwMDAwMDc3OCAwMDAwMCBuIAowMDAwMDAwODM3IDAwMDAwIG4gCnRyYWlsZXIKPDwKL0lE
+IApbPDg1M2I3ZDM5ZDg3NTE5MzhiNmQwYzA4YWYyZjEyZjkwPjw4NTNiN2QzOWQ4NzUxOTM4YjZk
+MGMwOGFmMmYxMmY5MD5dCiUgUmVwb3J0TGFiIGdlbmVyYXRlZCBQREYgZG9jdW1lbnQgLS0gZGln
+ZXN0IChodHRwOi8vd3d3LnJlcG9ydGxhYi5jb20pCgovSW5mbyA1IDAgUgovUm9vdCA0IDAgUgov
+U2l6ZSA4Cj4+CnN0YXJ0eHJlZgoxMDcxCiUlRU9GCg==
+
+--===============7953153498494623477==--

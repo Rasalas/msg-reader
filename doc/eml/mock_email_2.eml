@@ -1,48 +1,25 @@
-Content-Type: multipart/mixed; boundary="===============4320028010247709448=="
+Content-Type: multipart/mixed; boundary="===============5888529639628016821=="
 MIME-Version: 1.0
 Subject: Progress Update: Universal Computing Machine
 From: Alan Turing <alan.turing@enigma.gov.uk>
 To: Grace Hopper <grace.hopper@cobol.mil>
-Date: Thu, 11 Dec 2025 19:24:45 +0000
-Message-ID: <7273595@enigma.gov.uk>
+Date: Thu, 11 Dec 2025 21:57:14 +0000
+Message-ID: <7897276@enigma.gov.uk>
 
---===============4320028010247709448==
+--===============5888529639628016821==
 Content-Type: text/html; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
 
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
-    <p>Dear Grace Hopper,</p>
-    <br>
-    <p>I'm pleased to report significant progress on our universal computing machine project. 
-    The theoretical framework is now complete, and I've attached the latest specifications.</p>
-    <br>
-    <p>Key achievements:</p>
-    <ul style="margin-left: 20px;">
-        <li>Completed the mathematical model for state transitions</li>
-        <li>Developed a new notation system for machine instructions</li>
-        <li>Solved the halting problem (just kidding!)</li>
-    </ul>
-    <br>
-    <p>Best regards,<br>
-    Alan Turing<br><br>
-    Head of Cryptography<br>
-    Bletchley Park Research<br>
-    <br>
-    <img src="cid:company-logo" style="max-width: 200px;"><br></p>
-</body>
-</html>
---===============4320028010247709448==
+<!DOCTYPE html><html><body style="font-family: Arial; padding: 20px;">
+                <p>Dear Grace Hopper,</p><p>Significant progress on universal computing.</p>
+                <img src="cid:company-logo" style="max-width: 200px;"></body></html>
+--===============5888529639628016821==
 Content-Type: image/svg+xml
 MIME-Version: 1.0
 Content-Transfer-Encoding: base64
 Content-ID: <company-logo>
-Content-Disposition: inline
+Content-Disposition: inline; filename="company_logo.svg"
 
 PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+Cjwh
 RE9DVFlQRSBzdmcgUFVCTElDICItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cu
@@ -437,7 +414,7 @@ NDk1IDY1ODgsMjQ5OEw2NTYwLDI1MDFaIiBzdHlsZT0iZmlsbC1ydWxlOm5vbnplcm87Ii8+CiAg
 ICAgICAgICAgICAgICAgICAgPC9nPgogICAgICAgICAgICAgICAgPC9nPgogICAgICAgICAgICA8
 L2c+CiAgICAgICAgPC9nPgogICAgPC9nPgo8L3N2Zz4K
 
---===============4320028010247709448==
+--===============5888529639628016821==
 Content-Type: application/pdf
 MIME-Version: 1.0
 Content-Transfer-Encoding: base64
@@ -452,9 +429,9 @@ IFIgL1Jlc291cmNlcyA8PAovRm9udCAxIDAgUiAvUHJvY1NldCBbIC9QREYgL1RleHQgL0ltYWdl
 QiAvSW1hZ2VDIC9JbWFnZUkgXQo+PiAvUm90YXRlIDAgL1RyYW5zIDw8Cgo+PiAKICAvVHlwZSAv
 UGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovUGFnZU1vZGUgL1VzZU5vbmUgL1BhZ2VzIDYgMCBS
 IC9UeXBlIC9DYXRhbG9nCj4+CmVuZG9iago1IDAgb2JqCjw8Ci9BdXRob3IgKGFub255bW91cykg
-L0NyZWF0aW9uRGF0ZSAoRDoyMDI1MTIxMjE5MjQ0NSswMScwMCcpIC9DcmVhdG9yIChSZXBvcnRM
+L0NyZWF0aW9uRGF0ZSAoRDoyMDI1MTIxMjIxNTcxNCswMScwMCcpIC9DcmVhdG9yIChSZXBvcnRM
 YWIgUERGIExpYnJhcnkgLSB3d3cucmVwb3J0bGFiLmNvbSkgL0tleXdvcmRzICgpIC9Nb2REYXRl
-IChEOjIwMjUxMjEyMTkyNDQ1KzAxJzAwJykgL1Byb2R1Y2VyIChSZXBvcnRMYWIgUERGIExpYnJh
+IChEOjIwMjUxMjEyMjE1NzE0KzAxJzAwJykgL1Byb2R1Y2VyIChSZXBvcnRMYWIgUERGIExpYnJh
 cnkgLSB3d3cucmVwb3J0bGFiLmNvbSkgCiAgL1N1YmplY3QgKHVuc3BlY2lmaWVkKSAvVGl0bGUg
 KHVudGl0bGVkKSAvVHJhcHBlZCAvRmFsc2UKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0NvdW50IDEg
 L0tpZHMgWyAzIDAgUiBdIC9UeXBlIC9QYWdlcwo+PgplbmRvYmoKNyAwIG9iago8PAovRmlsdGVy
@@ -465,9 +442,9 @@ NCY6KjI4cjIoYU0+a3JmP2FlWk9MLUhVITxCO1wsXEl+PmVuZHN0cmVhbQplbmRvYmoKeHJlZgow
 IDgKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDczIDAwMDAwIG4gCjAwMDAwMDAxMDQgMDAw
 MDAgbiAKMDAwMDAwMDIxMSAwMDAwMCBuIAowMDAwMDAwNDE0IDAwMDAwIG4gCjAwMDAwMDA0ODIg
 MDAwMDAgbiAKMDAwMDAwMDc3OCAwMDAwMCBuIAowMDAwMDAwODM3IDAwMDAwIG4gCnRyYWlsZXIK
-PDwKL0lEIApbPDhiNmM2NGE2YzdkNmNkZmQzMDQzMDAzYWI2ZGYwY2Y1Pjw4YjZjNjRhNmM3ZDZj
-ZGZkMzA0MzAwM2FiNmRmMGNmNT5dCiUgUmVwb3J0TGFiIGdlbmVyYXRlZCBQREYgZG9jdW1lbnQg
+PDwKL0lEIApbPDgwMGViMjg4MGMxZmM2NjMzYmFlZTc5NTVhZDdkZGEyPjw4MDBlYjI4ODBjMWZj
+NjYzM2JhZWU3OTU1YWQ3ZGRhMj5dCiUgUmVwb3J0TGFiIGdlbmVyYXRlZCBQREYgZG9jdW1lbnQg
 LS0gZGlnZXN0IChodHRwOi8vd3d3LnJlcG9ydGxhYi5jb20pCgovSW5mbyA1IDAgUgovUm9vdCA0
 IDAgUgovU2l6ZSA4Cj4+CnN0YXJ0eHJlZgoxMDc3CiUlRU9GCg==
 
---===============4320028010247709448==--
+--===============5888529639628016821==--
