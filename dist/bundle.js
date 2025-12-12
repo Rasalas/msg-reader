@@ -17902,6 +17902,23 @@ class UIManager {
         this.messageItems = document.getElementById('messageItems');
         this.messageViewer = document.getElementById('messageViewer');
         this.dropOverlay = document.querySelector('.drop-overlay');
+
+        // Modal elements
+        this.attachmentModal = document.getElementById('attachmentModal');
+        this.attachmentModalBackdrop = this.attachmentModal?.querySelector('.attachment-modal-backdrop');
+        this.attachmentModalClose = document.getElementById('attachmentModalClose');
+        this.attachmentModalDownload = document.getElementById('attachmentModalDownload');
+        this.attachmentModalFilename = document.getElementById('attachmentModalFilename');
+        this.attachmentModalContent = document.getElementById('attachmentModalContent');
+        this.attachmentModalPrev = document.getElementById('attachmentModalPrev');
+        this.attachmentModalNext = document.getElementById('attachmentModalNext');
+
+        // Modal state
+        this.currentAttachmentIndex = 0;
+        this.previewableAttachments = [];
+
+        // Initialize modal event listeners
+        this.initModalEventListeners();
     }
 
     showWelcomeScreen() {
@@ -18022,9 +18039,166 @@ class UIManager {
         this.messageViewer.innerHTML = messageContent;
     }
 
+    // Modal helper methods
+    isPreviewableImage(mimeType) {
+        if (!mimeType) return false;
+        const previewableTypes = [
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
+            'image/webp', 'image/svg+xml', 'image/bmp'
+        ];
+        return previewableTypes.includes(mimeType.toLowerCase());
+    }
+
+    isPdf(mimeType) {
+        if (!mimeType) return false;
+        return mimeType.toLowerCase() === 'application/pdf';
+    }
+
+    isText(mimeType) {
+        if (!mimeType) return false;
+        const normalizedMime = mimeType.toLowerCase();
+        // Match text/* types and common text-based application types
+        return normalizedMime.startsWith('text/') ||
+               normalizedMime.startsWith('application/text') ||  // includes application/text/x-diff
+               normalizedMime === 'application/json' ||
+               normalizedMime === 'application/xml' ||
+               normalizedMime === 'application/javascript' ||
+               normalizedMime === 'application/x-diff';
+    }
+
+    isPreviewable(mimeType) {
+        return this.isPreviewableImage(mimeType) || this.isPdf(mimeType) || this.isText(mimeType);
+    }
+
+    initModalEventListeners() {
+        if (!this.attachmentModal) return;
+
+        // Close button click
+        this.attachmentModalClose?.addEventListener('click', () => this.closeAttachmentModal());
+
+        // Backdrop click (click outside to close)
+        this.attachmentModalBackdrop?.addEventListener('click', () => this.closeAttachmentModal());
+
+        // Navigation buttons
+        this.attachmentModalPrev?.addEventListener('click', () => this.showPrevAttachment());
+        this.attachmentModalNext?.addEventListener('click', () => this.showNextAttachment());
+
+        // Keyboard support
+        document.addEventListener('keydown', (e) => {
+            if (!this.attachmentModal?.classList.contains('active')) return;
+
+            if (e.key === 'Escape') {
+                this.closeAttachmentModal();
+            } else if (e.key === 'ArrowLeft') {
+                this.showPrevAttachment();
+            } else if (e.key === 'ArrowRight') {
+                this.showNextAttachment();
+            }
+        });
+    }
+
+    openAttachmentModal(attachment, index = 0) {
+        if (!this.attachmentModal) return;
+
+        // Build list of previewable attachments if not already set
+        if (this.currentAttachments) {
+            this.previewableAttachments = this.currentAttachments.filter(att =>
+                this.isPreviewable(att.attachMimeTag)
+            );
+        }
+
+        // Find the index in previewable attachments
+        this.currentAttachmentIndex = this.previewableAttachments.findIndex(att =>
+            att.fileName === attachment.fileName && att.contentBase64 === attachment.contentBase64
+        );
+        if (this.currentAttachmentIndex === -1) this.currentAttachmentIndex = 0;
+
+        this.renderAttachmentPreview(attachment);
+
+        // Show modal
+        this.attachmentModal.classList.add('active');
+
+        // Prevent body scroll when modal is open
+        document.body.style.overflow = 'hidden';
+    }
+
+    renderAttachmentPreview(attachment) {
+        // Set filename
+        this.attachmentModalFilename.textContent = attachment.fileName;
+
+        // Set download link
+        this.attachmentModalDownload.href = attachment.contentBase64;
+        this.attachmentModalDownload.download = attachment.fileName;
+
+        // Clear previous content
+        this.attachmentModalContent.innerHTML = '';
+
+        // Render appropriate preview
+        if (this.isPreviewableImage(attachment.attachMimeTag)) {
+            const img = document.createElement('img');
+            img.src = attachment.contentBase64;
+            img.alt = attachment.fileName;
+            this.attachmentModalContent.appendChild(img);
+        } else if (this.isPdf(attachment.attachMimeTag)) {
+            const iframe = document.createElement('iframe');
+            iframe.src = attachment.contentBase64;
+            iframe.title = attachment.fileName;
+            this.attachmentModalContent.appendChild(iframe);
+        } else if (this.isText(attachment.attachMimeTag)) {
+            // Decode base64 to text
+            const base64Data = attachment.contentBase64.split(',')[1];
+            const textContent = atob(base64Data);
+
+            const pre = document.createElement('pre');
+            pre.className = 'attachment-text-preview';
+            pre.textContent = textContent;
+            this.attachmentModalContent.appendChild(pre);
+        }
+
+        // Update navigation buttons
+        this.updateNavButtons();
+    }
+
+    updateNavButtons() {
+        const total = this.previewableAttachments.length;
+        const hasPrev = this.currentAttachmentIndex > 0;
+        const hasNext = this.currentAttachmentIndex < total - 1;
+
+        // Only show button if navigation in that direction is possible
+        this.attachmentModalPrev.style.display = hasPrev ? 'flex' : 'none';
+        this.attachmentModalNext.style.display = hasNext ? 'flex' : 'none';
+    }
+
+    showPrevAttachment() {
+        if (this.currentAttachmentIndex > 0) {
+            this.currentAttachmentIndex--;
+            this.renderAttachmentPreview(this.previewableAttachments[this.currentAttachmentIndex]);
+        }
+    }
+
+    showNextAttachment() {
+        if (this.currentAttachmentIndex < this.previewableAttachments.length - 1) {
+            this.currentAttachmentIndex++;
+            this.renderAttachmentPreview(this.previewableAttachments[this.currentAttachmentIndex]);
+        }
+    }
+
+    closeAttachmentModal() {
+        if (!this.attachmentModal) return;
+
+        this.attachmentModal.classList.remove('active');
+        this.attachmentModalContent.innerHTML = '';
+
+        // Restore body scroll
+        document.body.style.overflow = '';
+    }
+
     renderAttachments(msgInfo) {
         if (!msgInfo.attachments?.length) return '';
-        
+
+        // Store attachments for modal access
+        this.currentAttachments = msgInfo.attachments;
+
         return `
             <div class="mt-6">
                 <hr class="border-t border-gray-200 mb-4">
@@ -18035,22 +18209,55 @@ class UIManager {
                     <span class="text-gray-600">${msgInfo.attachments.length} ${msgInfo.attachments.length === 1 ? 'Attachment' : 'Attachments'}</span>
                 </div>
                 <div class="flex flex-wrap gap-4">
-                    ${msgInfo.attachments.map(attachment => {
-                        if (attachment.attachMimeTag && attachment.attachMimeTag.startsWith('image/')) {
+                    ${msgInfo.attachments.map((attachment, index) => {
+                        const isPreviewable = this.isPreviewable(attachment.attachMimeTag);
+                        const isImage = this.isPreviewableImage(attachment.attachMimeTag);
+                        const isPdf = this.isPdf(attachment.attachMimeTag);
+                        const isText = this.isText(attachment.attachMimeTag);
+
+                        // Icon selection helper
+                        const getIcon = () => {
+                            if (isImage) {
+                                return `<img src="${attachment.contentBase64}" alt="Attachment" class="w-10 h-10 object-cover">`;
+                            } else if (isPdf) {
+                                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-500">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                </svg>`;
+                            } else if (isText) {
+                                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-slate-500">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                </svg>`;
+                            }
+                            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                            </svg>`;
+                        };
+
+                        if (isPreviewable) {
+                            // Previewable files: click opens modal
                             return `
-                                <a href="${attachment.contentBase64}" download="${attachment.fileName}" style="text-decoration:none;" class="min-w-[250px] max-w-fit">
+                                <div class="cursor-pointer min-w-[250px] max-w-fit"
+                                     onclick="window.app.uiManager.openAttachmentModal(window.app.uiManager.currentAttachments[${index}])"
+                                     title="Click to preview">
                                     <div class="flex items-center space-x-2 rounded border p-2 hover:border-primary hover:bg-blue-50 transition-colors">
-                                        <div class="border rounded w-10 h-10 flex-shrink-0">
-                                            <img src="${attachment.contentBase64}" alt="Attachment" class="w-10 h-10 object-cover">
+                                        <div class="border rounded w-10 h-10 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                            ${getIcon()}
                                         </div>
-                                        <div class="no-underline">
-                                            <p class="no-underline text-sm text-gray-800">${attachment.fileName}</p>
-                                            <p class="no-underline text-xs text-gray-400">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                        <div>
+                                            <p class="text-sm text-gray-800">${attachment.fileName}</p>
+                                            <p class="text-xs text-gray-400">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                        </div>
+                                        <div class="ml-auto pl-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-400">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.573-3.007-9.963-7.178Z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                            </svg>
                                         </div>
                                     </div>
-                                </a>
+                                </div>
                             `;
                         } else {
+                            // Non-previewable files: direct download
                             return `
                                 <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-sm text-gray-600 no-underline min-w-[250px] max-w-fit">
                                     <div class="flex items-center rounded border p-2 hover:border-primary hover:bg-blue-50 transition-colors">
