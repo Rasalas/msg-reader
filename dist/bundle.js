@@ -18167,6 +18167,16 @@ const md5 = require('md5');
 // Export md5 for global use
 window.md5 = md5;
 
+// Function to sanitize attachment filenames (removes null terminators, control characters, BOM)
+function sanitizeFilename(filename) {
+    if (!filename) return 'attachment';
+    return filename
+        .replace(/[\x00-\x1f\x7f]/g, '')  // Remove control characters (including null)
+        .replace(/\ufeff/g, '')            // Remove UTF-16 BOM
+        .replace(/\ufffd/g, '')            // Remove replacement character
+        .trim();
+}
+
 // Function to decode MIME encoded-word format
 function decodeMIMEWord(str) {
     if (!str) return '';
@@ -18286,6 +18296,8 @@ function extractMsg(fileBuffer) {
             }
 
             msgInfo.attachments[index].contentBase64 = base64String;
+            // Sanitize filename to remove null terminators and control characters (fixes #14)
+            msgInfo.attachments[index].fileName = sanitizeFilename(attachment.fileName);
         });
     }
 
@@ -18408,7 +18420,7 @@ function extractEml(fileBuffer) {
                     }
 
                     const attachment = {
-                        fileName: filename,
+                        fileName: sanitizeFilename(filename),
                         attachMimeTag: contentType.split(';')[0],
                         contentLength: Math.floor(base64Content.length * 0.75),
                         contentBase64: `data:${contentType.split(';')[0]};base64,${base64Content}`
@@ -18534,7 +18546,7 @@ function extractEml(fileBuffer) {
                     : Buffer.from(bodyContent).toString('base64');
 
                 results.attachments.push({
-                    fileName: filename,
+                    fileName: sanitizeFilename(filename),
                     attachMimeTag: contentType.split(';')[0],
                     contentLength: Math.floor(base64Content.length * 0.75),
                     contentBase64: `data:${contentType.split(';')[0]};base64,${base64Content}`
