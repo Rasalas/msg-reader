@@ -1,7 +1,15 @@
 const { sanitizeHTML } = require('./sanitizer');
 const { DEFAULT_LOCALE, TOAST_COLORS } = require('./constants');
 
+/**
+ * Manages the user interface for the email reader application
+ * Handles message display, attachment modals, notifications, and UI state
+ */
 class UIManager {
+    /**
+     * Creates a new UIManager instance
+     * @param {MessageHandler} messageHandler - Handler for message operations
+     */
     constructor(messageHandler) {
         this.messageHandler = messageHandler;
         this.welcomeScreen = document.getElementById('welcomeScreen');
@@ -80,16 +88,26 @@ class UIManager {
         });
     }
 
+    /**
+     * Displays the welcome screen and hides the main app container
+     */
     showWelcomeScreen() {
         this.welcomeScreen.style.display = 'flex';
         this.appContainer.style.display = 'none';
     }
 
+    /**
+     * Hides the welcome screen and displays the main app container
+     */
     showAppContainer() {
         this.welcomeScreen.style.display = 'none';
         this.appContainer.style.display = 'flex';
     }
 
+    /**
+     * Updates the message list sidebar with all loaded messages
+     * Highlights the current message and shows pinned status
+     */
     updateMessageList() {
         const currentMessage = this.messageHandler.getCurrentMessage();
         const messages = this.messageHandler.getMessages();
@@ -123,6 +141,10 @@ class UIManager {
         }).join('');
     }
 
+    /**
+     * Displays a message in the main viewer area
+     * @param {Object} msgInfo - Message object to display
+     */
     showMessage(msgInfo) {
         this.messageHandler.setCurrentMessage(msgInfo);
         this.updateMessageList();
@@ -229,7 +251,11 @@ class UIManager {
         return sanitizeHTML(emailContent);
     }
 
-    // Modal helper methods
+    /**
+     * Checks if a MIME type is a previewable image format
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the MIME type is a previewable image
+     */
     isPreviewableImage(mimeType) {
         if (!mimeType) return false;
         const previewableTypes = [
@@ -239,11 +265,21 @@ class UIManager {
         return previewableTypes.includes(mimeType.toLowerCase());
     }
 
+    /**
+     * Checks if a MIME type is PDF
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the MIME type is PDF
+     */
     isPdf(mimeType) {
         if (!mimeType) return false;
         return mimeType.toLowerCase() === 'application/pdf';
     }
 
+    /**
+     * Checks if a MIME type is a text-based format
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the MIME type is text-based
+     */
     isText(mimeType) {
         if (!mimeType) return false;
         const normalizedMime = mimeType.toLowerCase();
@@ -256,10 +292,19 @@ class UIManager {
                normalizedMime === 'application/x-diff';
     }
 
+    /**
+     * Checks if an attachment can be previewed in the modal
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the attachment is previewable
+     */
     isPreviewable(mimeType) {
         return this.isPreviewableImage(mimeType) || this.isPdf(mimeType) || this.isText(mimeType);
     }
 
+    /**
+     * Initializes event listeners for the attachment preview modal
+     * Handles close button, backdrop click, navigation, and keyboard shortcuts
+     */
     initModalEventListeners() {
         if (!this.attachmentModal) return;
 
@@ -287,6 +332,11 @@ class UIManager {
         });
     }
 
+    /**
+     * Opens the attachment preview modal for a specific attachment
+     * @param {Object} attachment - Attachment object to preview
+     * @param {number} [index=0] - Index of the attachment in the list
+     */
     openAttachmentModal(attachment, index = 0) {
         if (!this.attachmentModal) return;
 
@@ -312,6 +362,10 @@ class UIManager {
         document.body.style.overflow = 'hidden';
     }
 
+    /**
+     * Renders the preview content for an attachment in the modal
+     * @param {Object} attachment - Attachment object to render
+     */
     renderAttachmentPreview(attachment) {
         // Set filename
         this.attachmentModalFilename.textContent = attachment.fileName;
@@ -362,6 +416,9 @@ class UIManager {
         this.updateNavButtons();
     }
 
+    /**
+     * Updates the visibility of navigation buttons based on current attachment position
+     */
     updateNavButtons() {
         const total = this.previewableAttachments.length;
         const hasPrev = this.currentAttachmentIndex > 0;
@@ -372,6 +429,9 @@ class UIManager {
         this.attachmentModalNext.style.display = hasNext ? 'flex' : 'none';
     }
 
+    /**
+     * Shows the previous attachment in the modal
+     */
     showPrevAttachment() {
         if (this.currentAttachmentIndex > 0) {
             this.currentAttachmentIndex--;
@@ -379,6 +439,9 @@ class UIManager {
         }
     }
 
+    /**
+     * Shows the next attachment in the modal
+     */
     showNextAttachment() {
         if (this.currentAttachmentIndex < this.previewableAttachments.length - 1) {
             this.currentAttachmentIndex++;
@@ -386,6 +449,9 @@ class UIManager {
         }
     }
 
+    /**
+     * Closes the attachment preview modal and restores page scroll
+     */
     closeAttachmentModal() {
         if (!this.attachmentModal) return;
 
@@ -396,6 +462,11 @@ class UIManager {
         document.body.style.overflow = '';
     }
 
+    /**
+     * Renders the attachments section for a message
+     * @param {Object} msgInfo - Message object containing attachments
+     * @returns {string} HTML string for the attachments section
+     */
     renderAttachments(msgInfo) {
         if (!msgInfo.attachments?.length) return '';
 
@@ -484,6 +555,12 @@ class UIManager {
         `;
     }
 
+    /**
+     * Formats a date for display in the message list
+     * Returns relative format (today, yesterday) or absolute date
+     * @param {Date} date - Date to format
+     * @returns {string} Formatted date string
+     */
     formatMessageDate(date) {
         // Defensive: handle undefined/null/invalid dates
         if (!date || Object.prototype.toString.call(date) !== '[object Date]' || isNaN(date.getTime())) {
@@ -504,10 +581,16 @@ class UIManager {
         }
     }
 
+    /**
+     * Shows the drag-and-drop overlay
+     */
     showDropOverlay() {
         this.dropOverlay.classList.add('active');
     }
 
+    /**
+     * Hides the drag-and-drop overlay
+     */
     hideDropOverlay() {
         this.dropOverlay.classList.remove('active');
     }
