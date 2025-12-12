@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100">
+  <!-- Rocket / Orbit -->
+  <circle cx="50" cy="50" r="20" fill="#0B3D91" />
+  <path d="M10,50 Q50,0 90,50 Q50,100 10,50" stroke="#FC3D21" stroke-width="3" fill="none" />
+  
+  <text x="100" y="45" font-family="serif" font-weight="bold" font-size="28" fill="#0B3D91">NASA</text>
+  <text x="100" y="75" font-family="serif" font-size="18" fill="#666">APOLLO PROGRAM</text>
+</svg>

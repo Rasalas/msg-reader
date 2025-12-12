@@ -5,6 +5,7 @@ from io import BytesIO
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
+from email.mime.message import MIMEMessage
 from email.mime.application import MIMEApplication
 from datetime import datetime, timedelta
 import random
@@ -33,6 +34,24 @@ PERSONAS = [
         'email': 'grace.hopper@cobol.mil',
         'company': 'COBOL Systems Inc.',
         'position': 'Director of Compiler Development'
+    },
+    {
+        'name': 'Linus Torvalds',
+        'email': 'linus@linux-foundation.org',
+        'company': 'Linux Foundation',
+        'position': 'Benevolent Dictator for Life'
+    },
+    {
+        'name': 'Tim Berners-Lee',
+        'email': 'timbl@w3c.org',
+        'company': 'World Wide Web Consortium',
+        'position': 'Director'
+    },
+    {
+        'name': 'Margaret Hamilton',
+        'email': 'margaret@nasa.gov',
+        'company': 'NASA',
+        'position': 'Lead Apollo Flight Software'
     }
 ]
 
@@ -79,7 +98,7 @@ def create_invoice_html(from_persona, to_persona):
     <meta charset="UTF-8">
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
-    <img src="cid:company-logo" style="max-width: 200px;"><br>
+    <img src="cid:company-logo" style="max-width: 400px;"><br>
     <div style="text-align: right;">
         <h2>{from_persona['company']}</h2>
         <p>Invoice #{invoice_number}</p>
@@ -136,6 +155,12 @@ def get_company_logo(persona):
         logo_path = 'doc/res/logos/dew_logo.svg'
     elif persona['name'] == 'Grace Hopper':
         logo_path = 'doc/res/logos/csi_logo.svg'
+    elif persona['name'] == 'Linus Torvalds':
+        logo_path = 'doc/res/logos/linux_logo.svg'
+    elif persona['name'] == 'Tim Berners-Lee':
+        logo_path = 'doc/res/logos/w3c_logo.svg'
+    elif persona['name'] == 'Margaret Hamilton':
+        logo_path = 'doc/res/logos/nasa_logo.svg'
     else:
         return None
         
@@ -158,174 +183,274 @@ def create_sample_pdf(title="Meeting Minutes"):
     return buffer.getvalue()
 
 def generate_mock_emails():
-    emails = [
-        # Email 1: Ada's Invoice to Charles
-        {
-            'from': PERSONAS[0],  # Ada
-            'to': PERSONAS[1],    # Charles
-            'subject': 'Invoice for Analytical Engine Consulting Services',
-            'type': 'invoice',
-            'needs_attachments': True
-        },
-        # Email 2: Turing's Project Update
-        {
-            'from': PERSONAS[2],  # Turing
-            'to': PERSONAS[3],    # Grace
-            'subject': 'Progress Update: Universal Computing Machine',
-            'type': 'update',
-            'needs_attachments': True
-        },
-        # Email 3: Grace's Bug Report
-        {
-            'from': PERSONAS[3],  # Grace
-            'to': PERSONAS[2],    # Turing
-            'subject': 'Found a bug in the compiler - nanoseconds matter!',
-            'type': 'bug_report',
-            'needs_attachments': False
-        },
-        # Email 4: Charles' Meeting Minutes
-        {
-            'from': PERSONAS[1],  # Charles
-            'to': PERSONAS[0],    # Ada
-            'subject': 'Minutes from yesterday\'s Engine Design Review',
-            'type': 'minutes',
-            'needs_attachments': False
-        }
-    ]
-    
-    for i, email_data in enumerate(emails):
-        # Create the basic email structure
+    # Helper to generate basic parts
+    def create_base_msg(sender, recipient, subject, date_offset=0):
         msg = MIMEMultipart()
-        msg['Subject'] = email_data['subject']
-        msg['From'] = f"{email_data['from']['name']} <{email_data['from']['email']}>"
-        msg['To'] = f"{email_data['to']['name']} <{email_data['to']['email']}>"
-        msg['Date'] = (datetime.now() - timedelta(days=i)).strftime('%a, %d %b %Y %H:%M:%S +0000')
-        msg['Message-ID'] = f"<{random.randint(1000000,9999999)}@{email_data['from']['email'].split('@')[1]}>"
+        msg['Subject'] = subject
+        msg['From'] = f"{sender['name']} <{sender['email']}>"
+        msg['To'] = f"{recipient['name']} <{recipient['email']}>"
+        msg['Date'] = (datetime.now() - timedelta(days=date_offset)).strftime('%a, %d %b %Y %H:%M:%S +0000')
+        msg['Message-ID'] = f"<{random.randint(1000000,9999999)}@{sender['email'].split('@')[1]}>"
+        return msg
 
-        # Get logo if needed
-        logo_data = None
-        logo_data = get_company_logo(email_data['from'])
+    emails_to_generate = []
 
-        # Create content based on email type
-        if email_data['type'] == 'invoice':
-            html = create_invoice_html(email_data['from'], email_data['to'])
-            pdf_title = "Invoice Details"
-        elif email_data['type'] == 'update':
-            html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
-    <p>Dear {email_data['to']['name']},</p>
-    <br>
-    <p>I'm pleased to report significant progress on our universal computing machine project. 
-    The theoretical framework is now complete, and I've attached the latest specifications.</p>
-    <br>
-    <p>Key achievements:</p>
-    <ul style="margin-left: 20px;">
-        <li>Completed the mathematical model for state transitions</li>
-        <li>Developed a new notation system for machine instructions</li>
-        <li>Solved the halting problem (just kidding!)</li>
-    </ul>
-    <br>
-    <p>Best regards,<br>
-    {email_data['from']['name']}<br><br>
-    {email_data['from']['position']}<br>
-    {email_data['from']['company']}<br>
-    <br>
-    <img src="cid:company-logo" style="max-width: 200px;"><br></p>
-</body>
-</html>"""
-            pdf_title = "Project Specifications"
-        elif email_data['type'] == 'bug_report':
-            html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
-    <p>Dear {email_data['to']['name']},</p>
-    <br>
-    <p>I've discovered a timing issue in our compiler. It seems we're losing nanoseconds 
-    in the instruction processing loop. As I always say, nanoseconds add up!</p>
-    <br>
-    <p>The issue appears in the main processing loop where we're not properly accounting 
-    for the microsecond precision in our timing calculations. This is causing a cumulative 
-    delay that becomes significant in longer running processes.</p>
-    <br>
-    <p style="color: #cc0000;">Priority: High<br>
-    Impact: Performance degradation<br>
-    Affected Component: Main processing loop</p>
-    <br>
-    <p>I recommend we schedule a meeting to discuss the implementation details of a fix.</p>
-    <br>
-    <p>Regards,<br>
-    {email_data['from']['name']}<br><br>
-    {email_data['from']['position']}<br>
-    {email_data['from']['company']}<br>
-    <br>
-    <img src="cid:company-logo" style="max-width: 200px;"><br>
-</p>
-</body>
-</html>"""
-            pdf_title = "Debug Logs"
-        else:  # minutes
-            html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
-    <h2>Engine Design Review - Meeting Summary</h2>
-    <br>
-    <p>Dear {email_data['to']['name']},</p>
-    <br>
-    <p>Here's a brief summary of yesterday's design review meeting where we discussed 
-    the gear ratio calculations.</p>
-    <br>
-    <p>Key decisions:</p>
-    <ul style="margin-left: 20px;">
-        <li>Approved the new brass gear specifications</li>
-        <li>Scheduled next month's maintenance window</li>
-        <li>Allocated budget for additional punch cards</li>
-    </ul>
-    <br>
-    <p>Next meeting scheduled for: {(datetime.now() + timedelta(days=7)).strftime('%B %d, %Y')}</p>
-    <br>
-    <p>Yours sincerely,<br>
-    {email_data['from']['name']}<br><br>
-    {email_data['from']['position']}<br>
-    {email_data['from']['company']}<br>
-    <br>
-    <img src="cid:company-logo" style="max-width: 200px;"><br>
-</p>
-</body>
-</html>"""
-            pdf_title = "Meeting Minutes"
+    # 1. Existing Standard Emails (Invoice, Update, Bug Report, Minutes)
+    # ... (Re-implementing these slightly more compactly to fit in the loop or keeping them as specific cases)
+    # For simplicity, I'll add them to a list of defining dicts/functions.
 
-        # Attach the HTML content
+    # -------------------------------------------------------------------------
+    # Scenario A: Multipart/Related & Inline CID (Tim BL)
+    # -------------------------------------------------------------------------
+    # Tim BL sending a draft of the first website.
+    def scenario_a():
+        msg = MIMEMultipart('related')
+        msg['Subject'] = 'First Draft: HyperText Project'
+        msg['From'] = f"{PERSONAS[5]['name']} <{PERSONAS[5]['email']}>" # Tim
+        msg['To'] = f"{PERSONAS[4]['name']} <{PERSONAS[4]['email']}>"   # Linus
+        msg['Date'] = (datetime.now() - timedelta(hours=2)).strftime('%a, %d %b %Y %H:%M:%S +0000')
+        msg['Message-ID'] = f"<related-{random.randint(1000,9999)}@w3c.org>"
+
+        html = f"""<html><body>
+            <p>Linus,</p>
+            <p>I've been working on this idea for information management. I call it the "Mesh" or maybe "World Wide Web".</p>
+            <p>Here is the proposed logo:</p>
+            <img src="cid:w3c-logo" alt="W3C Logo" width="300">
+            <p>Let me know what you think about the tags.</p>
+            <p>Cheers,<br>Tim</p>
+        </body></html>"""
+        
+        msg_alt = MIMEMultipart('alternative')
+        msg.attach(msg_alt)
+        msg_alt.attach(MIMEText(html, 'html'))
+
+        # Attach Inline Image
+        logo_data = get_company_logo(PERSONAS[5]) # Tim
+        if logo_data:
+            img = MIMEImage(logo_data, _subtype='svg+xml')
+            img.add_header('Content-ID', '<w3c-logo>')
+            img.add_header('Content-Disposition', 'inline', filename='w3c_logo.svg')
+            msg.attach(img)
+        
+        return 'mock_email_scenario_a_related.eml', msg
+
+    # -------------------------------------------------------------------------
+    # Scenario B: Whitespace Suffix Handling (Linus)
+    # -------------------------------------------------------------------------
+    # Linus sending a patch with a trailing space in filename.
+    def scenario_b():
+        sender = PERSONAS[4] # Linus
+        recipient = PERSONAS[5] # Tim
+        msg = create_base_msg(sender, recipient, "Kernel Panic on 386 - Patch Enclosed")
+        
+        body = "Tim,\n\nYour browser crashes the kernel on my new 386 machine. \n\nSee attached patch. \n\n- Linus"
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Add Logo
+        logo_data = get_company_logo(sender)
+        if logo_data:
+            img = MIMEImage(logo_data, _subtype='svg+xml')
+            img.add_header('Content-ID', '<linux-logo>')
+            img.add_header('Content-Disposition', 'inline', filename='linux_logo.svg')
+            msg.attach(img)
+
+        # Attachment with whitespace
+        patch_content = "diff --git a/kernel/sched.c b/kernel/sched.c\nindex 8b4f... 9c3a...\n--- a/kernel/sched.c\n+++ b/kernel/sched.c\n@@ -1 +1 @@\n- void schedule();\n+ void schedule(void);"
+        att = MIMEApplication(patch_content.encode('utf-8'), _subtype='text/x-diff')
+        # NOTE: Intentionally adding a space at the end of the filename
+        att.add_header('Content-Disposition', 'attachment', filename='panic_fix.diff ') 
+        msg.attach(att)
+
+        return 'mock_email_scenario_b_whitespace.eml', msg
+
+    # -------------------------------------------------------------------------
+    # Scenario C: Base64 Data URI (Margaret)
+    # -------------------------------------------------------------------------
+    # Margaret sending Apollo code with embedded Base64 image.
+    def scenario_c():
+        sender = PERSONAS[6] # Margaret
+        recipient = PERSONAS[0] # Ada
+        msg = create_base_msg(sender, recipient, "LGC Program 1202 Alarm Analysis")
+
+        # Create a tiny PNG for the Base64 URI (red dot)
+        img = create_sample_image(20, 20, 'red')
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+
+        html = f"""<html><body>
+            <p>Ada,</p>
+            <p>We are seeing some 1202 alarms during simulation.</p>
+            <p>Status Indicator: <img src="data:image/png;base64,{img_str}" /> (Red means overload)</p>
+            <p>I believe it's the rendezvous radar switch position.</p>
+            <pre>
+            TC      INTRP
+            TCF     P06
+            </pre>
+            <p>- Margaret</p>
+            <br>
+            <img src="cid:nasa-logo" width="300">
+        </body></html>"""
         msg.attach(MIMEText(html, 'html'))
 
-        # Attach logo if available
+        # Add Logo
+        logo_data = get_company_logo(sender)
+        if logo_data:
+            img = MIMEImage(logo_data, _subtype='svg+xml')
+            img.add_header('Content-ID', '<nasa-logo>')
+            img.add_header('Content-Disposition', 'inline', filename='nasa_logo.svg')
+            msg.attach(img)
+
+        return 'mock_email_scenario_c_base64.eml', msg
+
+    # -------------------------------------------------------------------------
+    # Scenario D: Deeply Nested Multipart (Chain)
+    # -------------------------------------------------------------------------
+    def scenario_d():
+        # A chain of Fwd: Fwd: Fwd:
+        # Original
+        m1 = MIMEMultipart()
+        m1['Subject'] = "The original joke"
+        m1.attach(MIMEText("Why do programmers mix up Halloween and Christmas? Because Oct 31 == Dec 25.", 'plain'))
+        
+        # Fwd 1
+        m2 = MIMEMultipart()
+        m2.attach(MIMEText("Forwarding this...\n\n", 'plain'))
+        m2.attach(MIMEMessage(m1))
+
+        # Fwd 2
+        m3 = MIMEMultipart()
+        sender = PERSONAS[1] # Charles
+        m3['Subject'] = "Fwd: Fwd: The original joke"
+        m3['From'] = f"{sender['name']} <{sender['email']}>"
+        m3['To'] = f"{PERSONAS[2]['name']} <{PERSONAS[2]['email']}>"
+        m3['Date'] = datetime.now().strftime('%a, %d %b %Y %H:%M:%S +0000')
+        m3.attach(MIMEText("Have you seen this?\n\n", 'plain'))
+        m3.attach(MIMEMessage(m2))
+
+        # Add Logo to the top level message (m3)
+        logo_data = get_company_logo(sender)
+        if logo_data:
+            img = MIMEImage(logo_data, _subtype='svg+xml')
+            img.add_header('Content-ID', '<dew-logo>')
+            img.add_header('Content-Disposition', 'inline', filename='dew_logo.svg')
+            m3.attach(img)
+
+        return 'mock_email_scenario_d_nested.eml', m3
+
+    # -------------------------------------------------------------------------
+    # Scenario E: Mixed Inline/Attachment
+    # -------------------------------------------------------------------------
+    # An email with both a CID inline image and a regular attachment.
+    def scenario_e():
+        sender = PERSONAS[6] # Margaret
+        recipient = PERSONAS[3] # Grace
+        msg = MIMEMultipart('mixed')
+        msg['Subject'] = "Flight Plan & Signature Test"
+        msg['From'] = f"{sender['name']} <{sender['email']}>"
+        msg['To'] = f"{recipient['name']} <{recipient['email']}>"
+        msg['Date'] = datetime.now().strftime('%a, %d %b %Y %H:%M:%S +0000')
+
+        # Related part for body + inline signature
+        msg_related = MIMEMultipart('related')
+        msg.attach(msg_related)
+
+        html = """<html><body>
+            <p>Grace,</p>
+            <p>Attached is the flight plan for the next simulation.</p>
+            <p>Best,</p>
+            <img src="cid:nasa-logo" width="150"><br>
+            Margaret
+        </body></html>"""
+        msg_related.attach(MIMEText(html, 'html'))
+
+        # Inline Logo (CID)
+        logo_data = get_company_logo(sender)
+        if logo_data:
+            img = MIMEImage(logo_data, _subtype='svg+xml')
+            img.add_header('Content-ID', '<nasa-logo>')
+            img.add_header('Content-Disposition', 'inline', filename='nasa_logo.svg')
+            msg_related.attach(img)
+
+        # Regular Attachment
+        pdf_data = create_sample_pdf("Flight Plan Delta")
+        pdf_att = MIMEApplication(pdf_data, _subtype='pdf')
+        pdf_att.add_header('Content-Disposition', 'attachment', filename='flight_plan.pdf')
+        msg.attach(pdf_att)
+
+        return 'mock_email_scenario_e_mixed.eml', msg
+
+    # Collect all generators
+    emails_to_generate.extend([
+        scenario_a(),
+        scenario_b(),
+        scenario_c(),
+        scenario_d(),
+        scenario_e()
+    ])
+
+    # Add the original 4 basic scenarios back (modified to use create_base_msg for consistency if desired, 
+    # but for minimizing code changes we can just rebuild the loop or keep the original structure inside valid functions)
+    # To keep the file clean, let's just re-instantiate the first 4 loop logic here.
+    
+    original_scenarios = [
+        (PERSONAS[0], PERSONAS[1], 'Invoice for Analytical Engine Consulting Services', 'invoice', True, 'mock_email_1.eml'),
+        (PERSONAS[2], PERSONAS[3], 'Progress Update: Universal Computing Machine', 'update', True, 'mock_email_2.eml'),
+        (PERSONAS[3], PERSONAS[2], 'Found a bug in the compiler - nanoseconds matter!', 'bug_report', False, 'mock_email_3.eml'),
+        (PERSONAS[1], PERSONAS[0], 'Minutes from yesterday\'s Engine Design Review', 'minutes', False, 'mock_email_4.eml')
+    ]
+
+    for i, (p_from, p_to, subj, type, needs_att, filename) in enumerate(original_scenarios):
+        msg = MIMEMultipart()
+        msg['Subject'] = subj
+        msg['From'] = f"{p_from['name']} <{p_from['email']}>"
+        msg['To'] = f"{p_to['name']} <{p_to['email']}>"
+        msg['Date'] = (datetime.now() - timedelta(days=i)).strftime('%a, %d %b %Y %H:%M:%S +0000')
+        msg['Message-ID'] = f"<{random.randint(1000000,9999999)}@{p_from['email'].split('@')[1]}>"
+
+        logo_data = get_company_logo(p_from)
+        
+        # HTML Content
+        if type == 'invoice':
+            html = create_invoice_html(p_from, p_to)
+            pdf_title = "Invoice Details"
+        elif type == 'update':
+            html = f"""<!DOCTYPE html><html><body style="font-family: Arial; padding: 20px;">
+                <p>Dear {p_to['name']},</p><p>Significant progress on universal computing.</p>
+                <img src="cid:company-logo" style="max-width: 200px;"></body></html>"""
+            pdf_title = "Project Specifications"
+        elif type == 'bug_report':
+            html = f"""<!DOCTYPE html><html><body style="font-family: Arial; padding: 20px;">
+                <p>Dear {p_to['name']},</p><p>Found a bug in the compiler.</p>
+                <img src="cid:company-logo" style="max-width: 200px;"></body></html>"""
+            pdf_title = "Debug Logs"
+        else: # minutes
+            html = f"""<!DOCTYPE html><html><body style="font-family: Arial; padding: 20px;">
+                <h2>Meeting Summary</h2><p>Dear {p_to['name']},</p>
+                <img src="cid:company-logo" style="max-width: 200px;"></body></html>"""
+            pdf_title = "Meeting Minutes"
+
+        msg.attach(MIMEText(html, 'html'))
+
         if logo_data:
             logo_mime = MIMEImage(logo_data, _subtype='svg+xml')
             logo_mime.add_header('Content-ID', '<company-logo>')
-            logo_mime.add_header('Content-Disposition', 'inline')
+            logo_mime.add_header('Content-Disposition', 'inline', filename='company_logo.svg')
             msg.attach(logo_mime)
 
-        # Add PDF attachment if needed
-        if email_data['needs_attachments']:
+        if needs_att:
             pdf_data = create_sample_pdf(pdf_title)
             pdf_mime = MIMEApplication(pdf_data, _subtype='pdf')
-            pdf_mime.add_header('Content-Disposition', 'attachment', 
-                               filename=f"{pdf_title.lower().replace(' ', '_')}.pdf")
+            pdf_mime.add_header('Content-Disposition', 'attachment', filename=f"{pdf_title.lower().replace(' ', '_')}.pdf")
             msg.attach(pdf_mime)
+            
+        emails_to_generate.append((filename, msg))
 
-        # Save the email
-        with open(f'doc/eml/mock_email_{i+1}.eml', 'w') as f:
+    # Write all files
+    for filename, msg in emails_to_generate:
+        with open(f'doc/eml/{filename}', 'w') as f:
             f.write(msg.as_string())
-
+        print(f"Generated {filename}")
 def main():
     os.makedirs('doc/eml', exist_ok=True)
     generate_mock_emails()

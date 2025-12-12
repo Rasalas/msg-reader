@@ -1,52 +1,25 @@
-Content-Type: multipart/mixed; boundary="===============5210084813599448197=="
+Content-Type: multipart/mixed; boundary="===============4674224405783213946=="
 MIME-Version: 1.0
 Subject: Found a bug in the compiler - nanoseconds matter!
 From: Grace Hopper <grace.hopper@cobol.mil>
 To: Alan Turing <alan.turing@enigma.gov.uk>
-Date: Wed, 10 Dec 2025 19:24:45 +0000
-Message-ID: <4453514@cobol.mil>
+Date: Wed, 10 Dec 2025 21:57:14 +0000
+Message-ID: <8495648@cobol.mil>
 
---===============5210084813599448197==
+--===============4674224405783213946==
 Content-Type: text/html; charset="us-ascii"
 MIME-Version: 1.0
 Content-Transfer-Encoding: 7bit
 
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px;">
-    <p>Dear Alan Turing,</p>
-    <br>
-    <p>I've discovered a timing issue in our compiler. It seems we're losing nanoseconds 
-    in the instruction processing loop. As I always say, nanoseconds add up!</p>
-    <br>
-    <p>The issue appears in the main processing loop where we're not properly accounting 
-    for the microsecond precision in our timing calculations. This is causing a cumulative 
-    delay that becomes significant in longer running processes.</p>
-    <br>
-    <p style="color: #cc0000;">Priority: High<br>
-    Impact: Performance degradation<br>
-    Affected Component: Main processing loop</p>
-    <br>
-    <p>I recommend we schedule a meeting to discuss the implementation details of a fix.</p>
-    <br>
-    <p>Regards,<br>
-    Grace Hopper<br><br>
-    Director of Compiler Development<br>
-    COBOL Systems Inc.<br>
-    <br>
-    <img src="cid:company-logo" style="max-width: 200px;"><br>
-</p>
-</body>
-</html>
---===============5210084813599448197==
+<!DOCTYPE html><html><body style="font-family: Arial; padding: 20px;">
+                <p>Dear Alan Turing,</p><p>Found a bug in the compiler.</p>
+                <img src="cid:company-logo" style="max-width: 200px;"></body></html>
+--===============4674224405783213946==
 Content-Type: image/svg+xml
 MIME-Version: 1.0
 Content-Transfer-Encoding: base64
 Content-ID: <company-logo>
-Content-Disposition: inline
+Content-Disposition: inline; filename="company_logo.svg"
 
 PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMDAg
 MTAwIj4KICA8IS0tIEJhY2tncm91bmQgQ2FyZCAtLT4KICA8cmVjdCB4PSIxMCIgeT0iMTAiIHdp
@@ -63,4 +36,4 @@ b250LXNpemU9IjI4IiBmaWxsPSIjMDA1NmIzIj5DT0JPTDwvdGV4dD4KICA8dGV4dCB4PSIxMTAi
 IHk9Ijc1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTgiIGZp
 bGw9IiM2NjYiPlNZU1RFTVMgSU5DLjwvdGV4dD4KPC9zdmc+Cg==
 
---===============5210084813599448197==--
+--===============4674224405783213946==--
