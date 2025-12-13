@@ -138,7 +138,9 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             // Handle macOS file open events (double-click on file)
-            if let tauri::RunEvent::Opened { urls } = event {
+            // This event only exists on macOS
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = &event {
                 for url in urls {
                     // Convert file:// URL to path
                     if let Ok(path) = url.to_file_path() {
@@ -164,5 +166,9 @@ pub fn run() {
                     }
                 }
             }
+
+            // Suppress unused variable warning on non-macOS
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
         });
 }
