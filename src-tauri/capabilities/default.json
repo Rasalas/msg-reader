@@ -10,6 +10,9 @@
     "core:window:default",
     "fs:default",
     "fs:allow-read-text-file",
-    "fs:allow-read-file"
+    "fs:allow-read-file",
+    "updater:default",
+    "dialog:default",
+    "process:default"
   ]
 }

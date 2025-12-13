@@ -3,7 +3,7 @@ import MessageHandler from './MessageHandler.js';
 import UIManager from './UIManager.js';
 import FileHandler from './FileHandler.js';
 import { extractMsg, extractEml } from './utils.js';
-import { isTauri, getPendingFile, onFileOpen, onFileDrop } from './tauri-bridge.js';
+import { isTauri, getPendingFile, onFileOpen, onFileDrop, checkForUpdates } from './tauri-bridge.js';
 
 /**
  * Main application class
@@ -89,6 +89,9 @@ async function initTauriFileHandling() {
             window.app.uiManager.hideDropOverlay();
         },
     });
+
+    // Check for updates (runs in background, shows dialog if update available)
+    checkForUpdates();
 }
 
 // Initialize the app when the DOM is loaded

@@ -114,6 +114,42 @@ export async function openWithSystemViewer(base64Data, fileName) {
 }
 
 /**
+ * Check for app updates and prompt user to install
+ * @returns {Promise<void>}
+ */
+export async function checkForUpdates() {
+    if (!isTauri()) return;
+
+    try {
+        const { check } = await import('@tauri-apps/plugin-updater');
+        const { ask } = await import('@tauri-apps/plugin-dialog');
+
+        const update = await check();
+
+        if (update) {
+            const yes = await ask(
+                `Version ${update.version} ist verfügbar!\n\nMöchtest du jetzt aktualisieren?`,
+                {
+                    title: 'Update verfügbar',
+                    kind: 'info',
+                    okLabel: 'Aktualisieren',
+                    cancelLabel: 'Später',
+                }
+            );
+
+            if (yes) {
+                await update.downloadAndInstall();
+                // Restart the app after update
+                const { relaunch } = await import('@tauri-apps/plugin-process');
+                await relaunch();
+            }
+        }
+    } catch (error) {
+        console.error('Update check failed:', error);
+    }
+}
+
+/**
  * Listen for file drop events from Tauri (drag & drop)
  * @param {Object} callbacks - Callback functions for drag events
  * @param {function(string[]): void} callbacks.onDrop - Called with array of file paths when dropped
