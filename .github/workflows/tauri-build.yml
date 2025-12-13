@@ -64,6 +64,33 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Update version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Updating version to $VERSION"
+
+          # Update package.json using Node.js (cross-platform)
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          # Update Cargo.toml - replace first occurrence of version in [package] section
+          node -e "
+            const fs = require('fs');
+            let content = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+            content = content.replace(/^(version = \")[^\"]*(\")$/m, '\$1$VERSION\$2');
+            fs.writeFileSync('src-tauri/Cargo.toml', content);
+          "
+
+          echo "Updated versions:"
+          grep '"version"' package.json
+          grep '^version' src-tauri/Cargo.toml
+
       - name: Run tests
         run: npm test
 

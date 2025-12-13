@@ -9,3 +9,4 @@ coverage/*
 
 # Tauri build artifacts
 src-tauri/target/
+doc/todo/*
