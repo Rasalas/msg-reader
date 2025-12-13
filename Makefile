@@ -1,4 +1,4 @@
-.PHONY: all install build dev preview start deploy clean help mocks version release-patch release-minor release-major
+.PHONY: all install build dev preview start deploy clean help mocks version release-patch release-minor release-major test check-main
 
 # Default target
 all: build
@@ -45,12 +45,24 @@ mocks:
 # Reinstall everything from scratch
 reinstall: clean-all install build
 
+# Run tests
+test:
+	npm test
+
 # Show current version
 version:
 	@git describe --tags --always 2>/dev/null || echo "No tags found"
 
+# Check if on main branch (used by release targets)
+check-main:
+	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$BRANCH" != "main" ]; then \
+		echo "Error: Releases must be created from main branch (current: $$BRANCH)"; \
+		exit 1; \
+	fi
+
 # Release helpers - bump version, create tag and push
-release-patch:
+release-patch: check-main test
 	@CURRENT=$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'); \
 	if [ -z "$$CURRENT" ]; then \
 		echo "No existing tags found. Creating v0.0.1"; \
@@ -66,7 +78,7 @@ release-patch:
 	echo "Pushing tag v$$NEW..."; \
 	git push origin "v$$NEW"
 
-release-minor:
+release-minor: check-main test
 	@CURRENT=$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'); \
 	if [ -z "$$CURRENT" ]; then \
 		echo "No existing tags found. Creating v0.1.0"; \
@@ -81,7 +93,7 @@ release-minor:
 	echo "Pushing tag v$$NEW..."; \
 	git push origin "v$$NEW"
 
-release-major:
+release-major: check-main test
 	@CURRENT=$$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'); \
 	if [ -z "$$CURRENT" ]; then \
 		echo "No existing tags found. Creating v1.0.0"; \
@@ -109,6 +121,7 @@ help:
 	@echo "  make clean-all     - Remove build artifacts and node_modules"
 	@echo "  make mocks         - Generate mock email files"
 	@echo "  make reinstall     - Clean all and reinstall from scratch"
+	@echo "  make test          - Run tests"
 	@echo "  make version       - Show current version"
 	@echo "  make release-patch - Bump patch version and push (1.0.0 -> 1.0.1)"
 	@echo "  make release-minor - Bump minor version and push (1.0.0 -> 1.1.0)"
