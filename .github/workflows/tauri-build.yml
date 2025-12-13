@@ -227,10 +227,10 @@ jobs:
             fi
           }
 
-          SIG_MACOS_AARCH64=$(read_sig signatures/macos-aarch64.sig)
-          SIG_MACOS_X64=$(read_sig signatures/macos-x64.sig)
-          SIG_LINUX=$(read_sig signatures/linux.sig)
-          SIG_WINDOWS=$(read_sig signatures/windows.sig)
+          export SIG_MACOS_AARCH64=$(read_sig signatures/macos-aarch64.sig)
+          export SIG_MACOS_X64=$(read_sig signatures/macos-x64.sig)
+          export SIG_LINUX=$(read_sig signatures/linux.sig)
+          export SIG_WINDOWS=$(read_sig signatures/windows.sig)
 
           echo "Signatures found:"
           echo "  macOS aarch64: ${SIG_MACOS_AARCH64:0:50}..."
@@ -241,32 +241,34 @@ jobs:
           # Base URL for downloads
           BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}"
 
-          # Create latest.json
-          cat > latest.json << EOF
-{
-  "version": "${VERSION}",
-  "notes": "See release notes at ${BASE_URL}",
-  "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "platforms": {
-    "darwin-aarch64": {
-      "signature": "${SIG_MACOS_AARCH64}",
-      "url": "${BASE_URL}/msgReader_aarch64.app.tar.gz"
-    },
-    "darwin-x86_64": {
-      "signature": "${SIG_MACOS_X64}",
-      "url": "${BASE_URL}/msgReader_x64.app.tar.gz"
-    },
-    "linux-x86_64": {
-      "signature": "${SIG_LINUX}",
-      "url": "${BASE_URL}/msgReader_${VERSION}_amd64.AppImage.tar.gz"
-    },
-    "windows-x86_64": {
-      "signature": "${SIG_WINDOWS}",
-      "url": "${BASE_URL}/msgReader_${VERSION}_x64-setup.nsis.zip"
-    }
-  }
-}
-EOF
+          # Create latest.json using node for proper JSON formatting
+          node -e "
+            const fs = require('fs');
+            const json = {
+              version: '${VERSION}',
+              notes: 'See release notes at ' + '${BASE_URL}',
+              pub_date: new Date().toISOString(),
+              platforms: {
+                'darwin-aarch64': {
+                  signature: process.env.SIG_MACOS_AARCH64 || '',
+                  url: '${BASE_URL}/msgReader_aarch64.app.tar.gz'
+                },
+                'darwin-x86_64': {
+                  signature: process.env.SIG_MACOS_X64 || '',
+                  url: '${BASE_URL}/msgReader_x64.app.tar.gz'
+                },
+                'linux-x86_64': {
+                  signature: process.env.SIG_LINUX || '',
+                  url: '${BASE_URL}/msgReader_${VERSION}_amd64.AppImage.tar.gz'
+                },
+                'windows-x86_64': {
+                  signature: process.env.SIG_WINDOWS || '',
+                  url: '${BASE_URL}/msgReader_${VERSION}_x64-setup.nsis.zip'
+                }
+              }
+            };
+            fs.writeFileSync('latest.json', JSON.stringify(json, null, 2));
+          "
 
           echo "Created latest.json:"
           cat latest.json
