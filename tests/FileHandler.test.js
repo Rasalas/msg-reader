@@ -3,7 +3,7 @@
  * Tests file handling and email parsing logic
  * Note: Event listener tests are skipped as they require browser DOM
  */
-const FileHandler = require('../src/js/FileHandler');
+import FileHandler from '../src/js/FileHandler.js';
 
 describe('FileHandler', () => {
     let fileHandler;

@@ -1,15 +1,12 @@
-const MsgReaderLib = require('@kenjiuno/msgreader');
-const { decompressRTF } = require('@kenjiuno/decompressrtf');
-const { deEncapsulateSync } = require('rtf-stream-parser');
-const iconvLite = require('iconv-lite');
-const md5 = require('md5');
+import MsgReaderLib from '@kenjiuno/msgreader';
+import { decompressRTF } from '@kenjiuno/decompressrtf';
+import { deEncapsulateSync } from 'rtf-stream-parser';
+import iconvLite from 'iconv-lite';
+import { Buffer } from 'buffer';
 
-const { getCharsetFromCodepage } = require('./helpers');
-const { BASE64_SIZE_FACTOR } = require('./constants');
-const { replaceCidReferences } = require('./cidReplacer');
-
-// Export md5 for global use
-window.md5 = md5;
+import { getCharsetFromCodepage } from './helpers.js';
+import { BASE64_SIZE_FACTOR } from './constants.js';
+import { replaceCidReferences } from './cidReplacer.js';
 
 /**
  * Sanitizes attachment filenames to prevent path traversal attacks
@@ -380,7 +377,7 @@ function processMsgAttachments(msgReader, attachments) {
  * @param {ArrayBuffer} fileBuffer - The raw MSG file content
  * @returns {Object|null} Parsed email object with subject, sender, recipients, body, attachments
  */
-function extractMsg(fileBuffer) {
+export function extractMsg(fileBuffer) {
     const result = initializeMsgReader(fileBuffer);
     if (!result) return null;
 
@@ -460,7 +457,7 @@ function handleSinglePartContent(bodyContent, contentType, contentTransferEncodi
  * @returns {Object} Parsed email object with subject, sender, recipients, body, attachments
  * @throws {Error} If the EML file cannot be parsed
  */
-function extractEml(fileBuffer) {
+export function extractEml(fileBuffer) {
     try {
         // Convert ArrayBuffer to String
         const emailString = Buffer.from(fileBuffer).toString('binary');
@@ -527,8 +524,3 @@ function extractEml(fileBuffer) {
         throw error;
     }
 }
-
-module.exports = {
-    extractMsg,
-    extractEml
-};

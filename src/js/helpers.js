@@ -3,14 +3,14 @@
  * Shared utility functions used across the application
  */
 
-const { CHARSET_CODES, DEFAULT_CHARSET } = require('./constants');
+import { CHARSET_CODES, DEFAULT_CHARSET } from './constants.js';
 
 /**
  * Escapes special regex characters in a string
  * @param {string} str - The string to escape
  * @returns {string} Escaped string safe for use in RegExp
  */
-function escapeRegex(str) {
+export function escapeRegex(str) {
     if (!str) return '';
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -20,7 +20,7 @@ function escapeRegex(str) {
  * @param {string} str - The string to decode
  * @returns {string|null} Decoded string if different from input, null otherwise
  */
-function tryUrlDecoded(str) {
+export function tryUrlDecoded(str) {
     if (!str) return null;
     try {
         const decoded = decodeURIComponent(str);
@@ -35,7 +35,7 @@ function tryUrlDecoded(str) {
  * @param {number} codepage - The Windows code page number
  * @returns {string} The charset name (defaults to utf-8)
  */
-function getCharsetFromCodepage(codepage) {
+export function getCharsetFromCodepage(codepage) {
     return CHARSET_CODES[codepage] || DEFAULT_CHARSET;
 }
 
@@ -44,7 +44,7 @@ function getCharsetFromCodepage(codepage) {
  * @param {string} contentId - The Content-ID value (e.g., "<image001@domain.com>")
  * @returns {string} Clean Content-ID without brackets
  */
-function cleanContentId(contentId) {
+export function cleanContentId(contentId) {
     if (!contentId) return '';
     return contentId.replace(/[<>]/g, '').trim();
 }
@@ -54,7 +54,7 @@ function cleanContentId(contentId) {
  * @param {string} mimeType - The MIME type to check
  * @returns {boolean} True if it's an image type
  */
-function isImageMimeType(mimeType) {
+export function isImageMimeType(mimeType) {
     if (!mimeType) return false;
     return mimeType.toLowerCase().startsWith('image/');
 }
@@ -64,7 +64,7 @@ function isImageMimeType(mimeType) {
  * @param {string} mimeType - The MIME type to check
  * @returns {boolean} True if it's a text-based type
  */
-function isTextMimeType(mimeType) {
+export function isTextMimeType(mimeType) {
     if (!mimeType) return false;
     const normalized = mimeType.toLowerCase();
     return normalized.startsWith('text/') ||
@@ -79,7 +79,7 @@ function isTextMimeType(mimeType) {
  * @param {string} contentType - Full Content-Type header value
  * @returns {string} Base MIME type (e.g., "text/html")
  */
-function extractBaseMimeType(contentType) {
+export function extractBaseMimeType(contentType) {
     if (!contentType) return '';
     return contentType.split(';')[0].trim().toLowerCase();
 }
@@ -89,7 +89,7 @@ function extractBaseMimeType(contentType) {
  * @param {string} contentType - Full Content-Type header value
  * @returns {string} Charset or default
  */
-function extractCharset(contentType) {
+export function extractCharset(contentType) {
     if (!contentType) return DEFAULT_CHARSET;
     const match = contentType.match(/charset="?([^";\s]+)"?/i);
     return match ? match[1] : DEFAULT_CHARSET;
@@ -100,7 +100,7 @@ function extractCharset(contentType) {
  * @param {string} contentType - Full Content-Type header value
  * @returns {string|null} Boundary string or null if not found
  */
-function extractBoundary(contentType) {
+export function extractBoundary(contentType) {
     if (!contentType) return null;
     const match = contentType.match(/boundary="?([^";\s]+)"?/);
     return match ? match[1] : null;
@@ -111,21 +111,8 @@ function extractBoundary(contentType) {
  * @param {string} contentDisposition - Full Content-Disposition header value
  * @returns {string} Filename or 'attachment' as default
  */
-function extractFilename(contentDisposition) {
+export function extractFilename(contentDisposition) {
     if (!contentDisposition) return 'attachment';
     const match = contentDisposition.match(/filename="?([^";\n]+)"?/i);
     return match ? match[1] : 'attachment';
 }
-
-module.exports = {
-    escapeRegex,
-    tryUrlDecoded,
-    getCharsetFromCodepage,
-    cleanContentId,
-    isImageMimeType,
-    isTextMimeType,
-    extractBaseMimeType,
-    extractCharset,
-    extractBoundary,
-    extractFilename
-};

@@ -2,10 +2,12 @@
  * Tests for MessageHandler.js
  * Tests message management, pinning, sorting, and storage
  */
-const MessageHandler = require('../src/js/MessageHandler');
 
-// Mock md5 globally (used by MessageHandler for hashing)
-global.md5 = jest.fn((str) => 'hash_' + str.substring(0, 10));
+// Mock the md5 module before importing MessageHandler
+jest.mock('md5', () => jest.fn((str) => 'hash_' + str.substring(0, 10)));
+
+import MessageHandler from '../src/js/MessageHandler.js';
+import md5 from 'md5';
 
 describe('MessageHandler', () => {
     let messageHandler;
@@ -70,7 +72,7 @@ describe('MessageHandler', () => {
             const result = messageHandler.addMessage(mockMsgInfo, 'test.msg');
 
             expect(result.messageHash).toBeDefined();
-            expect(global.md5).toHaveBeenCalled();
+            expect(md5).toHaveBeenCalled();
         });
 
         test('parses timestamp from messageDeliveryTime', () => {

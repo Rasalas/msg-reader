@@ -2,13 +2,13 @@
  * HTML Sanitization Module
  * Protects against XSS attacks by sanitizing untrusted HTML content
  */
-const DOMPurify = require('dompurify');
+import DOMPurify from 'dompurify';
 
 /**
  * Configuration for DOMPurify
  * Allows common email HTML elements while blocking dangerous ones
  */
-const SANITIZE_CONFIG = {
+export const SANITIZE_CONFIG = {
     ALLOWED_TAGS: [
         // Text formatting
         'p', 'br', 'div', 'span', 'b', 'i', 'u', 'strong', 'em', 'mark', 'small', 'del', 'ins', 'sub', 'sup',
@@ -56,7 +56,7 @@ const SANITIZE_CONFIG = {
  * @param {string} html - The untrusted HTML content
  * @returns {string} Sanitized HTML safe for innerHTML
  */
-function sanitizeHTML(html) {
+export function sanitizeHTML(html) {
     if (!html) return '';
 
     // Create a DOMPurify instance (for browser environment)
@@ -77,7 +77,7 @@ function sanitizeHTML(html) {
  * @param {string} text - Plain text to escape
  * @returns {string} HTML-escaped text
  */
-function escapeHTML(text) {
+export function escapeHTML(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
@@ -90,7 +90,7 @@ function escapeHTML(text) {
  * @param {string} url - The URL to sanitize
  * @returns {string} Safe URL or empty string if dangerous
  */
-function sanitizeURL(url) {
+export function sanitizeURL(url) {
     if (!url) return '';
 
     const trimmed = url.trim().toLowerCase();
@@ -110,10 +110,3 @@ function sanitizeURL(url) {
     // Block everything else (javascript:, data:text/html, etc.)
     return '';
 }
-
-module.exports = {
-    sanitizeHTML,
-    escapeHTML,
-    sanitizeURL,
-    SANITIZE_CONFIG
-};

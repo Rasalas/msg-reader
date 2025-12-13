@@ -2,7 +2,7 @@
  * Tests for sanitizer.js
  * Ensures XSS protection and HTML sanitization work correctly
  */
-const { sanitizeHTML, escapeHTML, sanitizeURL, SANITIZE_CONFIG } = require('../src/js/sanitizer');
+import { sanitizeHTML, escapeHTML, sanitizeURL, SANITIZE_CONFIG } from '../src/js/sanitizer.js';
 
 describe('SANITIZE_CONFIG', () => {
     test('has required allowed tags', () => {

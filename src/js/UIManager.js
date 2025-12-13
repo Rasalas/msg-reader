@@ -1,5 +1,5 @@
-const { sanitizeHTML } = require('./sanitizer');
-const { DEFAULT_LOCALE, TOAST_COLORS } = require('./constants');
+import { sanitizeHTML } from './sanitizer.js';
+import { DEFAULT_LOCALE, TOAST_COLORS } from './constants.js';
 
 /**
  * Manages the user interface for the email reader application
@@ -186,7 +186,7 @@ class UIManager {
                 ${this.renderAttachments(msgInfo)}
             </div>
         `;
-        
+
         this.messageViewer.innerHTML = messageContent;
     }
 
@@ -569,7 +569,7 @@ class UIManager {
         const now = new Date();
         const yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
-        
+
         if (date.toDateString() === now.toDateString()) {
             return date.toLocaleTimeString(DEFAULT_LOCALE, { hour: '2-digit', minute: '2-digit' });
         } else if (date.toDateString() === yesterday.toDateString()) {
@@ -675,4 +675,4 @@ class UIManager {
     }
 }
 
-module.exports = UIManager; 
+export default UIManager;

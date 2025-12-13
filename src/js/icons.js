@@ -3,7 +3,7 @@
  * Centralized location for all SVG icons used in the application
  */
 
-const ICONS = {
+export const ICONS = {
     /**
      * Paperclip icon for attachments
      */
@@ -103,7 +103,7 @@ const ICONS = {
  * @param {string} [className=''] - Additional CSS classes
  * @returns {string} SVG icon HTML
  */
-function getIcon(name, className = '') {
+export function getIcon(name, className = '') {
     const icon = ICONS[name];
     if (!icon) {
         console.warn(`Icon '${name}' not found`);
@@ -114,8 +114,3 @@ function getIcon(name, className = '') {
     }
     return icon;
 }
-
-module.exports = {
-    ICONS,
-    getIcon
-};

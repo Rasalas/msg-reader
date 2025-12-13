@@ -4,8 +4,8 @@
  * with base64 encoded attachment data
  */
 
-const { escapeRegex, tryUrlDecoded, cleanContentId, isImageMimeType } = require('./helpers');
-const { PLACEHOLDER_IMAGE_SVG } = require('./constants');
+import { escapeRegex, tryUrlDecoded, cleanContentId, isImageMimeType } from './helpers.js';
+import { PLACEHOLDER_IMAGE_SVG } from './constants.js';
 
 /**
  * Builds an array of regex patterns to match CID references
@@ -13,7 +13,7 @@ const { PLACEHOLDER_IMAGE_SVG } = require('./constants');
  * @param {string} fileName - The attachment filename
  * @returns {string[]} Array of regex pattern strings
  */
-function buildCidPatterns(contentId, fileName) {
+export function buildCidPatterns(contentId, fileName) {
     const patterns = [];
     const cidIdWithoutBrackets = cleanContentId(contentId);
     const urlDecodedCid = cidIdWithoutBrackets ? tryUrlDecoded(cidIdWithoutBrackets) : null;
@@ -53,7 +53,7 @@ function buildCidPatterns(contentId, fileName) {
  * @param {Object} attachment - The attachment object
  * @returns {string} HTML with replaced CID references
  */
-function replaceImageCid(html, attachment) {
+export function replaceImageCid(html, attachment) {
     const contentId = attachment.pidContentId || attachment.contentId || '';
     const fileName = attachment.fileName || '';
     const base64String = attachment.contentBase64;
@@ -77,7 +77,7 @@ function replaceImageCid(html, attachment) {
  * @param {Object} attachment - The attachment object
  * @returns {string} HTML with replaced href references
  */
-function replaceHrefCid(html, attachment) {
+export function replaceHrefCid(html, attachment) {
     const contentId = attachment.pidContentId || attachment.contentId || '';
     if (!contentId) return html;
 
@@ -96,7 +96,7 @@ function replaceHrefCid(html, attachment) {
  * @param {Object[]} attachments - Array of attachment objects with contentBase64, contentId, fileName, attachMimeTag
  * @returns {string} HTML with all CID references replaced
  */
-function replaceCidReferences(html, attachments) {
+export function replaceCidReferences(html, attachments) {
     if (!html) {
         return '';
     }
@@ -126,10 +126,3 @@ function replaceCidReferences(html, attachments) {
 
     return result;
 }
-
-module.exports = {
-    replaceCidReferences,
-    buildCidPatterns,
-    replaceImageCid,
-    replaceHrefCid
-};
