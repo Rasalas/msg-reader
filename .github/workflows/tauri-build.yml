@@ -121,49 +121,166 @@ jobs:
 
       - name: Build Tauri App
         shell: bash
+        run: |
+          npx tauri build ${{ matrix.args }}
+
+      - name: Create updater bundle and sign (macOS)
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'macos-latest'
+        shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          npx tauri build ${{ matrix.args }}
-
-      - name: List all bundle contents
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
           BUNDLE="${{ matrix.bundle_path }}"
-          echo "=== All files in $BUNDLE ==="
-          find "$BUNDLE" -type f 2>/dev/null | head -50
+          VERSION="${{ steps.get-version.outputs.version }}"
 
-      - name: Collect updater artifacts
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
+          # Find the .app bundle
+          APP_PATH=$(find "$BUNDLE/macos" -name "*.app" -type d | head -1)
+          echo "Found app: $APP_PATH"
+
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: No .app found!"
+            exit 1
+          fi
+
+          # Create tar.gz
+          APP_NAME=$(basename "$APP_PATH")
+          TAR_NAME="${APP_NAME}.tar.gz"
+          echo "Creating $TAR_NAME..."
+          tar -czf "$TAR_NAME" -C "$(dirname "$APP_PATH")" "$APP_NAME"
+
+          # Sign with minisign using Tauri's key format
+          echo "Signing $TAR_NAME..."
+
+          # Install minisign
+          brew install minisign
+
+          # Write private key to temp file (Tauri format is base64 encoded)
+          echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > /tmp/private.key
+
+          # Sign the file
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+            echo "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" | minisign -S -s /tmp/private.key -m "$TAR_NAME" -t "msgReader v$VERSION"
+          else
+            minisign -S -s /tmp/private.key -m "$TAR_NAME" -t "msgReader v$VERSION"
+          fi
+
+          # Clean up
+          rm -f /tmp/private.key
+
+          # Move to updater-files
           mkdir -p updater-files
+          mv "$TAR_NAME" updater-files/
+          mv "${TAR_NAME}.minisig" updater-files/"${TAR_NAME}.sig" 2>/dev/null || mv "${TAR_NAME}.sig" updater-files/ 2>/dev/null || true
+
+          echo "=== Created updater files: ==="
+          ls -la updater-files/
+
+      - name: Create updater bundle and sign (Linux)
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
           BUNDLE="${{ matrix.bundle_path }}"
+          VERSION="${{ steps.get-version.outputs.version }}"
 
-          echo "=== Searching for updater files in: $BUNDLE ==="
+          # Find the AppImage
+          APPIMAGE=$(find "$BUNDLE" -name "*.AppImage" -type f | head -1)
+          echo "Found AppImage: $APPIMAGE"
 
-          # Find and copy updater bundles and their signatures
-          echo "Looking for .sig files:"
-          find "$BUNDLE" -name "*.sig" -type f 2>/dev/null || echo "No .sig files found"
+          if [ -z "$APPIMAGE" ]; then
+            echo "ERROR: No AppImage found!"
+            exit 1
+          fi
 
-          echo "Looking for .tar.gz files:"
-          find "$BUNDLE" -name "*.tar.gz" -type f 2>/dev/null || echo "No .tar.gz files found"
+          # Create tar.gz
+          APPIMAGE_NAME=$(basename "$APPIMAGE")
+          TAR_NAME="${APPIMAGE_NAME}.tar.gz"
+          echo "Creating $TAR_NAME..."
+          tar -czf "$TAR_NAME" -C "$(dirname "$APPIMAGE")" "$APPIMAGE_NAME"
 
-          echo "Looking for .nsis.zip files:"
-          find "$BUNDLE" -name "*.nsis.zip" -type f 2>/dev/null || echo "No .nsis.zip files found"
+          # Sign with minisign
+          echo "Signing $TAR_NAME..."
 
-          # Copy updater files (signatures and bundles)
-          find "$BUNDLE" -name "*.app.tar.gz.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.app.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.AppImage.tar.gz.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.AppImage.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.nsis.zip.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.nsis.zip" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          # Install minisign
+          sudo apt-get install -y minisign
 
-          echo "=== Collected updater files: ==="
-          ls -la updater-files/ || echo "No files collected"
+          # Write private key to temp file
+          echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > /tmp/private.key
+
+          # Sign the file
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+            echo "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" | minisign -S -s /tmp/private.key -m "$TAR_NAME" -t "msgReader v$VERSION"
+          else
+            minisign -S -s /tmp/private.key -m "$TAR_NAME" -t "msgReader v$VERSION"
+          fi
+
+          # Clean up
+          rm -f /tmp/private.key
+
+          # Move to updater-files
+          mkdir -p updater-files
+          mv "$TAR_NAME" updater-files/
+          mv "${TAR_NAME}.minisig" updater-files/"${TAR_NAME}.sig" 2>/dev/null || mv "${TAR_NAME}.sig" updater-files/ 2>/dev/null || true
+
+          echo "=== Created updater files: ==="
+          ls -la updater-files/
+
+      - name: Create updater bundle and sign (Windows)
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          BUNDLE="${{ matrix.bundle_path }}"
+          VERSION="${{ steps.get-version.outputs.version }}"
+
+          # Find the NSIS installer
+          NSIS_EXE=$(find "$BUNDLE/nsis" -name "*-setup.exe" -type f | head -1)
+          echo "Found NSIS installer: $NSIS_EXE"
+
+          if [ -z "$NSIS_EXE" ]; then
+            echo "ERROR: No NSIS installer found!"
+            exit 1
+          fi
+
+          # Create zip (Windows uses .nsis.zip)
+          EXE_NAME=$(basename "$NSIS_EXE")
+          ZIP_NAME="${EXE_NAME%.exe}.nsis.zip"
+          echo "Creating $ZIP_NAME..."
+
+          # Use PowerShell for zip on Windows
+          powershell -Command "Compress-Archive -Path '$NSIS_EXE' -DestinationPath '$ZIP_NAME'"
+
+          # Sign with minisign
+          echo "Signing $ZIP_NAME..."
+
+          # Install minisign via cargo (most reliable on Windows)
+          cargo install minisign
+
+          # Write private key to temp file
+          echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > /tmp/private.key
+
+          # Sign the file
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+            echo "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" | ~/.cargo/bin/minisign -S -s /tmp/private.key -m "$ZIP_NAME" -t "msgReader v$VERSION"
+          else
+            ~/.cargo/bin/minisign -S -s /tmp/private.key -m "$ZIP_NAME" -t "msgReader v$VERSION"
+          fi
+
+          # Clean up
+          rm -f /tmp/private.key
+
+          # Move to updater-files
+          mkdir -p updater-files
+          mv "$ZIP_NAME" updater-files/
+          mv "${ZIP_NAME}.minisig" updater-files/"${ZIP_NAME}.sig" 2>/dev/null || mv "${ZIP_NAME}.sig" updater-files/ 2>/dev/null || true
+
+          echo "=== Created updater files: ==="
+          ls -la updater-files/
 
       - name: Collect installer artifacts
         if: startsWith(github.ref, 'refs/tags/v')
@@ -178,10 +295,10 @@ jobs:
           # Linux
           find "$BUNDLE" -name "*.deb" -type f -exec cp {} installer-files/ \; 2>/dev/null || true
           find "$BUNDLE" -name "*.rpm" -type f -exec cp {} installer-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.AppImage" -type f ! -name "*.tar.gz" -exec cp {} installer-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.AppImage" -type f -exec cp {} installer-files/ \; 2>/dev/null || true
 
           # Windows
-          find "$BUNDLE" -name "*.msi" -type f ! -name "*.sig" -exec cp {} installer-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.msi" -type f -exec cp {} installer-files/ \; 2>/dev/null || true
           find "$BUNDLE" -name "*-setup.exe" -type f -exec cp {} installer-files/ \; 2>/dev/null || true
 
           echo "=== Collected installer files: ==="
