@@ -52,14 +52,14 @@ export async function readFileFromPath(filePath) {
 }
 
 /**
- * Get file that was passed to app on startup
- * @returns {Promise<string|null>} File path or null
+ * Get files that were passed to app on startup
+ * @returns {Promise<string[]>} Array of file paths
  */
-export async function getPendingFile() {
+export async function getPendingFiles() {
     const apis = await getTauriApis();
-    if (!apis) return null;
+    if (!apis) return [];
 
-    return await apis.invoke('get_pending_file');
+    return await apis.invoke('get_pending_files');
 }
 
 /**

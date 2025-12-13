@@ -3,8 +3,8 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 use std::io::Write;
 
-/// Store pending file path for when app is launched via file association
-pub struct PendingFile(pub Mutex<Option<PathBuf>>);
+/// Store pending file paths for when app is launched via file association
+pub struct PendingFiles(pub Mutex<Vec<PathBuf>>);
 
 /// Read a file from the filesystem and return its bytes
 #[tauri::command]
@@ -61,11 +61,12 @@ fn open_file_with_system(base64_content: String, file_name: String) -> Result<()
     Ok(())
 }
 
-/// Get the file that was passed to the app on startup
+/// Get files that were passed to the app on startup
 #[tauri::command]
-fn get_pending_file(state: tauri::State<'_, PendingFile>) -> Option<String> {
+fn get_pending_files(state: tauri::State<'_, PendingFiles>) -> Vec<String> {
     let mut pending = state.0.lock().unwrap();
-    pending.take().map(|p| p.to_string_lossy().to_string())
+    let files: Vec<String> = pending.drain(..).map(|p| p.to_string_lossy().to_string()).collect();
+    files
 }
 
 /// Handle a file being opened - emit event to frontend
@@ -107,12 +108,12 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .manage(PendingFile(Mutex::new(None)))
+        .manage(PendingFiles(Mutex::new(Vec::new())))
         .setup(|app| {
-            // Check for file passed as command-line argument on startup (Windows/Linux)
+            // Check for files passed as command-line arguments on startup (Windows/Linux)
             let args: Vec<String> = std::env::args().collect();
-            if args.len() > 1 {
-                let path = PathBuf::from(&args[1]);
+            for arg in args.iter().skip(1) {
+                let path = PathBuf::from(arg);
                 let ext = path
                     .extension()
                     .and_then(|e| e.to_str())
@@ -120,17 +121,17 @@ pub fn run() {
 
                 if matches!(ext.as_deref(), Some("msg") | Some("eml")) {
                     // Store for later retrieval by frontend
-                    app.state::<PendingFile>()
+                    app.state::<PendingFiles>()
                         .0
                         .lock()
                         .unwrap()
-                        .replace(path);
+                        .push(path);
                 }
             }
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_file, open_file_with_system]);
+        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_files, open_file_with_system]);
 
     builder
         .build(tauri::generate_context!())
@@ -153,11 +154,11 @@ pub fn run() {
                                 .map(|e| e.to_lowercase());
 
                             if matches!(ext.as_deref(), Some("msg") | Some("eml")) {
-                                app.state::<PendingFile>()
+                                app.state::<PendingFiles>()
                                     .0
                                     .lock()
                                     .unwrap()
-                                    .replace(path);
+                                    .push(path);
                             }
                         }
                     }

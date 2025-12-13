@@ -3,7 +3,7 @@ import MessageHandler from './MessageHandler.js';
 import UIManager from './UIManager.js';
 import FileHandler from './FileHandler.js';
 import { extractMsg, extractEml } from './utils.js';
-import { isTauri, getPendingFile, onFileOpen, onFileDrop, checkForUpdates } from './tauri-bridge.js';
+import { isTauri, getPendingFiles, onFileOpen, onFileDrop, checkForUpdates } from './tauri-bridge.js';
 
 /**
  * Main application class
@@ -64,10 +64,10 @@ class App {
  * Called after app initialization when running in Tauri
  */
 async function initTauriFileHandling() {
-    // Check for file passed on app startup (double-click to open)
-    const pendingFile = await getPendingFile();
-    if (pendingFile) {
-        window.app.fileHandler.handleFileFromPath(pendingFile);
+    // Check for files passed on app startup (double-click to open)
+    const pendingFiles = await getPendingFiles();
+    for (const filePath of pendingFiles) {
+        window.app.fileHandler.handleFileFromPath(filePath);
     }
 
     // Listen for files opened while app is running (double-click)
