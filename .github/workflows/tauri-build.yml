@@ -127,7 +127,15 @@ jobs:
         run: |
           npx tauri build ${{ matrix.args }}
 
-      - name: Collect updater artifacts BEFORE tauri-action
+      - name: List all bundle contents
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          BUNDLE="${{ matrix.bundle_path }}"
+          echo "=== All files in $BUNDLE ==="
+          find "$BUNDLE" -type f 2>/dev/null | head -50
+
+      - name: Collect updater artifacts
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
@@ -135,6 +143,8 @@ jobs:
           BUNDLE="${{ matrix.bundle_path }}"
 
           echo "=== Searching for updater files in: $BUNDLE ==="
+
+          # Find and copy updater bundles and their signatures
           echo "Looking for .sig files:"
           find "$BUNDLE" -name "*.sig" -type f 2>/dev/null || echo "No .sig files found"
 
@@ -144,7 +154,7 @@ jobs:
           echo "Looking for .nsis.zip files:"
           find "$BUNDLE" -name "*.nsis.zip" -type f 2>/dev/null || echo "No .nsis.zip files found"
 
-          # Copy updater files
+          # Copy updater files (signatures and bundles)
           find "$BUNDLE" -name "*.app.tar.gz.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
           find "$BUNDLE" -name "*.app.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
           find "$BUNDLE" -name "*.AppImage.tar.gz.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
@@ -152,8 +162,30 @@ jobs:
           find "$BUNDLE" -name "*.nsis.zip.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
           find "$BUNDLE" -name "*.nsis.zip" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
 
-          echo "=== Collected files: ==="
+          echo "=== Collected updater files: ==="
           ls -la updater-files/ || echo "No files collected"
+
+      - name: Collect installer artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          mkdir -p installer-files
+          BUNDLE="${{ matrix.bundle_path }}"
+
+          # macOS
+          find "$BUNDLE" -name "*.dmg" -type f -exec cp {} installer-files/ \; 2>/dev/null || true
+
+          # Linux
+          find "$BUNDLE" -name "*.deb" -type f -exec cp {} installer-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.rpm" -type f -exec cp {} installer-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.AppImage" -type f ! -name "*.tar.gz" -exec cp {} installer-files/ \; 2>/dev/null || true
+
+          # Windows
+          find "$BUNDLE" -name "*.msi" -type f ! -name "*.sig" -exec cp {} installer-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*-setup.exe" -type f -exec cp {} installer-files/ \; 2>/dev/null || true
+
+          echo "=== Collected installer files: ==="
+          ls -la installer-files/ || echo "No files collected"
 
       - name: Upload updater artifacts
         if: startsWith(github.ref, 'refs/tags/v')
@@ -163,31 +195,15 @@ jobs:
           path: updater-files/
           if-no-files-found: warn
 
-      - name: Upload to Release
+      - name: Upload installer artifacts
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'msgReader ${{ github.ref_name }}'
-          releaseBody: |
-            Download the installer for your platform:
-            - **macOS (Apple Silicon)**: `.dmg` file ending with `aarch64`
-            - **macOS (Intel)**: `.dmg` file ending with `x64`
-            - **Windows**: `.msi` or `.exe` installer
-            - **Linux**: `.AppImage` or `.deb` package
+          name: installer-${{ matrix.updater_target }}
+          path: installer-files/
+          if-no-files-found: warn
 
-            The app will automatically check for updates.
-          releaseDraft: true
-          prerelease: false
-          includeUpdaterJson: false
-          tauriScript: echo "skip"
-          args: ${{ matrix.args }}
-
-  create-updater-json:
+  create-release:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
@@ -198,17 +214,97 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Download all signature artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
       - name: List downloaded artifacts
         run: |
-          echo "Downloaded artifacts:"
-          find artifacts -type f | head -50
+          echo "=== Downloaded artifacts: ==="
+          find artifacts -type f
 
-      - name: Create latest.json
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG_NAME="${GITHUB_REF_NAME}"
+
+          # Create release (or update if exists)
+          gh release create "$TAG_NAME" \
+            --repo "${{ github.repository }}" \
+            --title "msgReader $TAG_NAME" \
+            --notes "Download the installer for your platform:
+          - **macOS (Apple Silicon)**: \`.dmg\` file ending with \`aarch64\`
+          - **macOS (Intel)**: \`.dmg\` file ending with \`x64\`
+          - **Windows**: \`.msi\` or \`.exe\` installer
+          - **Linux**: \`.AppImage\` or \`.deb\` package
+
+          The app will automatically check for updates." \
+            --draft \
+            2>/dev/null || echo "Release already exists, will upload assets"
+
+      - name: Upload installer files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+
+          echo "=== Uploading installer files ==="
+
+          # Upload all installer files
+          for dir in artifacts/installer-*; do
+            if [ -d "$dir" ]; then
+              for file in "$dir"/*; do
+                if [ -f "$file" ]; then
+                  echo "Uploading: $(basename "$file")"
+                  gh release upload "$TAG_NAME" "$file" --repo "${{ github.repository }}" --clobber || true
+                fi
+              done
+            fi
+          done
+
+      - name: Upload updater bundles with correct names
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          echo "=== Uploading updater bundles ==="
+
+          # macOS aarch64 - rename to include architecture
+          MACOS_ARM=$(find artifacts/updater-darwin-aarch64 -name "*.app.tar.gz" -type f 2>/dev/null | head -1)
+          if [ -n "$MACOS_ARM" ] && [ -f "$MACOS_ARM" ]; then
+            cp "$MACOS_ARM" "msgReader_aarch64.app.tar.gz"
+            echo "Uploading: msgReader_aarch64.app.tar.gz"
+            gh release upload "$TAG_NAME" "msgReader_aarch64.app.tar.gz" --repo "${{ github.repository }}" --clobber
+          fi
+
+          # macOS x86_64 - rename to include architecture
+          MACOS_X64=$(find artifacts/updater-darwin-x86_64 -name "*.app.tar.gz" -type f 2>/dev/null | head -1)
+          if [ -n "$MACOS_X64" ] && [ -f "$MACOS_X64" ]; then
+            cp "$MACOS_X64" "msgReader_x64.app.tar.gz"
+            echo "Uploading: msgReader_x64.app.tar.gz"
+            gh release upload "$TAG_NAME" "msgReader_x64.app.tar.gz" --repo "${{ github.repository }}" --clobber
+          fi
+
+          # Linux - keep original name
+          LINUX_TAR=$(find artifacts/updater-linux-x86_64 -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
+          if [ -n "$LINUX_TAR" ] && [ -f "$LINUX_TAR" ]; then
+            echo "Uploading: $(basename "$LINUX_TAR")"
+            gh release upload "$TAG_NAME" "$LINUX_TAR" --repo "${{ github.repository }}" --clobber
+          fi
+
+          # Windows - keep original name
+          WINDOWS_ZIP=$(find artifacts/updater-windows-x86_64 -name "*.nsis.zip" -type f 2>/dev/null | head -1)
+          if [ -n "$WINDOWS_ZIP" ] && [ -f "$WINDOWS_ZIP" ]; then
+            echo "Uploading: $(basename "$WINDOWS_ZIP")"
+            gh release upload "$TAG_NAME" "$WINDOWS_ZIP" --repo "${{ github.repository }}" --clobber
+          fi
+
+      - name: Create and upload latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -216,47 +312,54 @@ jobs:
           TAG_NAME="${GITHUB_REF_NAME}"
           BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}"
 
-          # Find signature files
-          echo "Looking for signatures..."
+          echo "=== Reading signatures ==="
 
           # macOS aarch64
           SIG_DARWIN_AARCH64=""
           SIG_FILE=$(find artifacts/updater-darwin-aarch64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
-          if [ -n "$SIG_FILE" ]; then
+          if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
             SIG_DARWIN_AARCH64=$(cat "$SIG_FILE")
             echo "Found darwin-aarch64 signature: ${SIG_DARWIN_AARCH64:0:50}..."
+          else
+            echo "WARNING: No darwin-aarch64 signature found!"
           fi
 
           # macOS x86_64
           SIG_DARWIN_X86_64=""
           SIG_FILE=$(find artifacts/updater-darwin-x86_64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
-          if [ -n "$SIG_FILE" ]; then
+          if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
             SIG_DARWIN_X86_64=$(cat "$SIG_FILE")
             echo "Found darwin-x86_64 signature: ${SIG_DARWIN_X86_64:0:50}..."
+          else
+            echo "WARNING: No darwin-x86_64 signature found!"
           fi
 
           # Linux
           SIG_LINUX=""
           SIG_FILE=$(find artifacts/updater-linux-x86_64 -name "*.AppImage.tar.gz.sig" -type f 2>/dev/null | head -1)
-          if [ -n "$SIG_FILE" ]; then
+          if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
             SIG_LINUX=$(cat "$SIG_FILE")
             echo "Found linux signature: ${SIG_LINUX:0:50}..."
+          else
+            echo "WARNING: No linux signature found!"
           fi
 
           # Windows
           SIG_WINDOWS=""
           SIG_FILE=$(find artifacts/updater-windows-x86_64 -name "*.nsis.zip.sig" -type f 2>/dev/null | head -1)
-          if [ -n "$SIG_FILE" ]; then
+          if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
             SIG_WINDOWS=$(cat "$SIG_FILE")
             echo "Found windows signature: ${SIG_WINDOWS:0:50}..."
+          else
+            echo "WARNING: No windows signature found!"
           fi
 
-          # Find update bundle URLs
+          # Get actual filenames for Linux and Windows
           LINUX_TAR=$(find artifacts/updater-linux-x86_64 -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
-          LINUX_TAR_NAME=$(basename "$LINUX_TAR" 2>/dev/null || echo "")
+          LINUX_TAR_NAME=$(basename "$LINUX_TAR" 2>/dev/null || echo "msgReader_${VERSION}_amd64.AppImage.tar.gz")
 
           WINDOWS_ZIP=$(find artifacts/updater-windows-x86_64 -name "*.nsis.zip" -type f 2>/dev/null | head -1)
-          WINDOWS_ZIP_NAME=$(basename "$WINDOWS_ZIP" 2>/dev/null || echo "")
+          WINDOWS_ZIP_NAME=$(basename "$WINDOWS_ZIP" 2>/dev/null || echo "msgReader_${VERSION}_x64-setup.nsis.zip")
 
           # Export for node
           export SIG_DARWIN_AARCH64
@@ -269,12 +372,12 @@ jobs:
             const fs = require('fs');
             const version = '${VERSION}';
             const baseUrl = '${BASE_URL}';
-            const linuxTar = '${LINUX_TAR_NAME}' || 'msgReader_' + version + '_amd64.AppImage.tar.gz';
-            const windowsZip = '${WINDOWS_ZIP_NAME}' || 'msgReader_' + version + '_x64-setup.nsis.zip';
+            const linuxTar = '${LINUX_TAR_NAME}';
+            const windowsZip = '${WINDOWS_ZIP_NAME}';
 
             const json = {
               version: version,
-              notes: 'See release notes at ' + baseUrl,
+              notes: 'See release notes at https://github.com/${{ github.repository }}/releases/tag/${TAG_NAME}',
               pub_date: new Date().toISOString(),
               platforms: {
                 'darwin-aarch64': {
@@ -300,27 +403,14 @@ jobs:
             console.log(JSON.stringify(json, null, 2));
           "
 
-      - name: Upload updater files to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          # Verify signatures are not empty
+          if [ -z "$SIG_DARWIN_AARCH64" ] || [ -z "$SIG_DARWIN_X86_64" ]; then
+            echo "ERROR: macOS signatures are missing!"
+            exit 1
+          fi
 
           # Upload latest.json
-          gh release upload "${{ github.ref_name }}" latest.json --repo "${{ github.repository }}" --clobber
+          echo "Uploading latest.json..."
+          gh release upload "$TAG_NAME" latest.json --repo "${{ github.repository }}" --clobber
 
-          # Upload Linux AppImage.tar.gz if found
-          LINUX_TAR=$(find artifacts/updater-linux-x86_64 -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
-          if [ -n "$LINUX_TAR" ]; then
-            gh release upload "${{ github.ref_name }}" "$LINUX_TAR" --repo "${{ github.repository }}" --clobber
-            echo "Uploaded: $(basename $LINUX_TAR)"
-          fi
-
-          # Upload Windows nsis.zip if found
-          WINDOWS_ZIP=$(find artifacts/updater-windows-x86_64 -name "*.nsis.zip" -type f 2>/dev/null | head -1)
-          if [ -n "$WINDOWS_ZIP" ]; then
-            gh release upload "${{ github.ref_name }}" "$WINDOWS_ZIP" --repo "${{ github.repository }}" --clobber
-            echo "Uploaded: $(basename $WINDOWS_ZIP)"
-          fi
-
-          echo "Updater files uploaded successfully"
+          echo "=== Release complete ==="
