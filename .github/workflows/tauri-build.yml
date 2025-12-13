@@ -127,6 +127,42 @@ jobs:
         run: |
           npx tauri build ${{ matrix.args }}
 
+      - name: Collect updater artifacts BEFORE tauri-action
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          mkdir -p updater-files
+          BUNDLE="${{ matrix.bundle_path }}"
+
+          echo "=== Searching for updater files in: $BUNDLE ==="
+          echo "Looking for .sig files:"
+          find "$BUNDLE" -name "*.sig" -type f 2>/dev/null || echo "No .sig files found"
+
+          echo "Looking for .tar.gz files:"
+          find "$BUNDLE" -name "*.tar.gz" -type f 2>/dev/null || echo "No .tar.gz files found"
+
+          echo "Looking for .nsis.zip files:"
+          find "$BUNDLE" -name "*.nsis.zip" -type f 2>/dev/null || echo "No .nsis.zip files found"
+
+          # Copy updater files
+          find "$BUNDLE" -name "*.app.tar.gz.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.app.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.AppImage.tar.gz.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.AppImage.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.nsis.zip.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.nsis.zip" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+
+          echo "=== Collected files: ==="
+          ls -la updater-files/ || echo "No files collected"
+
+      - name: Upload updater artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.updater_target }}
+          path: updater-files/
+          if-no-files-found: warn
+
       - name: Upload to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: tauri-apps/tauri-action@v0
@@ -150,40 +186,6 @@ jobs:
           includeUpdaterJson: false
           tauriScript: echo "skip"
           args: ${{ matrix.args }}
-
-      - name: Collect updater artifacts after tauri-action
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          mkdir -p updater-files
-          BUNDLE="${{ matrix.bundle_path }}"
-
-          echo "=== Searching for updater files in: $BUNDLE ==="
-          echo "Looking for .sig files:"
-          find "$BUNDLE" -name "*.sig" -type f 2>/dev/null || echo "No .sig files found"
-
-          echo "Looking for .tar.gz files:"
-          find "$BUNDLE" -name "*.tar.gz" -type f 2>/dev/null || echo "No .tar.gz files found"
-
-          echo "Looking for .nsis.zip files:"
-          find "$BUNDLE" -name "*.nsis.zip" -type f 2>/dev/null || echo "No .nsis.zip files found"
-
-          # Copy updater files
-          find "$BUNDLE" -name "*.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.app.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.AppImage.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.nsis.zip" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-
-          echo "=== Collected files: ==="
-          ls -la updater-files/ || echo "No files collected"
-
-      - name: Upload updater artifacts
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
-        with:
-          name: updater-${{ matrix.updater_target }}
-          path: updater-files/
-          if-no-files-found: warn
 
   create-updater-json:
     needs: build
