@@ -883,6 +883,15 @@ video {
   margin-bottom: 0.5rem;
 }
 
+.version-tag {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  background-color: #f1f5f9;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  margin-left: 0.25rem;
+}
+
 .read-more-link:hover {
   color: var(--primary-color);
 }
