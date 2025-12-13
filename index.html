@@ -10,17 +10,41 @@
 </head>
 
 <body>
+    <!-- Skip Link for Keyboard Users -->
+    <a href="#messageViewer" class="skip-link">Skip to message content</a>
+
+    <!-- Screen Reader Announcements -->
+    <div id="srAnnouncements" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="help-modal" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+        <div class="help-modal-backdrop"></div>
+        <div class="help-modal-container">
+            <div class="help-modal-header">
+                <span class="help-modal-title">Keyboard Shortcuts</span>
+                <button class="help-modal-close" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="help-modal-content">
+                <!-- Content populated by KeyboardManager -->
+            </div>
+        </div>
+    </div>
+
     <!-- Drop Overlay -->
     <div class="drop-overlay">
         <div class="drop-message">drop .msg/.eml files here</div>
     </div>
 
     <!-- Attachment Preview Modal -->
-    <div id="attachmentModal" class="attachment-modal">
+    <div id="attachmentModal" class="attachment-modal" role="dialog" aria-modal="true" aria-labelledby="attachmentModalFilename">
         <div class="attachment-modal-backdrop"></div>
         <div class="attachment-modal-container">
             <div class="attachment-modal-header">
-                <span id="attachmentModalFilename" class="attachment-modal-filename"></span>
+                <span id="attachmentModalFilename" class="attachment-modal-filename" role="heading" aria-level="2"></span>
                 <div class="attachment-modal-actions">
                     <a id="attachmentModalDownload" href="#" download="" class="attachment-modal-download" title="Download">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
@@ -83,11 +107,14 @@
                     <input type="file" id="fileInputInApp" class="hidden" accept=".msg,.eml" multiple>
                 </label>
             </div>
-            <div id="messageItems" class="message-items">
+            <div id="messageItems" class="message-items" role="listbox" aria-label="Email messages" tabindex="0">
                 <!-- Message items will be inserted here -->
             </div>
+            <button id="shortcutHint" class="shortcut-hint" aria-label="Show keyboard shortcuts">
+                Press <kbd>?</kbd> for shortcuts
+            </button>
         </div>
-        <div id="messageViewer" class="message-viewer">
+        <div id="messageViewer" class="message-viewer" role="main" aria-label="Message content" tabindex="-1">
             <!-- Message content will be shown here -->
         </div>
     </div>

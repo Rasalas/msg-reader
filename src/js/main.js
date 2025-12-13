@@ -2,6 +2,7 @@ import '../styles.css';
 import MessageHandler from './MessageHandler.js';
 import UIManager from './UIManager.js';
 import FileHandler from './FileHandler.js';
+import KeyboardManager from './KeyboardManager.js';
 import { extractMsg, extractEml } from './utils.js';
 import { isTauri, getPendingFiles, onFileOpen, onFileDrop, checkForUpdates } from './tauri-bridge.js';
 
@@ -20,6 +21,12 @@ class App {
             this.uiManager,
             { extractMsg, extractEml }
         );
+
+        // Initialize keyboard manager for shortcuts and navigation
+        this.keyboardManager = new KeyboardManager(this);
+
+        // Connect keyboard manager to UI manager for modal context changes
+        this.uiManager.setKeyboardManager(this.keyboardManager);
     }
 
     /**
