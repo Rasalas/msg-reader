@@ -24,8 +24,8 @@ export default defineConfig({
     rollupOptions: {
       input: 'index.html',
     },
-    // Tauri needs ES modules
-    target: isTauri ? 'esnext' : 'modules',
+    // Tauri needs ES modules, web build uses default
+    target: isTauri ? 'esnext' : 'es2020',
   },
   server: {
     port: 8080,
