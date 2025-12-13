@@ -24,21 +24,36 @@ jobs:
           - platform: macos-latest
             args: --target aarch64-apple-darwin
             target: aarch64-apple-darwin
-            artifact_name: macos-aarch64
+            rust_target: aarch64-apple-darwin
+            updater_target: darwin-aarch64
+            bundle_path: src-tauri/target/aarch64-apple-darwin/release/bundle
+            app_tar: macos/msgReader.app.tar.gz
           - platform: macos-latest
             args: --target x86_64-apple-darwin
             target: x86_64-apple-darwin
-            artifact_name: macos-x64
+            rust_target: x86_64-apple-darwin
+            updater_target: darwin-x86_64
+            bundle_path: src-tauri/target/x86_64-apple-darwin/release/bundle
+            app_tar: macos/msgReader.app.tar.gz
           - platform: ubuntu-22.04
             args: ''
             target: ''
-            artifact_name: linux
+            rust_target: x86_64-unknown-linux-gnu
+            updater_target: linux-x86_64
+            bundle_path: src-tauri/target/release/bundle
+            app_tar: ''
           - platform: windows-latest
             args: ''
             target: ''
-            artifact_name: windows
+            rust_target: x86_64-pc-windows-msvc
+            updater_target: windows-x86_64
+            bundle_path: src-tauri/target/release/bundle
+            app_tar: ''
 
     runs-on: ${{ matrix.platform }}
+
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
 
     steps:
       - name: Checkout repository
@@ -68,14 +83,25 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Get version from tag
+        id: get-version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
       - name: Update version from tag
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ steps.get-version.outputs.version }}"
           echo "Updating version to $VERSION"
 
-          # Update package.json using Node.js (cross-platform)
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -83,7 +109,6 @@ jobs:
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
 
-          # Update Cargo.toml - replace first occurrence of version in [package] section
           node -e "
             const fs = require('fs');
             let content = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
@@ -91,20 +116,107 @@ jobs:
             fs.writeFileSync('src-tauri/Cargo.toml', content);
           "
 
-          echo "Updated versions:"
-          grep '"version"' package.json
-          grep '^version' src-tauri/Cargo.toml
-
       - name: Run tests
         run: npm test
 
       - name: Build Tauri App
-        id: tauri-build
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          npm run tauri build ${{ matrix.args }}
+
+      - name: List bundle contents
+        shell: bash
+        run: |
+          echo "Bundle path: ${{ matrix.bundle_path }}"
+          find ${{ matrix.bundle_path }} -type f -name "*.sig" 2>/dev/null || echo "No .sig files found"
+          find ${{ matrix.bundle_path }} -type f -name "*.tar.gz" 2>/dev/null || echo "No .tar.gz files found"
+          find ${{ matrix.bundle_path }} -type f -name "*.zip" 2>/dev/null || echo "No .zip files found"
+
+      - name: Prepare updater artifacts (macOS)
+        if: matrix.platform == 'macos-latest'
+        id: prepare-macos
+        shell: bash
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          BUNDLE="${{ matrix.bundle_path }}"
+
+          # Find the app tar.gz and its signature
+          APP_TAR=$(find $BUNDLE -name "*.app.tar.gz" -type f | head -1)
+          APP_SIG=$(find $BUNDLE -name "*.app.tar.gz.sig" -type f | head -1)
+
+          echo "Found APP_TAR: $APP_TAR"
+          echo "Found APP_SIG: $APP_SIG"
+
+          if [ -n "$APP_TAR" ] && [ -n "$APP_SIG" ]; then
+            # Read signature content
+            SIG_CONTENT=$(cat "$APP_SIG")
+            echo "signature=$SIG_CONTENT" >> $GITHUB_OUTPUT
+            echo "app_tar=$APP_TAR" >> $GITHUB_OUTPUT
+            echo "app_sig=$APP_SIG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare updater artifacts (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        id: prepare-linux
+        shell: bash
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          BUNDLE="${{ matrix.bundle_path }}"
+
+          # Find AppImage tar.gz and signature
+          APP_TAR=$(find $BUNDLE -name "*.AppImage.tar.gz" -type f | head -1)
+          APP_SIG=$(find $BUNDLE -name "*.AppImage.tar.gz.sig" -type f | head -1)
+
+          echo "Found APP_TAR: $APP_TAR"
+          echo "Found APP_SIG: $APP_SIG"
+
+          if [ -n "$APP_TAR" ] && [ -n "$APP_SIG" ]; then
+            SIG_CONTENT=$(cat "$APP_SIG")
+            echo "signature=$SIG_CONTENT" >> $GITHUB_OUTPUT
+            echo "app_tar=$APP_TAR" >> $GITHUB_OUTPUT
+            echo "app_sig=$APP_SIG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare updater artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        id: prepare-windows
+        shell: bash
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          BUNDLE="${{ matrix.bundle_path }}"
+
+          # Find NSIS zip and signature
+          APP_ZIP=$(find $BUNDLE -name "*.nsis.zip" -type f | head -1)
+          APP_SIG=$(find $BUNDLE -name "*.nsis.zip.sig" -type f | head -1)
+
+          echo "Found APP_ZIP: $APP_ZIP"
+          echo "Found APP_SIG: $APP_SIG"
+
+          if [ -n "$APP_ZIP" ] && [ -n "$APP_SIG" ]; then
+            SIG_CONTENT=$(cat "$APP_SIG")
+            echo "signature=$SIG_CONTENT" >> $GITHUB_OUTPUT
+            echo "app_zip=$APP_ZIP" >> $GITHUB_OUTPUT
+            echo "app_sig=$APP_SIG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Save signature to artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signature-${{ matrix.updater_target }}
+          path: |
+            ${{ matrix.bundle_path }}/**/*.sig
+            ${{ matrix.bundle_path }}/**/*.tar.gz
+            ${{ matrix.bundle_path }}/**/*.nsis.zip
+          if-no-files-found: warn
+
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'msgReader ${{ github.ref_name }}'
@@ -118,7 +230,144 @@ jobs:
             The app will automatically check for updates.
           releaseDraft: true
           prerelease: false
-          includeUpdaterJson: true
-          updaterJsonPreferNsis: true
+          includeUpdaterJson: false
+          tauriScript: echo "skip"
           args: ${{ matrix.args }}
 
+  create-updater-json:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download all signature artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f | head -50
+
+      - name: Create latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG_NAME="${GITHUB_REF_NAME}"
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}"
+
+          # Find signature files
+          echo "Looking for signatures..."
+
+          # macOS aarch64
+          SIG_DARWIN_AARCH64=""
+          SIG_FILE=$(find artifacts/signature-darwin-aarch64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
+          if [ -n "$SIG_FILE" ]; then
+            SIG_DARWIN_AARCH64=$(cat "$SIG_FILE")
+            echo "Found darwin-aarch64 signature: ${SIG_DARWIN_AARCH64:0:50}..."
+          fi
+
+          # macOS x86_64
+          SIG_DARWIN_X86_64=""
+          SIG_FILE=$(find artifacts/signature-darwin-x86_64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
+          if [ -n "$SIG_FILE" ]; then
+            SIG_DARWIN_X86_64=$(cat "$SIG_FILE")
+            echo "Found darwin-x86_64 signature: ${SIG_DARWIN_X86_64:0:50}..."
+          fi
+
+          # Linux
+          SIG_LINUX=""
+          SIG_FILE=$(find artifacts/signature-linux-x86_64 -name "*.AppImage.tar.gz.sig" -type f 2>/dev/null | head -1)
+          if [ -n "$SIG_FILE" ]; then
+            SIG_LINUX=$(cat "$SIG_FILE")
+            echo "Found linux signature: ${SIG_LINUX:0:50}..."
+          fi
+
+          # Windows
+          SIG_WINDOWS=""
+          SIG_FILE=$(find artifacts/signature-windows-x86_64 -name "*.nsis.zip.sig" -type f 2>/dev/null | head -1)
+          if [ -n "$SIG_FILE" ]; then
+            SIG_WINDOWS=$(cat "$SIG_FILE")
+            echo "Found windows signature: ${SIG_WINDOWS:0:50}..."
+          fi
+
+          # Find update bundle URLs
+          LINUX_TAR=$(find artifacts/signature-linux-x86_64 -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
+          LINUX_TAR_NAME=$(basename "$LINUX_TAR" 2>/dev/null || echo "")
+
+          WINDOWS_ZIP=$(find artifacts/signature-windows-x86_64 -name "*.nsis.zip" -type f 2>/dev/null | head -1)
+          WINDOWS_ZIP_NAME=$(basename "$WINDOWS_ZIP" 2>/dev/null || echo "")
+
+          # Export for node
+          export SIG_DARWIN_AARCH64
+          export SIG_DARWIN_X86_64
+          export SIG_LINUX
+          export SIG_WINDOWS
+
+          # Create latest.json
+          node -e "
+            const fs = require('fs');
+            const version = '${VERSION}';
+            const baseUrl = '${BASE_URL}';
+            const linuxTar = '${LINUX_TAR_NAME}' || 'msgReader_' + version + '_amd64.AppImage.tar.gz';
+            const windowsZip = '${WINDOWS_ZIP_NAME}' || 'msgReader_' + version + '_x64-setup.nsis.zip';
+
+            const json = {
+              version: version,
+              notes: 'See release notes at ' + baseUrl,
+              pub_date: new Date().toISOString(),
+              platforms: {
+                'darwin-aarch64': {
+                  signature: process.env.SIG_DARWIN_AARCH64 || '',
+                  url: baseUrl + '/msgReader_aarch64.app.tar.gz'
+                },
+                'darwin-x86_64': {
+                  signature: process.env.SIG_DARWIN_X86_64 || '',
+                  url: baseUrl + '/msgReader_x64.app.tar.gz'
+                },
+                'linux-x86_64': {
+                  signature: process.env.SIG_LINUX || '',
+                  url: baseUrl + '/' + linuxTar
+                },
+                'windows-x86_64': {
+                  signature: process.env.SIG_WINDOWS || '',
+                  url: baseUrl + '/' + windowsZip
+                }
+              }
+            };
+            fs.writeFileSync('latest.json', JSON.stringify(json, null, 2));
+            console.log('Created latest.json:');
+            console.log(JSON.stringify(json, null, 2));
+          "
+
+      - name: Upload updater files to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          # Upload latest.json
+          gh release upload "${{ github.ref_name }}" latest.json --repo "${{ github.repository }}" --clobber
+
+          # Upload Linux AppImage.tar.gz if found
+          LINUX_TAR=$(find artifacts/signature-linux-x86_64 -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
+          if [ -n "$LINUX_TAR" ]; then
+            gh release upload "${{ github.ref_name }}" "$LINUX_TAR" --repo "${{ github.repository }}" --clobber
+            echo "Uploaded: $(basename $LINUX_TAR)"
+          fi
+
+          # Upload Windows nsis.zip if found
+          WINDOWS_ZIP=$(find artifacts/signature-windows-x86_64 -name "*.nsis.zip" -type f 2>/dev/null | head -1)
+          if [ -n "$WINDOWS_ZIP" ]; then
+            gh release upload "${{ github.ref_name }}" "$WINDOWS_ZIP" --repo "${{ github.repository }}" --clobber
+            echo "Uploaded: $(basename $WINDOWS_ZIP)"
+          fi
+
+          echo "Updater files uploaded successfully"
