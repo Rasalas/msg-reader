@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schemas.tauri.app/capabilities/1.0.0",
+  "identifier": "default",
+  "description": "Default permissions for msgReader",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:webview:allow-webview-position",
+    "core:webview:allow-set-webview-focus",
+    "core:window:default",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-read-file"
+  ]
+}

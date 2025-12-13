@@ -3,6 +3,7 @@ import MessageHandler from './MessageHandler.js';
 import UIManager from './UIManager.js';
 import FileHandler from './FileHandler.js';
 import { extractMsg, extractEml } from './utils.js';
+import { isTauri, getPendingFile, onFileOpen, onFileDrop } from './tauri-bridge.js';
 
 /**
  * Main application class
@@ -58,11 +59,48 @@ class App {
     }
 }
 
+/**
+ * Initialize Tauri-specific file handling
+ * Called after app initialization when running in Tauri
+ */
+async function initTauriFileHandling() {
+    // Check for file passed on app startup (double-click to open)
+    const pendingFile = await getPendingFile();
+    if (pendingFile) {
+        window.app.fileHandler.handleFileFromPath(pendingFile);
+    }
+
+    // Listen for files opened while app is running (double-click)
+    await onFileOpen((filePath) => {
+        window.app.fileHandler.handleFileFromPath(filePath);
+    });
+
+    // Listen for drag & drop events (Tauri-specific)
+    await onFileDrop({
+        onDrop: (filePaths) => {
+            for (const filePath of filePaths) {
+                window.app.fileHandler.handleFileFromPath(filePath);
+            }
+        },
+        onEnter: () => {
+            window.app.uiManager.showDropOverlay();
+        },
+        onLeave: () => {
+            window.app.uiManager.hideDropOverlay();
+        },
+    });
+}
+
 // Initialize the app when the DOM is loaded
 if (typeof window !== 'undefined') {
     window.App = App;
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
         window.app = new App();
+
+        // Initialize Tauri file handling if running in Tauri
+        if (isTauri()) {
+            await initTauriFileHandling();
+        }
     });
 }
 

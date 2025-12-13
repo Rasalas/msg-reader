@@ -1,9 +1,13 @@
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
+// Detect if building for Tauri (TAURI_ENV_PLATFORM is set during tauri build/dev)
+const isTauri = process.env.TAURI_ENV_PLATFORM !== undefined;
+
 export default defineConfig({
   root: '.',
-  base: '/msg-reader/',
+  // Use root path for Tauri, /msg-reader/ for GitHub Pages
+  base: isTauri ? '/' : '/msg-reader/',
   publicDir: 'res',
   plugins: [
     nodePolyfills({
@@ -20,12 +24,18 @@ export default defineConfig({
     rollupOptions: {
       input: 'index.html',
     },
+    // Tauri needs ES modules
+    target: isTauri ? 'esnext' : 'modules',
   },
   server: {
     port: 8080,
-    open: true,
+    // Don't auto-open browser for Tauri dev
+    open: !isTauri,
+    strictPort: true,
   },
   css: {
     postcss: './postcss.config.cjs',
   },
+  // Tauri needs to know about env variables
+  envPrefix: ['VITE_', 'TAURI_'],
 });

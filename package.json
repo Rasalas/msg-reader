@@ -9,6 +9,10 @@
     "preview": "vite preview",
     "build-gh-pages": "npm run build && rm -rf .gh-pages && mkdir -p .gh-pages && cp -r dist/* .gh-pages/ && sed -i '' \"s/__VERSION__/$(git describe --tags --always 2>/dev/null || echo 'dev')/g\" .gh-pages/index.html",
     "deploy": "npm run build-gh-pages && gh-pages -d .gh-pages",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:debug": "tauri build --debug",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -24,6 +28,7 @@
   "dependencies": {
     "@kenjiuno/decompressrtf": "^0.1.4",
     "@kenjiuno/msgreader": "^1.22.0",
+    "@tauri-apps/api": "^2.9.1",
     "buffer": "^6.0.3",
     "dompurify": "^3.3.1",
     "iconv-lite": "^0.6.3",
@@ -33,6 +38,7 @@
   "devDependencies": {
     "@babel/core": "^7.28.5",
     "@babel/preset-env": "^7.28.5",
+    "@tauri-apps/cli": "^2.9.6",
     "autoprefixer": "^10.4.16",
     "babel-jest": "^30.2.0",
     "eslint": "^8.57.0",
