@@ -24,15 +24,19 @@ jobs:
           - platform: macos-latest
             args: --target aarch64-apple-darwin
             target: aarch64-apple-darwin
+            artifact_name: macos-aarch64
           - platform: macos-latest
             args: --target x86_64-apple-darwin
             target: x86_64-apple-darwin
+            artifact_name: macos-x64
           - platform: ubuntu-22.04
             args: ''
             target: ''
+            artifact_name: linux
           - platform: windows-latest
             args: ''
             target: ''
+            artifact_name: windows
 
     runs-on: ${{ matrix.platform }}
 
@@ -113,5 +117,96 @@ jobs:
             The app will automatically check for updates.
           releaseDraft: true
           prerelease: false
-          includeUpdaterJson: true
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
+
+      - name: Upload signature files (macOS aarch64)
+        if: matrix.artifact_name == 'macos-aarch64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sig-macos-aarch64
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.sig
+
+      - name: Upload signature files (macOS x64)
+        if: matrix.artifact_name == 'macos-x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sig-macos-x64
+          path: src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.sig
+
+      - name: Upload signature files (Linux)
+        if: matrix.artifact_name == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sig-linux
+          path: src-tauri/target/release/bundle/appimage/*.sig
+
+      - name: Upload signature files (Windows)
+        if: matrix.artifact_name == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sig-windows
+          path: src-tauri/target/release/bundle/nsis/*.sig
+
+  create-updater-json:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all signature artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: signatures
+
+      - name: Create latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG_NAME="${GITHUB_REF_NAME}"
+
+          # Read signatures
+          SIG_MACOS_AARCH64=$(cat signatures/sig-macos-aarch64/*.sig 2>/dev/null || echo "")
+          SIG_MACOS_X64=$(cat signatures/sig-macos-x64/*.sig 2>/dev/null || echo "")
+          SIG_LINUX=$(cat signatures/sig-linux/*.sig 2>/dev/null || echo "")
+          SIG_WINDOWS=$(cat signatures/sig-windows/*.sig 2>/dev/null || echo "")
+
+          # Base URL for downloads
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}"
+
+          # Create latest.json
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "notes": "See release notes at ${BASE_URL}",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${SIG_MACOS_AARCH64}",
+                "url": "${BASE_URL}/msgReader_aarch64.app.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "${SIG_MACOS_X64}",
+                "url": "${BASE_URL}/msgReader_x64.app.tar.gz"
+              },
+              "linux-x86_64": {
+                "signature": "${SIG_LINUX}",
+                "url": "${BASE_URL}/msgReader_${VERSION}_amd64.AppImage"
+              },
+              "windows-x86_64": {
+                "signature": "${SIG_WINDOWS}",
+                "url": "${BASE_URL}/msgReader_${VERSION}_x64-setup.exe"
+              }
+            }
+          }
+          EOF
+
+          echo "Created latest.json:"
+          cat latest.json
+
+      - name: Upload latest.json to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" latest.json --repo "${{ github.repository }}" --clobber
