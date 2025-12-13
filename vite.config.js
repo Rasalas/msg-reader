@@ -1,8 +1,23 @@
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
 
 // Detect if building for Tauri (TAURI_ENV_PLATFORM is set during tauri build/dev)
 const isTauri = process.env.TAURI_ENV_PLATFORM !== undefined;
+
+// Get version from git tag or package.json
+function getVersion() {
+  try {
+    return execSync('git describe --tags --always 2>/dev/null').toString().trim();
+  } catch {
+    // Fallback to package.json version
+    const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
+    return pkg.version || 'dev';
+  }
+}
+
+const version = getVersion();
 
 export default defineConfig({
   root: '.',
@@ -17,6 +32,12 @@ export default defineConfig({
         process: true,
       },
     }),
+    {
+      name: 'html-version-replace',
+      transformIndexHtml(html) {
+        return html.replace(/__VERSION__/g, version);
+      },
+    },
   ],
   build: {
     outDir: 'dist',
