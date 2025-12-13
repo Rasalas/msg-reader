@@ -91,13 +91,13 @@ fn handle_file_open(app: &AppHandle, path: PathBuf) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            // Handle file opened when app is already running
+            // Handle file opened when app is already running (Windows/Linux)
             if args.len() > 1 {
                 let path = PathBuf::from(&args[1]);
                 handle_file_open(app, path);
@@ -109,7 +109,7 @@ pub fn run() {
         }))
         .manage(PendingFile(Mutex::new(None)))
         .setup(|app| {
-            // Check for file passed as command-line argument on startup
+            // Check for file passed as command-line argument on startup (Windows/Linux)
             let args: Vec<String> = std::env::args().collect();
             if args.len() > 1 {
                 let path = PathBuf::from(&args[1]);
@@ -130,7 +130,38 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_file, open_file_with_system])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_file, open_file_with_system]);
+
+    builder
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Handle macOS file open events (double-click on file)
+            if let tauri::RunEvent::Opened { urls } = event {
+                for url in urls {
+                    // Convert file:// URL to path
+                    if let Ok(path) = url.to_file_path() {
+                        // Check if app is ready (has windows)
+                        if app.get_webview_window("main").is_some() {
+                            // App is running, emit event
+                            handle_file_open(app, path);
+                        } else {
+                            // App is starting up, store for later
+                            let ext = path
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .map(|e| e.to_lowercase());
+
+                            if matches!(ext.as_deref(), Some("msg") | Some("eml")) {
+                                app.state::<PendingFile>()
+                                    .0
+                                    .lock()
+                                    .unwrap()
+                                    .replace(path);
+                            }
+                        }
+                    }
+                }
+            }
+        });
 }
