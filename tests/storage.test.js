@@ -1,7 +1,7 @@
 /**
  * Tests for storage.js
  */
-const { Storage, storage } = require('../src/js/storage');
+import { Storage, storage } from '../src/js/storage.js';
 
 describe('Storage', () => {
     describe('get', () => {

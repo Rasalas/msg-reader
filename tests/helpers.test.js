@@ -1,7 +1,7 @@
 /**
  * Tests for helpers.js
  */
-const {
+import {
     escapeRegex,
     tryUrlDecoded,
     getCharsetFromCodepage,
@@ -12,7 +12,7 @@ const {
     extractCharset,
     extractBoundary,
     extractFilename
-} = require('../src/js/helpers');
+} from '../src/js/helpers.js';
 
 describe('escapeRegex', () => {
     test('escapes special regex characters', () => {

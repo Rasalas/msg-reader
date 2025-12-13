@@ -1,4 +1,4 @@
-const { SUPPORTED_EMAIL_EXTENSIONS } = require('./constants');
+import { SUPPORTED_EMAIL_EXTENSIONS } from './constants.js';
 
 /**
  * Handles file input via drag-and-drop and file input elements
@@ -127,4 +127,4 @@ class FileHandler {
     }
 }
 
-module.exports = FileHandler;
+export default FileHandler;

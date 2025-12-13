@@ -6,7 +6,7 @@
 /**
  * Error severity levels
  */
-const ErrorLevel = {
+export const ErrorLevel = {
     DEBUG: 'debug',
     INFO: 'info',
     WARNING: 'warning',
@@ -17,7 +17,7 @@ const ErrorLevel = {
 /**
  * Centralized error handler
  */
-class ErrorHandler {
+export class ErrorHandler {
     constructor() {
         this.uiManager = null;
         this.logLevel = ErrorLevel.WARNING;
@@ -148,10 +148,4 @@ class ErrorHandler {
 }
 
 // Export singleton instance
-const errorHandler = new ErrorHandler();
-
-module.exports = {
-    ErrorHandler,
-    ErrorLevel,
-    errorHandler
-};
+export const errorHandler = new ErrorHandler();

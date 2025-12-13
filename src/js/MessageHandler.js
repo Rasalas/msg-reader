@@ -1,4 +1,5 @@
-const { storage } = require('./storage');
+import { storage } from './storage.js';
+import md5 from 'md5';
 
 /**
  * Manages email messages and their state
@@ -135,4 +136,4 @@ class MessageHandler {
     }
 }
 
-module.exports = MessageHandler; 
+export default MessageHandler;

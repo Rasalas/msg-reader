@@ -1,11 +1,8 @@
 /**
  * Tests for cidReplacer.js
  */
-const {
-    replaceCidReferences,
-    buildCidPatterns
-} = require('../src/js/cidReplacer');
-const { PLACEHOLDER_IMAGE_SVG } = require('../src/js/constants');
+import { replaceCidReferences, buildCidPatterns } from '../src/js/cidReplacer.js';
+import { PLACEHOLDER_IMAGE_SVG } from '../src/js/constants.js';
 
 describe('buildCidPatterns', () => {
     test('builds patterns for content ID', () => {

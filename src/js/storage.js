@@ -4,7 +4,7 @@
  * Makes the application more testable and allows swapping storage backends
  */
 
-class Storage {
+export class Storage {
     /**
      * Creates a new Storage instance
      * @param {Storage} [backend=localStorage] - The storage backend to use
@@ -112,9 +112,4 @@ class Storage {
 }
 
 // Export singleton instance for convenience
-const storage = new Storage();
-
-module.exports = {
-    Storage,
-    storage
-};
+export const storage = new Storage();

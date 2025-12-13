@@ -1,7 +1,8 @@
-const MessageHandler = require('./MessageHandler');
-const UIManager = require('./UIManager');
-const FileHandler = require('./FileHandler');
-const { extractMsg, extractEml } = require('./utils');
+import '../styles.css';
+import MessageHandler from './MessageHandler.js';
+import UIManager from './UIManager.js';
+import FileHandler from './FileHandler.js';
+import { extractMsg, extractEml } from './utils.js';
 
 /**
  * Main application class
@@ -65,4 +66,4 @@ if (typeof window !== 'undefined') {
     });
 }
 
-module.exports = App;
+export default App;

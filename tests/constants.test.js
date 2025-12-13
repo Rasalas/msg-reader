@@ -1,7 +1,7 @@
 /**
  * Tests for constants.js
  */
-const {
+import {
     CHARSET_CODES,
     PREVIEWABLE_IMAGE_TYPES,
     PREVIEWABLE_TEXT_TYPES,
@@ -11,7 +11,7 @@ const {
     DANGEROUS_EXTENSIONS,
     SUPPORTED_EMAIL_EXTENSIONS,
     DEFAULT_CHARSET
-} = require('../src/js/constants');
+} from '../src/js/constants.js';
 
 describe('CHARSET_CODES', () => {
     test('contains expected code pages', () => {

@@ -1,4 +1,4 @@
-.PHONY: all install build build-js build-css watch dev start deploy clean help mocks version release-patch release-minor release-major
+.PHONY: all install build dev preview start deploy clean help mocks version release-patch release-minor release-major
 
 # Default target
 all: build
@@ -7,28 +7,20 @@ all: build
 install:
 	npm install
 
-# Build everything
-build: build-css build-js
+# Build everything with Vite
+build:
+	npm run build
 
-# Build JavaScript bundle
-build-js:
-	npm run build:js
-
-# Build CSS
-build-css:
-	npm run build:css
-
-# Watch for changes (JS + CSS)
-watch:
-	npm run watch
-
-# Development mode with live reload
+# Development mode with HMR
 dev:
 	npm run dev
 
-# Build and start server
-start:
-	npm run start
+# Preview production build
+preview:
+	npm run preview
+
+# Build and preview (alias for common workflow)
+start: build preview
 
 # Build for GitHub Pages and deploy
 deploy:
@@ -40,7 +32,7 @@ build-gh-pages:
 
 # Clean build artifacts
 clean:
-	rm -rf dist/*.js dist/*.css .gh-pages
+	rm -rf dist .gh-pages
 
 # Deep clean (including node_modules)
 clean-all: clean
@@ -107,12 +99,10 @@ release-major:
 help:
 	@echo "Available targets:"
 	@echo "  make install       - Install npm dependencies"
-	@echo "  make build         - Build JS and CSS"
-	@echo "  make build-js      - Build JavaScript bundle only"
-	@echo "  make build-css     - Build CSS only"
-	@echo "  make watch         - Watch for changes (JS + CSS)"
-	@echo "  make dev           - Development mode with live reload"
-	@echo "  make start         - Build and start server"
+	@echo "  make build         - Build with Vite (production)"
+	@echo "  make dev           - Development mode with HMR"
+	@echo "  make preview       - Preview production build"
+	@echo "  make start         - Build and preview"
 	@echo "  make deploy        - Build and deploy to GitHub Pages"
 	@echo "  make build-gh-pages- Build for GH Pages without deploying"
 	@echo "  make clean         - Remove build artifacts"
