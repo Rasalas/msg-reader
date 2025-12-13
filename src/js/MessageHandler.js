@@ -69,14 +69,22 @@ class MessageHandler {
     /**
      * Deletes a message at the specified index
      * @param {number} index - Index of the message to delete
-     * @returns {Object|null} The first remaining message, or null if no messages remain
+     * @returns {Object|null} The next message (or previous if last), or null if no messages remain
      */
     deleteMessage(index) {
         const msgInfo = this.messages[index];
         this.messages.splice(index, 1);
         this.pinnedMessages.delete(msgInfo.messageHash);
         this.savePinnedMessages();
-        return this.messages.length > 0 ? this.messages[0] : null;
+
+        if (this.messages.length === 0) {
+            return null;
+        }
+
+        // Return the message at the same index (next message moves up)
+        // or the last message if we deleted the last one
+        const nextIndex = Math.min(index, this.messages.length - 1);
+        return this.messages[nextIndex];
     }
 
     /**
