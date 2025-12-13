@@ -13,6 +13,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "tauri:build:debug": "tauri build --debug",
+    "tauri:icons": "tauri icon app-icon.svg -o src-tauri/icons",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
