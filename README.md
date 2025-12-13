@@ -52,21 +52,18 @@ A native desktop app is available for **Windows**, **macOS**, and **Linux**. Dow
 - **Automatic updates** - the app checks for new versions on startup
 - Works offline
 
-### macOS: "App can't be opened" Warning
+### macOS: "App is damaged" or "Can't be opened" Warning
 
-Since the app is not signed with an Apple Developer certificate, macOS will show a warning. To open the app:
+Since the app is not signed with an Apple Developer certificate (which requires a paid subscription), macOS Gatekeeper will block the app. Starting with macOS Sequoia (15), macOS may report the app as "damaged" - **it is not damaged**, this is just how Gatekeeper handles unsigned apps.  
 
-**Option 1: Right-click**
-1. Right-click (or Ctrl+click) on `msgReader.app`
-2. Select "Open" from the context menu
-3. Click "Open" in the dialog that appears
+(I have an Apple Developer Account but all that signing is kind of annoying (for iOS) - I might do that later and maybe publish to the App Store too)
 
-**Option 2: Terminal**
+**Solution: Terminal**
 ```bash
 xattr -cr /Applications/msgReader.app
 ```
 
-This only needs to be done once after installation.
+This removes the quarantine flag that macOS adds to downloaded apps. It only needs to be done once after installation.
 
 ### Windows: SmartScreen Warning
 
