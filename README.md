@@ -160,6 +160,7 @@ An error message stating that the msg file can't be opened, because it requires 
 - [x] Show a preview of the currently selected email
 - [x] Separate subject, recipients & sender, body, attachments
 - [x] Pin important messages
+- [x] Add keyboard shortcuts
 
 ## Future Improvements (maybe)
 - [ ] Allow to download the email as a .eml file
@@ -170,5 +171,4 @@ An error message stating that the msg file can't be opened, because it requires 
   - [ ] sender
   - [ ] subject
 - [ ] Add message categories/tags
-- [ ] Add keyboard shortcuts
 - [ ] Add dark mode support
