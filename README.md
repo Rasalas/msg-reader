@@ -32,9 +32,50 @@ The project is organized into several modules:
 ## HYPER Quick Start (GitHub Pages)
 1. Open [rasalas.github.io/msg-reader/](https://rasalas.github.io/msg-reader/)
 2. Drag your file from your file system and drop it in the drop area.
-3. Done.  
+3. Done.
 
 You should now see your email contents
+
+## Desktop App
+
+A native desktop app is available for **Windows**, **macOS**, and **Linux**. Download the latest release from the [Releases page](https://github.com/Rasalas/msg-reader/releases).
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) | `.dmg` file ending with `aarch64` |
+| macOS (Intel) | `.dmg` file ending with `x64` |
+| Windows | `.msi` or `.exe` installer |
+| Linux | `.AppImage` or `.deb` package |
+
+### Benefits of the Desktop App
+- **Set as default app** for `.msg` and `.eml` files - double-click to open
+- **Automatic updates** - the app checks for new versions on startup
+- Works offline
+
+### macOS: "App can't be opened" Warning
+
+Since the app is not signed with an Apple Developer certificate, macOS will show a warning. To open the app:
+
+**Option 1: Right-click**
+1. Right-click (or Ctrl+click) on `msgReader.app`
+2. Select "Open" from the context menu
+3. Click "Open" in the dialog that appears
+
+**Option 2: Terminal**
+```bash
+xattr -cr /Applications/msgReader.app
+```
+
+This only needs to be done once after installation.
+
+### Windows: SmartScreen Warning
+
+Windows may show a "Windows protected your PC" warning. To proceed:
+
+1. Click "More info"
+2. Click "Run anyway"
+
+This only needs to be done once after installation.
 
 ## Quick Start (locally)
 1. Clone the repository
