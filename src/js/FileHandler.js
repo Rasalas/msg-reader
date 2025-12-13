@@ -1,4 +1,5 @@
 import { SUPPORTED_EMAIL_EXTENSIONS } from './constants.js';
+import { isTauri, readFileFromPath, getFileName } from './tauri-bridge.js';
 
 /**
  * Handles file input via drag-and-drop and file input elements
@@ -124,6 +125,60 @@ class FileHandler {
         };
 
         reader.readAsArrayBuffer(file);
+    }
+
+    /**
+     * Processes a file from a filesystem path (Tauri only)
+     * This is called when a file is opened via file association (double-click)
+     * @param {string} filePath - Absolute path to the file
+     */
+    async handleFileFromPath(filePath) {
+        if (!isTauri()) {
+            console.error('handleFileFromPath is only available in Tauri');
+            return;
+        }
+
+        try {
+            const fileName = getFileName(filePath);
+            const extension = fileName.toLowerCase().split('.').pop();
+
+            if (!SUPPORTED_EMAIL_EXTENSIONS.includes(extension)) {
+                console.error('Unsupported file type:', extension);
+                return;
+            }
+
+            // Read file from filesystem via Tauri
+            const fileBuffer = await readFileFromPath(filePath);
+
+            // Parse the email content
+            let msgInfo = null;
+            if (extension === 'msg' && this.extractMsg) {
+                msgInfo = this.extractMsg(fileBuffer);
+            } else if (extension === 'eml' && this.extractEml) {
+                msgInfo = this.extractEml(fileBuffer);
+            }
+
+            if (!msgInfo) {
+                throw new Error(`Failed to parse ${extension.toUpperCase()} file`);
+            }
+
+            // Add to message handler
+            const message = this.messageHandler.addMessage(msgInfo, fileName);
+
+            // Hide welcome screen and show app
+            this.uiManager.showAppContainer();
+
+            // Update message list
+            this.uiManager.updateMessageList();
+
+            // Show the message
+            this.uiManager.showMessage(message);
+        } catch (error) {
+            console.error('FileHandler: Error processing file from path:', error);
+            if (this.uiManager.showError) {
+                this.uiManager.showError(`Failed to open: ${filePath}`);
+            }
+        }
     }
 }
 

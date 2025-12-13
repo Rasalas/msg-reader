@@ -1,5 +1,6 @@
 import { sanitizeHTML } from './sanitizer.js';
 import { DEFAULT_LOCALE, TOAST_COLORS } from './constants.js';
+import { isTauri, openWithSystemViewer } from './tauri-bridge.js';
 
 /**
  * Manages the user interface for the email reader application
@@ -334,11 +335,22 @@ class UIManager {
 
     /**
      * Opens the attachment preview modal for a specific attachment
+     * In Tauri, PDFs are opened with the system viewer instead of the modal
      * @param {Object} attachment - Attachment object to preview
      * @param {number} [index=0] - Index of the attachment in the list
      */
     openAttachmentModal(attachment, index = 0) {
         if (!this.attachmentModal) return;
+
+        // In Tauri, open PDFs with system viewer (WebKit has issues with data: URLs)
+        if (isTauri() && this.isPdf(attachment.attachMimeTag)) {
+            openWithSystemViewer(attachment.contentBase64, attachment.fileName)
+                .catch(err => {
+                    console.error('Failed to open PDF with system viewer:', err);
+                    this.showToast('Failed to open PDF', 'error');
+                });
+            return;
+        }
 
         // Build list of previewable attachments if not already set
         if (this.currentAttachments) {

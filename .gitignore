@@ -5,5 +5,7 @@ dist/*
 doc/eml/multipart_nested.eml
 doc/msg/*.msg
 NOTES.md
-desktop/*
 coverage/*
+
+# Tauri build artifacts
+src-tauri/target/
