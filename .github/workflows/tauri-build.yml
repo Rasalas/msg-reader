@@ -120,33 +120,68 @@ jobs:
           includeUpdaterJson: false
           args: ${{ matrix.args }}
 
-      - name: Upload signature files (macOS aarch64)
-        if: matrix.artifact_name == 'macos-aarch64'
-        uses: actions/upload-artifact@v4
-        with:
-          name: sig-macos-aarch64
-          path: src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.sig
+      - name: Find and upload updater files to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
 
-      - name: Upload signature files (macOS x64)
-        if: matrix.artifact_name == 'macos-x64'
-        uses: actions/upload-artifact@v4
-        with:
-          name: sig-macos-x64
-          path: src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.sig
+          echo "Looking for updater files (.sig, .tar.gz, .zip)..."
+          find src-tauri/target -name "*.sig" -type f 2>/dev/null | head -20
+          find src-tauri/target -name "*.tar.gz" -type f 2>/dev/null | head -20
+          find src-tauri/target -name "*.nsis.zip" -type f 2>/dev/null | head -20
 
-      - name: Upload signature files (Linux)
-        if: matrix.artifact_name == 'linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: sig-linux
-          path: src-tauri/target/release/bundle/appimage/*.sig
+          # Upload based on platform
+          if [ "${{ matrix.artifact_name }}" = "macos-aarch64" ]; then
+            SIG_FILE=$(find src-tauri/target -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
+            if [ -n "$SIG_FILE" ]; then
+              cp "$SIG_FILE" "msgReader_aarch64.app.tar.gz.sig"
+              gh release upload "${{ github.ref_name }}" "msgReader_aarch64.app.tar.gz.sig" --clobber
+              echo "Uploaded: msgReader_aarch64.app.tar.gz.sig"
+            fi
 
-      - name: Upload signature files (Windows)
-        if: matrix.artifact_name == 'windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: sig-windows
-          path: src-tauri/target/release/bundle/nsis/*.sig
+          elif [ "${{ matrix.artifact_name }}" = "macos-x64" ]; then
+            SIG_FILE=$(find src-tauri/target -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
+            if [ -n "$SIG_FILE" ]; then
+              cp "$SIG_FILE" "msgReader_x64.app.tar.gz.sig"
+              gh release upload "${{ github.ref_name }}" "msgReader_x64.app.tar.gz.sig" --clobber
+              echo "Uploaded: msgReader_x64.app.tar.gz.sig"
+            fi
+
+          elif [ "${{ matrix.artifact_name }}" = "linux" ]; then
+            # Upload AppImage.tar.gz bundle
+            BUNDLE_FILE=$(find src-tauri/target -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
+            if [ -n "$BUNDLE_FILE" ]; then
+              cp "$BUNDLE_FILE" "msgReader_${VERSION}_amd64.AppImage.tar.gz"
+              gh release upload "${{ github.ref_name }}" "msgReader_${VERSION}_amd64.AppImage.tar.gz" --clobber
+              echo "Uploaded: msgReader_${VERSION}_amd64.AppImage.tar.gz"
+            fi
+            # Upload signature
+            SIG_FILE=$(find src-tauri/target -name "*.AppImage.tar.gz.sig" -type f 2>/dev/null | head -1)
+            if [ -n "$SIG_FILE" ]; then
+              cp "$SIG_FILE" "msgReader_${VERSION}_amd64.AppImage.tar.gz.sig"
+              gh release upload "${{ github.ref_name }}" "msgReader_${VERSION}_amd64.AppImage.tar.gz.sig" --clobber
+              echo "Uploaded: msgReader_${VERSION}_amd64.AppImage.tar.gz.sig"
+            fi
+
+          elif [ "${{ matrix.artifact_name }}" = "windows" ]; then
+            # Upload nsis.zip bundle
+            BUNDLE_FILE=$(find src-tauri/target -name "*.nsis.zip" -type f 2>/dev/null | head -1)
+            if [ -n "$BUNDLE_FILE" ]; then
+              cp "$BUNDLE_FILE" "msgReader_${VERSION}_x64-setup.nsis.zip"
+              gh release upload "${{ github.ref_name }}" "msgReader_${VERSION}_x64-setup.nsis.zip" --clobber
+              echo "Uploaded: msgReader_${VERSION}_x64-setup.nsis.zip"
+            fi
+            # Upload signature
+            SIG_FILE=$(find src-tauri/target -name "*.nsis.zip.sig" -type f 2>/dev/null | head -1)
+            if [ -n "$SIG_FILE" ]; then
+              cp "$SIG_FILE" "msgReader_${VERSION}_x64-setup.nsis.zip.sig"
+              gh release upload "${{ github.ref_name }}" "msgReader_${VERSION}_x64-setup.nsis.zip.sig" --clobber
+              echo "Uploaded: msgReader_${VERSION}_x64-setup.nsis.zip.sig"
+            fi
+          fi
 
   create-updater-json:
     needs: build
@@ -154,10 +189,26 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Download all signature artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: signatures
+      - name: Download signature files from release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG_NAME="${GITHUB_REF_NAME}"
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}"
+
+          mkdir -p signatures
+
+          echo "Downloading signature files from release..."
+
+          # Download each signature file (may not all exist yet, that's ok)
+          curl -sL -o signatures/macos-aarch64.sig "${BASE_URL}/msgReader_aarch64.app.tar.gz.sig" || true
+          curl -sL -o signatures/macos-x64.sig "${BASE_URL}/msgReader_x64.app.tar.gz.sig" || true
+          curl -sL -o signatures/linux.sig "${BASE_URL}/msgReader_${VERSION}_amd64.AppImage.tar.gz.sig" || true
+          curl -sL -o signatures/windows.sig "${BASE_URL}/msgReader_${VERSION}_x64-setup.nsis.zip.sig" || true
+
+          echo "Downloaded files:"
+          ls -la signatures/
 
       - name: Create latest.json
         env:
@@ -166,41 +217,56 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           TAG_NAME="${GITHUB_REF_NAME}"
 
-          # Read signatures
-          SIG_MACOS_AARCH64=$(cat signatures/sig-macos-aarch64/*.sig 2>/dev/null || echo "")
-          SIG_MACOS_X64=$(cat signatures/sig-macos-x64/*.sig 2>/dev/null || echo "")
-          SIG_LINUX=$(cat signatures/sig-linux/*.sig 2>/dev/null || echo "")
-          SIG_WINDOWS=$(cat signatures/sig-windows/*.sig 2>/dev/null || echo "")
+          # Read signatures from downloaded files
+          # Check if file exists and is not an HTML error page
+          read_sig() {
+            if [ -f "$1" ] && ! grep -q "<!DOCTYPE" "$1" 2>/dev/null; then
+              cat "$1"
+            else
+              echo ""
+            fi
+          }
+
+          SIG_MACOS_AARCH64=$(read_sig signatures/macos-aarch64.sig)
+          SIG_MACOS_X64=$(read_sig signatures/macos-x64.sig)
+          SIG_LINUX=$(read_sig signatures/linux.sig)
+          SIG_WINDOWS=$(read_sig signatures/windows.sig)
+
+          echo "Signatures found:"
+          echo "  macOS aarch64: ${SIG_MACOS_AARCH64:0:50}..."
+          echo "  macOS x64: ${SIG_MACOS_X64:0:50}..."
+          echo "  Linux: ${SIG_LINUX:0:50}..."
+          echo "  Windows: ${SIG_WINDOWS:0:50}..."
 
           # Base URL for downloads
           BASE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}"
 
           # Create latest.json
           cat > latest.json << EOF
-          {
-            "version": "${VERSION}",
-            "notes": "See release notes at ${BASE_URL}",
-            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "platforms": {
-              "darwin-aarch64": {
-                "signature": "${SIG_MACOS_AARCH64}",
-                "url": "${BASE_URL}/msgReader_aarch64.app.tar.gz"
-              },
-              "darwin-x86_64": {
-                "signature": "${SIG_MACOS_X64}",
-                "url": "${BASE_URL}/msgReader_x64.app.tar.gz"
-              },
-              "linux-x86_64": {
-                "signature": "${SIG_LINUX}",
-                "url": "${BASE_URL}/msgReader_${VERSION}_amd64.AppImage"
-              },
-              "windows-x86_64": {
-                "signature": "${SIG_WINDOWS}",
-                "url": "${BASE_URL}/msgReader_${VERSION}_x64-setup.exe"
-              }
-            }
-          }
-          EOF
+{
+  "version": "${VERSION}",
+  "notes": "See release notes at ${BASE_URL}",
+  "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "${SIG_MACOS_AARCH64}",
+      "url": "${BASE_URL}/msgReader_aarch64.app.tar.gz"
+    },
+    "darwin-x86_64": {
+      "signature": "${SIG_MACOS_X64}",
+      "url": "${BASE_URL}/msgReader_x64.app.tar.gz"
+    },
+    "linux-x86_64": {
+      "signature": "${SIG_LINUX}",
+      "url": "${BASE_URL}/msgReader_${VERSION}_amd64.AppImage.tar.gz"
+    },
+    "windows-x86_64": {
+      "signature": "${SIG_WINDOWS}",
+      "url": "${BASE_URL}/msgReader_${VERSION}_x64-setup.nsis.zip"
+    }
+  }
+}
+EOF
 
           echo "Created latest.json:"
           cat latest.json
