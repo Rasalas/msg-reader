@@ -230,57 +230,65 @@ jobs:
 
       - name: Create updater bundle and sign (Windows)
         if: startsWith(github.ref, 'refs/tags/v') && matrix.platform == 'windows-latest'
-        shell: bash
+        shell: pwsh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          BUNDLE="${{ matrix.bundle_path }}"
-          VERSION="${{ steps.get-version.outputs.version }}"
+          $BUNDLE = "${{ matrix.bundle_path }}"
+          $VERSION = "${{ steps.get-version.outputs.version }}"
 
           # Find the NSIS installer
-          NSIS_EXE=$(find "$BUNDLE/nsis" -name "*-setup.exe" -type f | head -1)
-          echo "Found NSIS installer: $NSIS_EXE"
+          $NSIS_EXE = Get-ChildItem -Path "$BUNDLE/nsis" -Filter "*-setup.exe" -File | Select-Object -First 1
+          Write-Host "Found NSIS installer: $($NSIS_EXE.FullName)"
 
-          if [ -z "$NSIS_EXE" ]; then
-            echo "ERROR: No NSIS installer found!"
+          if (-not $NSIS_EXE) {
+            Write-Host "ERROR: No NSIS installer found!"
             exit 1
-          fi
+          }
 
           # Create zip (Windows uses .nsis.zip)
-          EXE_NAME=$(basename "$NSIS_EXE")
-          ZIP_NAME="${EXE_NAME%.exe}.nsis.zip"
-          echo "Creating $ZIP_NAME..."
+          $EXE_NAME = $NSIS_EXE.Name
+          $ZIP_NAME = $EXE_NAME -replace '\.exe$', '.nsis.zip'
+          Write-Host "Creating $ZIP_NAME..."
 
-          # Use PowerShell for zip on Windows
-          powershell -Command "Compress-Archive -Path '$NSIS_EXE' -DestinationPath '$ZIP_NAME'"
+          Compress-Archive -Path $NSIS_EXE.FullName -DestinationPath $ZIP_NAME -Force
 
-          # Sign with minisign
-          echo "Signing $ZIP_NAME..."
-
-          # Install minisign via cargo (most reliable on Windows)
-          cargo install minisign
+          # Download minisign for Windows
+          Write-Host "Downloading minisign..."
+          $minisignUrl = "https://github.com/jedisct1/minisign/releases/download/0.11/minisign-win64.zip"
+          Invoke-WebRequest -Uri $minisignUrl -OutFile "minisign.zip"
+          Expand-Archive -Path "minisign.zip" -DestinationPath "minisign" -Force
+          $minisignExe = Get-ChildItem -Path "minisign" -Filter "minisign.exe" -Recurse | Select-Object -First 1
 
           # Write private key to temp file
-          echo "$TAURI_SIGNING_PRIVATE_KEY" | base64 -d > /tmp/private.key
+          $keyBytes = [System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY)
+          [System.IO.File]::WriteAllBytes("$env:TEMP\private.key", $keyBytes)
 
           # Sign the file
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
-            echo "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" | ~/.cargo/bin/minisign -S -s /tmp/private.key -m "$ZIP_NAME" -t "msgReader v$VERSION"
-          else
-            ~/.cargo/bin/minisign -S -s /tmp/private.key -m "$ZIP_NAME" -t "msgReader v$VERSION"
-          fi
+          Write-Host "Signing $ZIP_NAME..."
+          if ($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+            $env:MINISIGN_PASSWORD = $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+            & $minisignExe.FullName -S -s "$env:TEMP\private.key" -m $ZIP_NAME -t "msgReader v$VERSION" -q
+          } else {
+            & $minisignExe.FullName -S -s "$env:TEMP\private.key" -m $ZIP_NAME -t "msgReader v$VERSION" -q
+          }
 
           # Clean up
-          rm -f /tmp/private.key
+          Remove-Item "$env:TEMP\private.key" -Force -ErrorAction SilentlyContinue
 
           # Move to updater-files
-          mkdir -p updater-files
-          mv "$ZIP_NAME" updater-files/
-          mv "${ZIP_NAME}.minisig" updater-files/"${ZIP_NAME}.sig" 2>/dev/null || mv "${ZIP_NAME}.sig" updater-files/ 2>/dev/null || true
+          New-Item -ItemType Directory -Path "updater-files" -Force | Out-Null
+          Move-Item $ZIP_NAME "updater-files/" -Force
 
-          echo "=== Created updater files: ==="
-          ls -la updater-files/
+          # minisign creates .minisig file
+          $sigFile = "$ZIP_NAME.minisig"
+          if (Test-Path $sigFile) {
+            Move-Item $sigFile "updater-files/$ZIP_NAME.sig" -Force
+          }
+
+          Write-Host "=== Created updater files: ==="
+          Get-ChildItem "updater-files/"
 
       - name: Collect installer artifacts
         if: startsWith(github.ref, 'refs/tags/v')
