@@ -127,109 +127,13 @@ jobs:
         run: |
           npx tauri build ${{ matrix.args }}
 
-      - name: List bundle contents
-        shell: bash
-        run: |
-          echo "Bundle path: ${{ matrix.bundle_path }}"
-          find ${{ matrix.bundle_path }} -type f -name "*.sig" 2>/dev/null || echo "No .sig files found"
-          find ${{ matrix.bundle_path }} -type f -name "*.tar.gz" 2>/dev/null || echo "No .tar.gz files found"
-          find ${{ matrix.bundle_path }} -type f -name "*.zip" 2>/dev/null || echo "No .zip files found"
-
-      - name: Prepare updater artifacts (macOS)
-        if: matrix.platform == 'macos-latest'
-        id: prepare-macos
-        shell: bash
-        run: |
-          VERSION="${{ steps.get-version.outputs.version }}"
-          BUNDLE="${{ matrix.bundle_path }}"
-
-          # Find the app tar.gz and its signature
-          APP_TAR=$(find $BUNDLE -name "*.app.tar.gz" -type f | head -1)
-          APP_SIG=$(find $BUNDLE -name "*.app.tar.gz.sig" -type f | head -1)
-
-          echo "Found APP_TAR: $APP_TAR"
-          echo "Found APP_SIG: $APP_SIG"
-
-          if [ -n "$APP_TAR" ] && [ -n "$APP_SIG" ]; then
-            # Read signature content
-            SIG_CONTENT=$(cat "$APP_SIG")
-            echo "signature=$SIG_CONTENT" >> $GITHUB_OUTPUT
-            echo "app_tar=$APP_TAR" >> $GITHUB_OUTPUT
-            echo "app_sig=$APP_SIG" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Prepare updater artifacts (Linux)
-        if: matrix.platform == 'ubuntu-22.04'
-        id: prepare-linux
-        shell: bash
-        run: |
-          VERSION="${{ steps.get-version.outputs.version }}"
-          BUNDLE="${{ matrix.bundle_path }}"
-
-          # Find AppImage tar.gz and signature
-          APP_TAR=$(find $BUNDLE -name "*.AppImage.tar.gz" -type f | head -1)
-          APP_SIG=$(find $BUNDLE -name "*.AppImage.tar.gz.sig" -type f | head -1)
-
-          echo "Found APP_TAR: $APP_TAR"
-          echo "Found APP_SIG: $APP_SIG"
-
-          if [ -n "$APP_TAR" ] && [ -n "$APP_SIG" ]; then
-            SIG_CONTENT=$(cat "$APP_SIG")
-            echo "signature=$SIG_CONTENT" >> $GITHUB_OUTPUT
-            echo "app_tar=$APP_TAR" >> $GITHUB_OUTPUT
-            echo "app_sig=$APP_SIG" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Prepare updater artifacts (Windows)
-        if: matrix.platform == 'windows-latest'
-        id: prepare-windows
-        shell: bash
-        run: |
-          VERSION="${{ steps.get-version.outputs.version }}"
-          BUNDLE="${{ matrix.bundle_path }}"
-
-          # Find NSIS zip and signature
-          APP_ZIP=$(find $BUNDLE -name "*.nsis.zip" -type f | head -1)
-          APP_SIG=$(find $BUNDLE -name "*.nsis.zip.sig" -type f | head -1)
-
-          echo "Found APP_ZIP: $APP_ZIP"
-          echo "Found APP_SIG: $APP_SIG"
-
-          if [ -n "$APP_ZIP" ] && [ -n "$APP_SIG" ]; then
-            SIG_CONTENT=$(cat "$APP_SIG")
-            echo "signature=$SIG_CONTENT" >> $GITHUB_OUTPUT
-            echo "app_zip=$APP_ZIP" >> $GITHUB_OUTPUT
-            echo "app_sig=$APP_SIG" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Collect and save updater files
-        shell: bash
-        run: |
-          mkdir -p updater-files
-          BUNDLE="${{ matrix.bundle_path }}"
-
-          echo "Searching in: $BUNDLE"
-
-          # Find and copy signature files
-          find "$BUNDLE" -name "*.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-          find "$BUNDLE" -name "*.nsis.zip" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
-
-          echo "Collected files:"
-          ls -la updater-files/ || echo "No files collected"
-
-      - name: Upload updater artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: updater-${{ matrix.updater_target }}
-          path: updater-files/
-          if-no-files-found: warn
-
       - name: Upload to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'msgReader ${{ github.ref_name }}'
@@ -246,6 +150,40 @@ jobs:
           includeUpdaterJson: false
           tauriScript: echo "skip"
           args: ${{ matrix.args }}
+
+      - name: Collect updater artifacts after tauri-action
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          mkdir -p updater-files
+          BUNDLE="${{ matrix.bundle_path }}"
+
+          echo "=== Searching for updater files in: $BUNDLE ==="
+          echo "Looking for .sig files:"
+          find "$BUNDLE" -name "*.sig" -type f 2>/dev/null || echo "No .sig files found"
+
+          echo "Looking for .tar.gz files:"
+          find "$BUNDLE" -name "*.tar.gz" -type f 2>/dev/null || echo "No .tar.gz files found"
+
+          echo "Looking for .nsis.zip files:"
+          find "$BUNDLE" -name "*.nsis.zip" -type f 2>/dev/null || echo "No .nsis.zip files found"
+
+          # Copy updater files
+          find "$BUNDLE" -name "*.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.app.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.AppImage.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.nsis.zip" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+
+          echo "=== Collected files: ==="
+          ls -la updater-files/ || echo "No files collected"
+
+      - name: Upload updater artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.updater_target }}
+          path: updater-files/
+          if-no-files-found: warn
 
   create-updater-json:
     needs: build
