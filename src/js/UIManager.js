@@ -33,11 +33,22 @@ class UIManager {
         this.currentAttachmentIndex = 0;
         this.previewableAttachments = [];
 
+        // Reference to keyboard manager (set by main.js)
+        this.keyboardManager = null;
+
         // Initialize modal event listeners
         this.initModalEventListeners();
 
         // Initialize event delegation for dynamic elements
         this.initEventDelegation();
+    }
+
+    /**
+     * Set the keyboard manager reference
+     * @param {KeyboardManager} keyboardManager
+     */
+    setKeyboardManager(keyboardManager) {
+        this.keyboardManager = keyboardManager;
     }
 
     /**
@@ -113,6 +124,12 @@ class UIManager {
         const currentMessage = this.messageHandler.getCurrentMessage();
         const messages = this.messageHandler.getMessages();
 
+        // Update ARIA activedescendant
+        const currentIndex = messages.indexOf(currentMessage);
+        if (currentIndex >= 0) {
+            this.messageItems.setAttribute('aria-activedescendant', `message-${currentIndex}`);
+        }
+
         this.messageItems.innerHTML = messages.map((msg, index) => {
             const hasRealAttachments = msg.attachments?.some(att => !att.pidContentId) || false;
             const date = msg.timestamp;
@@ -121,16 +138,22 @@ class UIManager {
                 .replace(/<[^>]*>/g, '')
                 .replace(/\s+/g, ' ')
                 .trim();
+            const isActive = messages[index] === currentMessage;
+            const isPinned = this.messageHandler.isPinned(msg);
 
             return `
-                <div class="message-item ${messages[index] === currentMessage ? 'active' : ''} ${this.messageHandler.isPinned(msg) ? 'pinned' : ''}"
+                <div class="message-item ${isActive ? 'active' : ''} ${isPinned ? 'pinned' : ''}"
+                     id="message-${index}"
+                     role="option"
+                     aria-selected="${isActive}"
                      data-message-index="${index}"
+                     tabindex="${isActive ? '0' : '-1'}"
                      title="${msg.fileName}">
                     <div class="message-sender">${msg.senderName}</div>
                     <div class="message-subject-line">
                         <span class="message-subject flex-grow">${msg.subject}</span>
                         <div class="flex-shrink-0">
-                            ${hasRealAttachments ? '<span class="attachment-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg></span>' : ''}
+                            ${hasRealAttachments ? '<span class="attachment-icon" aria-label="Has attachments"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg></span>' : ''}
                         </div>
                     </div>
                     <div class="message-preview-container">
@@ -319,18 +342,7 @@ class UIManager {
         this.attachmentModalPrev?.addEventListener('click', () => this.showPrevAttachment());
         this.attachmentModalNext?.addEventListener('click', () => this.showNextAttachment());
 
-        // Keyboard support
-        document.addEventListener('keydown', (e) => {
-            if (!this.attachmentModal?.classList.contains('active')) return;
-
-            if (e.key === 'Escape') {
-                this.closeAttachmentModal();
-            } else if (e.key === 'ArrowLeft') {
-                this.showPrevAttachment();
-            } else if (e.key === 'ArrowRight') {
-                this.showNextAttachment();
-            }
-        });
+        // Note: Keyboard support has been moved to KeyboardManager.js
     }
 
     /**
@@ -372,6 +384,11 @@ class UIManager {
 
         // Prevent body scroll when modal is open
         document.body.style.overflow = 'hidden';
+
+        // Notify keyboard manager of context change
+        if (this.keyboardManager) {
+            this.keyboardManager.setContext('modal');
+        }
     }
 
     /**
@@ -472,6 +489,11 @@ class UIManager {
 
         // Restore body scroll
         document.body.style.overflow = '';
+
+        // Notify keyboard manager of context change
+        if (this.keyboardManager) {
+            this.keyboardManager.setContext('main');
+        }
     }
 
     /**
