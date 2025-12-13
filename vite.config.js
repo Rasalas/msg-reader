@@ -3,6 +3,7 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
   root: '.',
+  base: '/msg-reader/',
   publicDir: 'res',
   plugins: [
     nodePolyfills({
