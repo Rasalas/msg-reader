@@ -165,10 +165,18 @@ describe('MessageHandler', () => {
             expect(mockStorage.set).toHaveBeenCalledWith('pinnedMessages', expect.any(Array));
         });
 
-        test('returns first remaining message', () => {
+        test('returns next message after deletion', () => {
+            // Delete middle message (hash2), should return the next one (hash3)
             const result = messageHandler.deleteMessage(1);
 
-            expect(result.messageHash).toBe('hash1');
+            expect(result.messageHash).toBe('hash3');
+        });
+
+        test('returns previous message when deleting last', () => {
+            // Delete last message (hash3), should return the previous one (hash2)
+            const result = messageHandler.deleteMessage(2);
+
+            expect(result.messageHash).toBe('hash2');
         });
 
         test('returns null when no messages remain', () => {
