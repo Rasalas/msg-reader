@@ -202,14 +202,27 @@ jobs:
             echo "app_sig=$APP_SIG" >> $GITHUB_OUTPUT
           fi
 
-      - name: Save signature to artifact
+      - name: Collect and save updater files
+        shell: bash
+        run: |
+          mkdir -p updater-files
+          BUNDLE="${{ matrix.bundle_path }}"
+
+          echo "Searching in: $BUNDLE"
+
+          # Find and copy signature files
+          find "$BUNDLE" -name "*.sig" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.tar.gz" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+          find "$BUNDLE" -name "*.nsis.zip" -type f -exec cp {} updater-files/ \; 2>/dev/null || true
+
+          echo "Collected files:"
+          ls -la updater-files/ || echo "No files collected"
+
+      - name: Upload updater artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: signature-${{ matrix.updater_target }}
-          path: |
-            ${{ matrix.bundle_path }}/**/*.sig
-            ${{ matrix.bundle_path }}/**/*.tar.gz
-            ${{ matrix.bundle_path }}/**/*.nsis.zip
+          name: updater-${{ matrix.updater_target }}
+          path: updater-files/
           if-no-files-found: warn
 
       - name: Upload to Release
@@ -268,7 +281,7 @@ jobs:
 
           # macOS aarch64
           SIG_DARWIN_AARCH64=""
-          SIG_FILE=$(find artifacts/signature-darwin-aarch64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
+          SIG_FILE=$(find artifacts/updater-darwin-aarch64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
           if [ -n "$SIG_FILE" ]; then
             SIG_DARWIN_AARCH64=$(cat "$SIG_FILE")
             echo "Found darwin-aarch64 signature: ${SIG_DARWIN_AARCH64:0:50}..."
@@ -276,7 +289,7 @@ jobs:
 
           # macOS x86_64
           SIG_DARWIN_X86_64=""
-          SIG_FILE=$(find artifacts/signature-darwin-x86_64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
+          SIG_FILE=$(find artifacts/updater-darwin-x86_64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
           if [ -n "$SIG_FILE" ]; then
             SIG_DARWIN_X86_64=$(cat "$SIG_FILE")
             echo "Found darwin-x86_64 signature: ${SIG_DARWIN_X86_64:0:50}..."
@@ -284,7 +297,7 @@ jobs:
 
           # Linux
           SIG_LINUX=""
-          SIG_FILE=$(find artifacts/signature-linux-x86_64 -name "*.AppImage.tar.gz.sig" -type f 2>/dev/null | head -1)
+          SIG_FILE=$(find artifacts/updater-linux-x86_64 -name "*.AppImage.tar.gz.sig" -type f 2>/dev/null | head -1)
           if [ -n "$SIG_FILE" ]; then
             SIG_LINUX=$(cat "$SIG_FILE")
             echo "Found linux signature: ${SIG_LINUX:0:50}..."
@@ -292,17 +305,17 @@ jobs:
 
           # Windows
           SIG_WINDOWS=""
-          SIG_FILE=$(find artifacts/signature-windows-x86_64 -name "*.nsis.zip.sig" -type f 2>/dev/null | head -1)
+          SIG_FILE=$(find artifacts/updater-windows-x86_64 -name "*.nsis.zip.sig" -type f 2>/dev/null | head -1)
           if [ -n "$SIG_FILE" ]; then
             SIG_WINDOWS=$(cat "$SIG_FILE")
             echo "Found windows signature: ${SIG_WINDOWS:0:50}..."
           fi
 
           # Find update bundle URLs
-          LINUX_TAR=$(find artifacts/signature-linux-x86_64 -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
+          LINUX_TAR=$(find artifacts/updater-linux-x86_64 -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
           LINUX_TAR_NAME=$(basename "$LINUX_TAR" 2>/dev/null || echo "")
 
-          WINDOWS_ZIP=$(find artifacts/signature-windows-x86_64 -name "*.nsis.zip" -type f 2>/dev/null | head -1)
+          WINDOWS_ZIP=$(find artifacts/updater-windows-x86_64 -name "*.nsis.zip" -type f 2>/dev/null | head -1)
           WINDOWS_ZIP_NAME=$(basename "$WINDOWS_ZIP" 2>/dev/null || echo "")
 
           # Export for node
@@ -357,14 +370,14 @@ jobs:
           gh release upload "${{ github.ref_name }}" latest.json --repo "${{ github.repository }}" --clobber
 
           # Upload Linux AppImage.tar.gz if found
-          LINUX_TAR=$(find artifacts/signature-linux-x86_64 -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
+          LINUX_TAR=$(find artifacts/updater-linux-x86_64 -name "*.AppImage.tar.gz" -type f 2>/dev/null | head -1)
           if [ -n "$LINUX_TAR" ]; then
             gh release upload "${{ github.ref_name }}" "$LINUX_TAR" --repo "${{ github.repository }}" --clobber
             echo "Uploaded: $(basename $LINUX_TAR)"
           fi
 
           # Upload Windows nsis.zip if found
-          WINDOWS_ZIP=$(find artifacts/signature-windows-x86_64 -name "*.nsis.zip" -type f 2>/dev/null | head -1)
+          WINDOWS_ZIP=$(find artifacts/updater-windows-x86_64 -name "*.nsis.zip" -type f 2>/dev/null | head -1)
           if [ -n "$WINDOWS_ZIP" ]; then
             gh release upload "${{ github.ref_name }}" "$WINDOWS_ZIP" --repo "${{ github.repository }}" --clobber
             echo "Uploaded: $(basename $WINDOWS_ZIP)"
