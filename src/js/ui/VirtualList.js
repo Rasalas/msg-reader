@@ -177,9 +177,9 @@ export class VirtualList {
     /**
      * Updates ARIA attributes for screen reader accessibility
      * @param {number} startIndex - First visible index
-     * @param {number} endIndex - Last visible index
+     * @param {number} _endIndex - Last visible index (unused)
      */
-    updateAriaAttributes(startIndex, endIndex) {
+    updateAriaAttributes(startIndex, _endIndex) {
         // Update container ARIA attributes
         this.container.setAttribute('aria-rowcount', this.items.length.toString());
 
