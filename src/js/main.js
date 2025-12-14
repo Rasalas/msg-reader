@@ -55,11 +55,35 @@ class App {
      * @param {number} index - Message index
      */
     deleteMessage(index) {
+        // Get the message being deleted and filtered list before deletion
+        const messages = this.messageHandler.getMessages();
+        const messageToDelete = messages[index];
+        const filteredMessages = this.uiManager.messageList.getFilteredMessages();
+        const isSearchActive = this.uiManager.searchManager.isSearchActive();
+
+        // Find position in filtered list (if search is active)
+        let nextFilteredMessage = null;
+        if (isSearchActive && filteredMessages.length > 1) {
+            const filteredIndex = filteredMessages.indexOf(messageToDelete);
+            if (filteredIndex !== -1) {
+                // Get next visible message in filtered results
+                const nextFilteredIndex = Math.min(filteredIndex + 1, filteredMessages.length - 1);
+                // If we're deleting the last one, go to previous
+                nextFilteredMessage = filteredIndex === filteredMessages.length - 1
+                    ? filteredMessages[filteredIndex - 1]
+                    : filteredMessages[nextFilteredIndex];
+            }
+        }
+
+        // Perform the deletion
         const nextMessage = this.messageHandler.deleteMessage(index);
         this.uiManager.updateMessageList();
 
-        if (nextMessage) {
-            this.uiManager.showMessage(nextMessage);
+        // Show the appropriate next message
+        const messageToShow = isSearchActive && nextFilteredMessage ? nextFilteredMessage : nextMessage;
+
+        if (messageToShow) {
+            this.uiManager.showMessage(messageToShow);
         } else {
             this.uiManager.showWelcomeScreen();
         }

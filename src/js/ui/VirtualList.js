@@ -248,11 +248,12 @@ export class VirtualList {
 
     /**
      * Gets the DOM element for a specific index if it's currently rendered
-     * @param {number} index - Item index
+     * @param {number} index - Item index in the filtered/displayed list
      * @returns {HTMLElement|null}
      */
     getItemElement(index) {
-        return this.visibleContainer.querySelector(`[data-message-index="${index}"]`);
+        // Use the element ID which corresponds to the filtered list index
+        return this.visibleContainer.querySelector(`#message-${index}`);
     }
 
     /**

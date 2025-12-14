@@ -1,4 +1,4 @@
-.PHONY: all install build dev preview start deploy clean help mocks mocks-bulk version release-patch release-minor release-major test test-unit test-integration check-main
+.PHONY: all install build dev preview start deploy clean help mocks mocks-bulk version release-patch release-minor release-major test test-unit test-integration check-main tauri-dev tauri-build tauri-build-debug
 
 # Default target
 all: build
@@ -120,6 +120,18 @@ release-major: check-main test
 	echo "Pushing tag v$$NEW..."; \
 	git push origin "v$$NEW"
 
+# Tauri development mode (opens app with hot-reload)
+tauri-dev:
+	npm run tauri:dev
+
+# Tauri production build
+tauri-build:
+	npm run tauri:build
+
+# Tauri debug build (with DevTools)
+tauri-build-debug:
+	npm run tauri:build:debug
+
 # Show help
 help:
 	@echo "Available targets:"
@@ -142,4 +154,7 @@ help:
 	@echo "  make release-patch - Bump patch version and push (1.0.0 -> 1.0.1)"
 	@echo "  make release-minor - Bump minor version and push (1.0.0 -> 1.1.0)"
 	@echo "  make release-major - Bump major version and push (1.0.0 -> 2.0.0)"
+	@echo "  make tauri-dev     - Tauri dev mode (opens app with hot-reload)"
+	@echo "  make tauri-build   - Tauri production build"
+	@echo "  make tauri-build-debug - Tauri debug build (with DevTools)"
 	@echo "  make help          - Show this help"

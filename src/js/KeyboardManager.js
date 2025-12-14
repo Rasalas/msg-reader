@@ -275,13 +275,17 @@ class KeyboardManager {
      * Toggle pin on current message
      */
     toggleCurrentPin() {
-        const currentIndex = this.getCurrentMessageIndex();
-        if (currentIndex === -1) return;
+        const visibleMessages = this.getVisibleMessages();
+        const currentIndexInVisible = this.getCurrentMessageIndex();
+        if (currentIndexInVisible === -1) return;
 
-        this.app.togglePin(currentIndex);
-        const isPinned = this.app.messageHandler.isPinned(
-            this.app.messageHandler.getMessages()[currentIndex]
-        );
+        // Get the actual message and find its index in the full list
+        const targetMessage = visibleMessages[currentIndexInVisible];
+        const allMessages = this.app.messageHandler.getMessages();
+        const targetIndexInAll = allMessages.indexOf(targetMessage);
+
+        this.app.togglePin(targetIndexInAll);
+        const isPinned = this.app.messageHandler.isPinned(targetMessage);
         this.announce(isPinned ? 'Message pinned' : 'Message unpinned');
     }
 
@@ -289,10 +293,16 @@ class KeyboardManager {
      * Delete the current message
      */
     deleteCurrentMessage() {
-        const currentIndex = this.getCurrentMessageIndex();
-        if (currentIndex === -1) return;
+        const visibleMessages = this.getVisibleMessages();
+        const currentIndexInVisible = this.getCurrentMessageIndex();
+        if (currentIndexInVisible === -1) return;
 
-        this.app.deleteMessage(currentIndex);
+        // Get the actual message and find its index in the full list
+        const targetMessage = visibleMessages[currentIndexInVisible];
+        const allMessages = this.app.messageHandler.getMessages();
+        const targetIndexInAll = allMessages.indexOf(targetMessage);
+
+        this.app.deleteMessage(targetIndexInAll);
         this.announce('Message deleted');
     }
 
