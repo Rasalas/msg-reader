@@ -95,6 +95,12 @@ export const SHORTCUTS = {
             action: 'clearSearch',
             contexts: [KEYBOARD_CONTEXTS.MAIN],
             description: 'Clear search'
+        },
+        {
+            keys: ['t'],
+            action: 'toggleTheme',
+            contexts: [KEYBOARD_CONTEXTS.MAIN],
+            description: 'Toggle theme'
         }
     ],
     modal: [
@@ -150,7 +156,8 @@ export const HELP_MODAL_SECTIONS = [
             { keys: ['s'], description: 'Pin/unpin message' },
             { keys: ['Delete'], description: 'Delete message' },
             { keys: ['Ctrl/\u2318+O'], description: 'Open file picker' },
-            { keys: ['/'], description: 'Focus search' }
+            { keys: ['/'], description: 'Focus search' },
+            { keys: ['t'], description: 'Toggle theme' }
         ]
     },
     {

@@ -5,6 +5,7 @@ import FileHandler from './FileHandler.js';
 import KeyboardManager from './KeyboardManager.js';
 import { extractMsg, extractEml } from './utils.js';
 import { isTauri, getPendingFiles, onFileOpen, onFileDrop, checkForUpdates } from './tauri-bridge.js';
+import { themeManager, THEMES, EMAIL_THEMES } from './ThemeManager.js';
 
 /**
  * Main application class
@@ -125,10 +126,100 @@ async function initTauriFileHandling() {
     checkForUpdates();
 }
 
+/**
+ * Initialize theme functionality
+ * Sets up theme toggle, dropdown menu, and icon updates
+ */
+function initTheme() {
+    // Initialize theme manager
+    themeManager.init();
+
+    // Theme toggle button (quick toggle)
+    const themeToggle = document.getElementById('themeToggle');
+    const themeMenuDropdown = document.getElementById('themeMenuDropdown');
+
+    // Toggle dropdown on button click
+    themeToggle?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        themeMenuDropdown?.classList.toggle('active');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#themeMenu')) {
+            themeMenuDropdown?.classList.remove('active');
+        }
+    });
+
+    // Handle menu item clicks
+    document.querySelectorAll('.theme-menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const theme = item.dataset.theme;
+            const type = item.dataset.type;
+
+            if (type === 'app') {
+                themeManager.setTheme(theme);
+            } else if (type === 'email') {
+                themeManager.setEmailTheme(theme);
+            }
+
+            updateThemeUI();
+            themeMenuDropdown?.classList.remove('active');
+        });
+    });
+
+    // Listen for theme changes
+    themeManager.addListener(() => {
+        updateThemeUI();
+    });
+
+    // Initial UI update
+    updateThemeUI();
+}
+
+/**
+ * Update theme-related UI elements
+ * Updates icons, active states in dropdown menu
+ */
+function updateThemeUI() {
+    const savedTheme = themeManager.getSavedTheme();
+    const activeTheme = themeManager.getActiveTheme();
+    const savedEmailTheme = themeManager.getSavedEmailTheme();
+
+    // Update toggle button icon
+    const sunIcon = document.getElementById('themeIconSun');
+    const moonIcon = document.getElementById('themeIconMoon');
+    const systemIcon = document.getElementById('themeIconSystem');
+
+    sunIcon?.classList.remove('active');
+    moonIcon?.classList.remove('active');
+    systemIcon?.classList.remove('active');
+
+    if (savedTheme === THEMES.SYSTEM) {
+        systemIcon?.classList.add('active');
+    } else if (activeTheme === THEMES.DARK) {
+        sunIcon?.classList.add('active'); // Show sun when dark (to switch to light)
+    } else {
+        moonIcon?.classList.add('active'); // Show moon when light (to switch to dark)
+    }
+
+    // Update active states in dropdown menu
+    document.querySelectorAll('.theme-menu-item[data-type="app"]').forEach(item => {
+        item.classList.toggle('active', item.dataset.theme === savedTheme);
+    });
+
+    document.querySelectorAll('.theme-menu-item[data-type="email"]').forEach(item => {
+        item.classList.toggle('active', item.dataset.theme === savedEmailTheme);
+    });
+}
+
 // Initialize the app when the DOM is loaded
 if (typeof window !== 'undefined') {
     window.App = App;
     document.addEventListener('DOMContentLoaded', async () => {
+        // Initialize theme first to prevent flash of wrong theme
+        initTheme();
+
         window.app = new App();
 
         // Initialize Tauri file handling if running in Tauri

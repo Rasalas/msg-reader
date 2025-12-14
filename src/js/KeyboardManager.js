@@ -4,6 +4,7 @@
  */
 
 import { SHORTCUTS, KEYBOARD_CONTEXTS, HELP_MODAL_SECTIONS, IGNORED_KEYS } from './KeyboardShortcuts.js';
+import { themeManager } from './ThemeManager.js';
 
 class KeyboardManager {
     /**
@@ -67,7 +68,8 @@ class KeyboardManager {
             ['closeModal', () => this.closeCurrentModal()],
             ['prevAttachment', () => this.navigateAttachment(-1)],
             ['nextAttachment', () => this.navigateAttachment(1)],
-            ['showHelp', () => this.showHelpModal()]
+            ['showHelp', () => this.showHelpModal()],
+            ['toggleTheme', () => this.toggleTheme()]
         ]);
     }
 
@@ -321,6 +323,15 @@ class KeyboardManager {
      */
     focusSearch() {
         this.app.uiManager.focusSearch();
+    }
+
+    /**
+     * Toggle the application theme
+     */
+    toggleTheme() {
+        const newTheme = themeManager.toggleTheme();
+        const label = themeManager.getThemeLabel(newTheme);
+        this.announce(`Theme: ${label}`);
     }
 
     /**

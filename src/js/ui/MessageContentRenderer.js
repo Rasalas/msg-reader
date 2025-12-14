@@ -1,4 +1,5 @@
 import { sanitizeHTML } from '../sanitizer.js';
+import { parseColor, getContrastRatio, adjustColorForContrast } from '../colorUtils.js';
 
 /**
  * Renders message content in the main viewer area
@@ -48,12 +49,12 @@ export class MessageContentRenderer {
                     </button>
                 </div>
             </div>
-            <div class="bg-white p-6 rounded-3xl border border-gray-200 border-solid">
+            <div class="message-card">
                 <div class="mb-4">
-                    <div class="text-gray-600"><strong>From:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
-                    ${toRecipients ? `<div class="text-gray-600"><strong>To:</strong> ${toRecipients}</div>` : ''}
-                    ${ccRecipients ? `<div class="text-gray-600"><strong>CC:</strong> ${ccRecipients}</div>` : ''}
-                    <div class="text-gray-500 text-sm mt-2">${msgInfo.timestamp.toLocaleString()}</div>
+                    <div class="message-meta"><strong>From:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
+                    ${toRecipients ? `<div class="message-meta"><strong>To:</strong> ${toRecipients}</div>` : ''}
+                    ${ccRecipients ? `<div class="message-meta"><strong>CC:</strong> ${ccRecipients}</div>` : ''}
+                    <div class="message-timestamp">${msgInfo.timestamp.toLocaleString()}</div>
                 </div>
                 <div class="prose max-w-none">
                     <div class="email-content" style="position: relative; isolation: isolate;">
@@ -65,6 +66,59 @@ export class MessageContentRenderer {
         `;
 
         this.container.innerHTML = messageContent;
+
+        // Fix low-contrast text colors in dark mode
+        this.fixLowContrastColors();
+    }
+
+    /**
+     * Fixes low-contrast text colors in email content for better readability
+     * Checks inline styles and adjusts colors that don't have enough contrast
+     */
+    fixLowContrastColors() {
+        const emailContent = this.container.querySelector('.email-content');
+        if (!emailContent) return;
+
+        // Check if we're in dark mode (email theme follows app or is explicitly dark)
+        const isDarkMode = document.documentElement.classList.contains('dark');
+        const emailTheme = document.documentElement.dataset.emailTheme;
+        const isEmailDark = emailTheme === 'dark' || (emailTheme !== 'light' && isDarkMode);
+
+        if (!isEmailDark) return; // Only fix in dark mode
+
+        // Get background color for contrast calculation
+        const bgColor = parseColor(getComputedStyle(emailContent).backgroundColor) ||
+                        { r: 30, g: 41, b: 59 }; // fallback to slate-800
+
+        // Find all elements with inline color styles
+        const elements = emailContent.querySelectorAll('[style*="color"]');
+
+        elements.forEach(el => {
+            const style = el.getAttribute('style');
+            if (!style) return;
+
+            // Extract color value from inline style
+            const colorMatch = style.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);
+            if (!colorMatch) return;
+
+            const colorValue = colorMatch[1].trim();
+            const color = parseColor(colorValue);
+            if (!color) return;
+
+            // Calculate contrast ratio
+            const contrast = getContrastRatio(color, bgColor);
+
+            // WCAG AA requires 4.5:1 for normal text, we use 3:1 as minimum
+            if (contrast < 3) {
+                // Lighten the color for dark backgrounds
+                const adjustedColor = adjustColorForContrast(color, bgColor);
+                const newStyle = style.replace(
+                    /(?:^|;)(\s*color\s*:\s*)([^;]+)/i,
+                    `$1${adjustedColor}`
+                );
+                el.setAttribute('style', newStyle);
+            }
+        });
     }
 
     /**
@@ -143,12 +197,12 @@ export class MessageContentRenderer {
 
         return `
             <div class="mt-6">
-                <hr class="border-t border-gray-200 mb-4">
+                <hr class="attachments-divider border-t mb-4">
                 <div class="flex items-center gap-2 mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 attachment-icon">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
                     </svg>
-                    <span class="text-gray-600">${msgInfo.attachments.length} ${msgInfo.attachments.length === 1 ? 'Attachment' : 'Attachments'}</span>
+                    <span class="attachment-label">${msgInfo.attachments.length} ${msgInfo.attachments.length === 1 ? 'Attachment' : 'Attachments'}</span>
                 </div>
                 <div class="flex flex-wrap gap-4">
                     ${msgInfo.attachments.map((attachment, index) => {
@@ -166,11 +220,11 @@ export class MessageContentRenderer {
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                                 </svg>`;
             } else if (isText) {
-                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-slate-500">
+                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                                 </svg>`;
             }
-            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
+            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                             </svg>`;
         };
@@ -182,16 +236,16 @@ export class MessageContentRenderer {
                                      data-action="preview"
                                      data-attachment-index="${index}"
                                      title="Click to preview">
-                                    <div class="flex items-center space-x-2 rounded border border-gray-200 p-2 hover:border-primary hover:bg-blue-50 transition-colors">
-                                        <div class="border border-gray-200 rounded w-10 h-10 shrink-0 flex items-center justify-center overflow-hidden">
+                                    <div class="attachment-item flex items-center space-x-2">
+                                        <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center overflow-hidden">
                                             ${getIcon()}
                                         </div>
                                         <div>
-                                            <p class="text-sm text-gray-800">${attachment.fileName}</p>
-                                            <p class="text-xs text-gray-400">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                            <p class="attachment-filename">${attachment.fileName}</p>
+                                            <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
                                         </div>
                                         <div class="ml-auto pl-2">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-gray-400">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 attachment-icon">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.573-3.007-9.963-7.178Z" />
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                                             </svg>
@@ -202,16 +256,16 @@ export class MessageContentRenderer {
         } else {
             // Non-previewable files: direct download
             return `
-                                <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-sm text-gray-600 no-underline min-w-[250px] max-w-fit">
-                                    <div class="flex items-center rounded border border-gray-200 p-2 hover:border-primary hover:bg-blue-50 transition-colors">
+                                <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="no-underline min-w-[250px] max-w-fit">
+                                    <div class="attachment-item flex items-center">
                                         <div class="shrink-0 w-10 h-10 flex items-center justify-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                                             </svg>
                                         </div>
                                         <div class="ml-2">
-                                            <p class="text-sm text-gray-800">${attachment.fileName}</p>
-                                            <p class="text-xs text-gray-400">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                            <p class="attachment-filename">${attachment.fileName}</p>
+                                            <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
                                         </div>
                                     </div>
                                 </a>
