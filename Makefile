@@ -1,4 +1,4 @@
-.PHONY: all install build dev preview start deploy clean help mocks version release-patch release-minor release-major test check-main
+.PHONY: all install build dev preview start deploy clean help mocks version release-patch release-minor release-major test test-unit test-integration check-main
 
 # Default target
 all: build
@@ -45,9 +45,17 @@ mocks:
 # Reinstall everything from scratch
 reinstall: clean-all install build
 
-# Run tests
+# Run all tests
 test:
 	npm test
+
+# Run only unit tests (faster)
+test-unit:
+	npm test -- --testPathIgnorePatterns="tests/integration"
+
+# Run only integration tests
+test-integration:
+	npm test -- --testPathPattern="tests/integration"
 
 # Show current version
 version:
@@ -121,7 +129,9 @@ help:
 	@echo "  make clean-all     - Remove build artifacts and node_modules"
 	@echo "  make mocks         - Generate mock email files"
 	@echo "  make reinstall     - Clean all and reinstall from scratch"
-	@echo "  make test          - Run tests"
+	@echo "  make test          - Run all tests"
+	@echo "  make test-unit     - Run only unit tests (faster)"
+	@echo "  make test-integration - Run only integration tests"
 	@echo "  make version       - Show current version"
 	@echo "  make release-patch - Bump patch version and push (1.0.0 -> 1.0.1)"
 	@echo "  make release-minor - Bump minor version and push (1.0.0 -> 1.1.0)"
