@@ -166,8 +166,8 @@ class KeyboardManager {
                 if (key.includes('+')) {
                     return key === keyId;
                 }
-                // Handle simple keys
-                return key === baseKey;
+                // Handle simple keys - only match if no modifiers were pressed
+                return key === baseKey && keyId === baseKey;
             });
 
             if (matchesKey) {
