@@ -452,7 +452,7 @@ jobs:
           SIG_DARWIN_AARCH64=""
           SIG_FILE=$(find artifacts/updater-darwin-aarch64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
           if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
-            SIG_DARWIN_AARCH64=$(cat "$SIG_FILE")
+            SIG_DARWIN_AARCH64=$(cat "$SIG_FILE" | tr -d '\r')
             echo "Found darwin-aarch64 signature: ${SIG_DARWIN_AARCH64:0:50}..."
           else
             echo "WARNING: No darwin-aarch64 signature found!"
@@ -462,7 +462,7 @@ jobs:
           SIG_DARWIN_X86_64=""
           SIG_FILE=$(find artifacts/updater-darwin-x86_64 -name "*.app.tar.gz.sig" -type f 2>/dev/null | head -1)
           if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
-            SIG_DARWIN_X86_64=$(cat "$SIG_FILE")
+            SIG_DARWIN_X86_64=$(cat "$SIG_FILE" | tr -d '\r')
             echo "Found darwin-x86_64 signature: ${SIG_DARWIN_X86_64:0:50}..."
           else
             echo "WARNING: No darwin-x86_64 signature found!"
@@ -472,7 +472,7 @@ jobs:
           SIG_LINUX=""
           SIG_FILE=$(find artifacts/updater-linux-x86_64 -name "*.AppImage.tar.gz.sig" -type f 2>/dev/null | head -1)
           if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
-            SIG_LINUX=$(cat "$SIG_FILE")
+            SIG_LINUX=$(cat "$SIG_FILE" | tr -d '\r')
             echo "Found linux signature: ${SIG_LINUX:0:50}..."
           else
             echo "WARNING: No linux signature found!"
@@ -482,7 +482,7 @@ jobs:
           SIG_WINDOWS=""
           SIG_FILE=$(find artifacts/updater-windows-x86_64 -name "*.nsis.zip.sig" -type f 2>/dev/null | head -1)
           if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
-            SIG_WINDOWS=$(cat "$SIG_FILE")
+            SIG_WINDOWS=$(cat "$SIG_FILE" | tr -d '\r')
             echo "Found windows signature: ${SIG_WINDOWS:0:50}..."
           else
             echo "WARNING: No windows signature found!"
