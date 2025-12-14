@@ -180,6 +180,92 @@ class FileHandler {
             }
         }
     }
+
+    /**
+     * Processes multiple files from filesystem paths in batch (Tauri only)
+     * Optimized for loading many files at once - reads in parallel, updates UI once
+     * @param {string[]} filePaths - Array of absolute file paths
+     */
+    async handleFilesFromPaths(filePaths) {
+        if (!isTauri()) {
+            console.error('handleFilesFromPaths is only available in Tauri');
+            return;
+        }
+
+        if (!filePaths || filePaths.length === 0) return;
+
+        // Filter to supported extensions
+        const supportedPaths = filePaths.filter(filePath => {
+            const fileName = getFileName(filePath);
+            const extension = fileName.toLowerCase().split('.').pop();
+            return SUPPORTED_EMAIL_EXTENSIONS.includes(extension);
+        });
+
+        if (supportedPaths.length === 0) return;
+
+        // Show app container early
+        this.uiManager.showAppContainer();
+
+        // Process files in parallel batches to avoid overwhelming the system
+        const BATCH_SIZE = 20;
+        const messages = [];
+        let errorCount = 0;
+
+        for (let i = 0; i < supportedPaths.length; i += BATCH_SIZE) {
+            const batch = supportedPaths.slice(i, i + BATCH_SIZE);
+
+            const batchResults = await Promise.all(
+                batch.map(async (filePath) => {
+                    try {
+                        const fileName = getFileName(filePath);
+                        const extension = fileName.toLowerCase().split('.').pop();
+
+                        // Read file from filesystem via Tauri
+                        const fileBuffer = await readFileFromPath(filePath);
+
+                        // Parse the email content
+                        let msgInfo = null;
+                        if (extension === 'msg' && this.extractMsg) {
+                            msgInfo = this.extractMsg(fileBuffer);
+                        } else if (extension === 'eml' && this.extractEml) {
+                            msgInfo = this.extractEml(fileBuffer);
+                        }
+
+                        if (!msgInfo) {
+                            throw new Error(`Failed to parse ${extension.toUpperCase()} file`);
+                        }
+
+                        return { msgInfo, fileName };
+                    } catch (error) {
+                        console.error('FileHandler: Error processing file:', filePath, error);
+                        return null;
+                    }
+                })
+            );
+
+            // Add successfully parsed messages
+            for (const result of batchResults) {
+                if (result) {
+                    const message = this.messageHandler.addMessage(result.msgInfo, result.fileName);
+                    messages.push(message);
+                } else {
+                    errorCount++;
+                }
+            }
+        }
+
+        // Update UI once after all files are processed
+        if (messages.length > 0) {
+            this.uiManager.updateMessageList();
+            // Show the first (newest) message
+            this.uiManager.showMessage(messages[0]);
+        }
+
+        // Show error summary if any files failed
+        if (errorCount > 0) {
+            this.uiManager.showWarning(`${errorCount} file(s) could not be loaded`);
+        }
+    }
 }
 
 export default FileHandler;

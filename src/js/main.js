@@ -97,8 +97,9 @@ class App {
 async function initTauriFileHandling() {
     // Check for files passed on app startup (double-click to open)
     const pendingFiles = await getPendingFiles();
-    for (const filePath of pendingFiles) {
-        window.app.fileHandler.handleFileFromPath(filePath);
+    if (pendingFiles.length > 0) {
+        // Use batch method for multiple files
+        await window.app.fileHandler.handleFilesFromPaths(pendingFiles);
     }
 
     // Listen for files opened while app is running (double-click)
@@ -108,10 +109,9 @@ async function initTauriFileHandling() {
 
     // Listen for drag & drop events (Tauri-specific)
     await onFileDrop({
-        onDrop: (filePaths) => {
-            for (const filePath of filePaths) {
-                window.app.fileHandler.handleFileFromPath(filePath);
-            }
+        onDrop: async (filePaths) => {
+            // Use batch method for multiple dropped files
+            await window.app.fileHandler.handleFilesFromPaths(filePaths);
         },
         onEnter: () => {
             window.app.uiManager.showDropOverlay();
