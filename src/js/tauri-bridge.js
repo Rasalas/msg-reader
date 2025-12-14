@@ -176,7 +176,7 @@ export async function onFileDrop(callbacks) {
                     callbacks.onLeave();
                 }
                 break;
-            case 'drop':
+            case 'drop': {
                 if (callbacks.onLeave) {
                     callbacks.onLeave(); // Hide overlay on drop
                 }
@@ -185,6 +185,7 @@ export async function onFileDrop(callbacks) {
                     callbacks.onDrop(paths);
                 }
                 break;
+            }
         }
     });
 }

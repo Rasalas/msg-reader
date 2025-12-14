@@ -87,7 +87,7 @@ export class Storage {
 
         try {
             return this.backend.getItem(key) !== null;
-        } catch (error) {
+        } catch {
             return false;
         }
     }

@@ -92,6 +92,7 @@ export class ErrorHandler {
         switch (level) {
             case ErrorLevel.DEBUG:
             case ErrorLevel.INFO:
+                // eslint-disable-next-line no-console
                 console.log(`[${level.toUpperCase()}] ${message}`);
                 break;
             case ErrorLevel.WARNING:

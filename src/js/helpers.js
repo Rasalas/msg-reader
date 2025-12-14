@@ -25,7 +25,7 @@ export function tryUrlDecoded(str) {
     try {
         const decoded = decodeURIComponent(str);
         return decoded !== str ? decoded : null;
-    } catch (e) {
+    } catch {
         return null;
     }
 }

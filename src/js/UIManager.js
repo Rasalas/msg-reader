@@ -351,7 +351,7 @@ class UIManager {
      * @param {Object} attachment - Attachment object to preview
      * @param {number} [index=0] - Index of the attachment in the list
      */
-    openAttachmentModal(attachment, index = 0) {
+    openAttachmentModal(attachment, _index = 0) {
         if (!this.attachmentModal) return;
 
         // In Tauri, open PDFs with system viewer (WebKit has issues with data: URLs)
@@ -518,32 +518,32 @@ class UIManager {
                 </div>
                 <div class="flex flex-wrap gap-4">
                     ${msgInfo.attachments.map((attachment, index) => {
-                        const isPreviewable = this.isPreviewable(attachment.attachMimeTag);
-                        const isImage = this.isPreviewableImage(attachment.attachMimeTag);
-                        const isPdf = this.isPdf(attachment.attachMimeTag);
-                        const isText = this.isText(attachment.attachMimeTag);
+        const isPreviewable = this.isPreviewable(attachment.attachMimeTag);
+        const isImage = this.isPreviewableImage(attachment.attachMimeTag);
+        const isPdf = this.isPdf(attachment.attachMimeTag);
+        const isText = this.isText(attachment.attachMimeTag);
 
-                        // Icon selection helper
-                        const getIcon = () => {
-                            if (isImage) {
-                                return `<img src="${attachment.contentBase64}" alt="Attachment" class="w-10 h-10 object-cover">`;
-                            } else if (isPdf) {
-                                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-500">
+        // Icon selection helper
+        const getIcon = () => {
+            if (isImage) {
+                return `<img src="${attachment.contentBase64}" alt="Attachment" class="w-10 h-10 object-cover">`;
+            } else if (isPdf) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-500">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                                 </svg>`;
-                            } else if (isText) {
-                                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-slate-500">
+            } else if (isText) {
+                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-slate-500">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                                 </svg>`;
-                            }
-                            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
+            }
+            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-gray-400">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                             </svg>`;
-                        };
+        };
 
-                        if (isPreviewable) {
-                            // Previewable files: click opens modal
-                            return `
+        if (isPreviewable) {
+            // Previewable files: click opens modal
+            return `
                                 <div class="cursor-pointer min-w-[250px] max-w-fit"
                                      data-action="preview"
                                      data-attachment-index="${index}"
@@ -565,9 +565,9 @@ class UIManager {
                                     </div>
                                 </div>
                             `;
-                        } else {
-                            // Non-previewable files: direct download
-                            return `
+        } else {
+            // Non-previewable files: direct download
+            return `
                                 <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-sm text-gray-600 no-underline min-w-[250px] max-w-fit">
                                     <div class="flex items-center rounded border p-2 hover:border-primary hover:bg-blue-50 transition-colors">
                                         <div class="flex-shrink-0 w-10 h-10 flex items-center justify-center">
@@ -582,8 +582,8 @@ class UIManager {
                                     </div>
                                 </a>
                             `;
-                        }
-                    }).join('')}
+        }
+    }).join('')}
                 </div>
             </div>
         `;

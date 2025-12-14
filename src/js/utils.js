@@ -22,8 +22,9 @@ function sanitizeFilename(filename) {
         .replace(/\.\.\//g, '')            // Remove ../
         .replace(/\.\.\\/g, '')            // Remove ..\
         .replace(/^\/+/g, '')              // Remove leading forward slashes
-        .replace(/^[A-Za-z]:[\\\/]/g, '')  // Remove Windows drive letters (C:\, D:/)
+        .replace(/^[A-Za-z]:[\\/]/g, '')  // Remove Windows drive letters (C:\, D:/)
         // Remove control characters
+        // eslint-disable-next-line no-control-regex
         .replace(/[\x00-\x1f\x7f]/g, '')   // Remove control characters (including null)
         .replace(/\ufeff/g, '')            // Remove UTF-16 BOM
         .replace(/\ufffd/g, '')            // Remove replacement character
@@ -294,13 +295,13 @@ function initializeMsgReader(fileBuffer) {
             msgReader = new MsgReaderLib.default(fileBuffer);
             msgInfo = msgReader.getFileData();
         } else {
-            console.error("MsgReader constructor could not be found.");
+            console.error('MsgReader constructor could not be found.');
             return null;
         }
 
         return { reader: msgReader, info: msgInfo };
     } catch (error) {
-        console.error("Error creating a MsgReader instance:", error);
+        console.error('Error creating a MsgReader instance:', error);
         return null;
     }
 }
@@ -338,7 +339,7 @@ function extractMsgHtmlContent(msgInfo) {
             if (typeof TextDecoder !== 'undefined') {
                 try {
                     return new TextDecoder(charset).decode(htmlArr);
-                } catch (_e) {
+                } catch {
                     return iconvLite.decode(Buffer.from(htmlArr), charset);
                 }
             }
