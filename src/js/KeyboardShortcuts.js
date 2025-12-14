@@ -83,6 +83,18 @@ export const SHORTCUTS = {
             action: 'openFilePicker',
             contexts: [KEYBOARD_CONTEXTS.MAIN],
             description: 'Open file picker'
+        },
+        {
+            keys: ['/'],
+            action: 'focusSearch',
+            contexts: [KEYBOARD_CONTEXTS.MAIN],
+            description: 'Focus search'
+        },
+        {
+            keys: ['Escape'],
+            action: 'clearSearch',
+            contexts: [KEYBOARD_CONTEXTS.MAIN],
+            description: 'Clear search'
         }
     ],
     modal: [
@@ -137,7 +149,8 @@ export const HELP_MODAL_SECTIONS = [
         shortcuts: [
             { keys: ['s'], description: 'Pin/unpin message' },
             { keys: ['Delete'], description: 'Delete message' },
-            { keys: ['Ctrl/\u2318+O'], description: 'Open file picker' }
+            { keys: ['Ctrl/\u2318+O'], description: 'Open file picker' },
+            { keys: ['/'], description: 'Focus search' }
         ]
     },
     {

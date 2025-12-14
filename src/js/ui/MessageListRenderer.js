@@ -37,9 +37,26 @@ export class MessageListRenderer {
         if (!this.container) return;
 
         const messages = this.messageHandler.getMessages();
+        this.renderFiltered(messages);
+    }
+
+    /**
+     * Renders a filtered list of messages
+     * @param {Array} messages - Array of messages to render
+     * @param {boolean} isSearchResult - Whether this is a search result (for empty state)
+     */
+    renderFiltered(messages, isSearchResult = false) {
+        if (!this.container) return;
+
+        // Store filtered messages for index lookup
+        this.filteredMessages = messages;
+        this.isSearchResult = isSearchResult || (messages.length < this.messageHandler.getMessages().length);
 
         // Update ARIA label with count
         this.container.setAttribute('aria-label', `Email messages, ${messages.length} items`);
+
+        // Handle empty state for search results
+        this.updateEmptyState(messages.length === 0 && this.isSearchResult);
 
         // Update virtual list with messages
         this.virtualList.setItems(messages);
@@ -53,14 +70,58 @@ export class MessageListRenderer {
     }
 
     /**
+     * Shows or hides the empty state for search results
+     * @param {boolean} show - Whether to show the empty state
+     */
+    updateEmptyState(show) {
+        // Get or create empty state element
+        let emptyState = this.container.parentElement?.querySelector('.search-empty-state');
+
+        if (show) {
+            if (!emptyState) {
+                emptyState = document.createElement('div');
+                emptyState.className = 'search-empty-state';
+                emptyState.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                    </svg>
+                    <p class="search-empty-title">No results found</p>
+                    <p class="search-empty-hint">Try different keywords or check your spelling</p>
+                `;
+                this.container.parentElement?.insertBefore(emptyState, this.container);
+            }
+            emptyState.style.display = 'flex';
+            this.container.style.display = 'none';
+        } else {
+            if (emptyState) {
+                emptyState.style.display = 'none';
+            }
+            this.container.style.display = '';
+        }
+    }
+
+    /**
+     * Gets the currently filtered messages
+     * @returns {Array} Filtered messages array
+     */
+    getFilteredMessages() {
+        return this.filteredMessages || this.messageHandler.getMessages();
+    }
+
+    /**
      * Renders a single message item
      * @param {Object} msg - Message object
-     * @param {number} index - Message index
+     * @param {number} index - Index in the filtered/displayed list
      * @returns {string} HTML string for the message item
      */
     renderMessageItem(msg, index) {
         const currentMessage = this.messageHandler.getCurrentMessage();
-        const messages = this.messageHandler.getMessages();
+        const allMessages = this.messageHandler.getMessages();
+        const filteredMessages = this.filteredMessages || allMessages;
+
+        // Get the original index in the full message list for data-message-index
+        const originalIndex = allMessages.indexOf(msg);
+
         const hasRealAttachments = msg.attachments?.some(att => !att.pidContentId) || false;
         const date = msg.timestamp;
         const dateStr = this.formatMessageDate(date);
@@ -68,7 +129,7 @@ export class MessageListRenderer {
             .replace(/<[^>]*>/g, '')
             .replace(/\s+/g, ' ')
             .trim();
-        const isActive = messages[index] === currentMessage;
+        const isActive = msg === currentMessage;
         const isPinned = this.messageHandler.isPinned(msg);
 
         return `
@@ -76,9 +137,9 @@ export class MessageListRenderer {
                  id="message-${index}"
                  role="option"
                  aria-selected="${isActive}"
-                 aria-setsize="${messages.length}"
+                 aria-setsize="${filteredMessages.length}"
                  aria-posinset="${index + 1}"
-                 data-message-index="${index}"
+                 data-message-index="${originalIndex}"
                  tabindex="${isActive ? '0' : '-1'}"
                  title="${msg.fileName}">
                 <div class="message-sender">${msg.senderName}</div>

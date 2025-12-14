@@ -62,6 +62,8 @@ class KeyboardManager {
             ['togglePin', () => this.toggleCurrentPin()],
             ['deleteMessage', () => this.deleteCurrentMessage()],
             ['openFilePicker', () => this.openFilePicker()],
+            ['focusSearch', () => this.focusSearch()],
+            ['clearSearch', () => this.clearSearch()],
             ['closeModal', () => this.closeCurrentModal()],
             ['prevAttachment', () => this.navigateAttachment(-1)],
             ['nextAttachment', () => this.navigateAttachment(1)],
@@ -133,7 +135,10 @@ class KeyboardManager {
         if (event.ctrlKey) parts.push('Ctrl');
         if (event.metaKey) parts.push('Meta');
         if (event.altKey) parts.push('Alt');
-        if (event.shiftKey && event.key !== '?') parts.push('Shift'); // Don't add Shift for ?
+        // Don't add Shift for characters that require Shift on some keyboard layouts
+        // (e.g., '?' and '/' on German keyboards)
+        const shiftExceptions = ['?', '/'];
+        if (event.shiftKey && !shiftExceptions.includes(event.key)) parts.push('Shift');
 
         parts.push(event.key);
         return parts.join('+');
@@ -179,11 +184,19 @@ class KeyboardManager {
     }
 
     /**
-     * Get the currently selected message index
+     * Get the visible messages (filtered if search is active, all otherwise)
+     * @returns {Array}
+     */
+    getVisibleMessages() {
+        return this.app.uiManager.messageList.getFilteredMessages();
+    }
+
+    /**
+     * Get the currently selected message index within visible messages
      * @returns {number}
      */
     getCurrentMessageIndex() {
-        const messages = this.app.messageHandler.getMessages();
+        const messages = this.getVisibleMessages();
         const currentMessage = this.app.messageHandler.getCurrentMessage();
         return messages.indexOf(currentMessage);
     }
@@ -193,17 +206,22 @@ class KeyboardManager {
      * @param {number} delta - Number of messages to move (positive = down, negative = up)
      */
     navigateMessages(delta) {
-        const messages = this.app.messageHandler.getMessages();
-        if (messages.length === 0) return;
+        const visibleMessages = this.getVisibleMessages();
+        if (visibleMessages.length === 0) return;
 
         const currentIndex = this.getCurrentMessageIndex();
-        const newIndex = Math.max(0, Math.min(messages.length - 1, currentIndex + delta));
+        const newIndex = Math.max(0, Math.min(visibleMessages.length - 1, currentIndex + delta));
 
         if (newIndex !== currentIndex || currentIndex === -1) {
-            const targetIndex = currentIndex === -1 ? 0 : newIndex;
-            this.app.showMessage(targetIndex);
-            this.scrollMessageIntoView(targetIndex);
-            this.announce(`Message ${targetIndex + 1} of ${messages.length}`);
+            const targetIndexInVisible = currentIndex === -1 ? 0 : newIndex;
+            // Get the actual message and find its index in the full list
+            const targetMessage = visibleMessages[targetIndexInVisible];
+            const allMessages = this.app.messageHandler.getMessages();
+            const targetIndexInAll = allMessages.indexOf(targetMessage);
+
+            this.app.showMessage(targetIndexInAll);
+            this.scrollMessageIntoView(targetIndexInVisible);
+            this.announce(`Message ${targetIndexInVisible + 1} of ${visibleMessages.length}`);
         }
     }
 
@@ -212,29 +230,39 @@ class KeyboardManager {
      * @param {number} index - Target index (-1 for last message)
      */
     navigateToMessage(index) {
-        const messages = this.app.messageHandler.getMessages();
-        if (messages.length === 0) return;
+        const visibleMessages = this.getVisibleMessages();
+        if (visibleMessages.length === 0) return;
 
-        const targetIndex = index === -1 ? messages.length - 1 : index;
-        this.app.showMessage(targetIndex);
-        this.scrollMessageIntoView(targetIndex);
-        this.announce(`Message ${targetIndex + 1} of ${messages.length}`);
+        const targetIndexInVisible = index === -1 ? visibleMessages.length - 1 : index;
+        // Get the actual message and find its index in the full list
+        const targetMessage = visibleMessages[targetIndexInVisible];
+        const allMessages = this.app.messageHandler.getMessages();
+        const targetIndexInAll = allMessages.indexOf(targetMessage);
+
+        this.app.showMessage(targetIndexInAll);
+        this.scrollMessageIntoView(targetIndexInVisible);
+        this.announce(`Message ${targetIndexInVisible + 1} of ${visibleMessages.length}`);
     }
 
     /**
      * Select/focus the current message
      */
     selectCurrentMessage() {
-        const messages = this.app.messageHandler.getMessages();
-        if (messages.length === 0) return;
+        const visibleMessages = this.getVisibleMessages();
+        if (visibleMessages.length === 0) return;
 
-        let currentIndex = this.getCurrentMessageIndex();
-        if (currentIndex === -1) {
-            currentIndex = 0;
+        let currentIndexInVisible = this.getCurrentMessageIndex();
+        if (currentIndexInVisible === -1) {
+            currentIndexInVisible = 0;
         }
 
-        this.app.showMessage(currentIndex);
-        this.scrollMessageIntoView(currentIndex);
+        // Get the actual message and find its index in the full list
+        const targetMessage = visibleMessages[currentIndexInVisible];
+        const allMessages = this.app.messageHandler.getMessages();
+        const targetIndexInAll = allMessages.indexOf(targetMessage);
+
+        this.app.showMessage(targetIndexInAll);
+        this.scrollMessageIntoView(currentIndexInVisible);
 
         // Focus the message viewer
         const messageViewer = document.getElementById('messageViewer');
@@ -275,6 +303,29 @@ class KeyboardManager {
         const fileInput = document.getElementById('fileInputInApp') || document.getElementById('fileInput');
         if (fileInput) {
             fileInput.click();
+        }
+    }
+
+    /**
+     * Focus the search input
+     */
+    focusSearch() {
+        this.app.uiManager.focusSearch();
+    }
+
+    /**
+     * Clear the search and restore full message list
+     * Also handles closing help modal if open
+     */
+    clearSearch() {
+        // First check if help modal is open
+        if (this.helpModal?.classList.contains('active')) {
+            this.closeHelpModal();
+            return;
+        }
+        // Then clear search if active
+        if (this.app.uiManager.searchManager?.isSearchActive()) {
+            this.app.uiManager.clearSearch();
         }
     }
 

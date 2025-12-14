@@ -107,6 +107,26 @@
                     <input type="file" id="fileInputInApp" class="hidden" accept=".msg,.eml" multiple>
                 </label>
             </div>
+            <div id="search-container" class="search-container">
+                <div class="search-input-wrapper">
+                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                    </svg>
+                    <input
+                        type="search"
+                        id="search-input"
+                        placeholder="Search emails..."
+                        class="search-input"
+                        aria-label="Search emails"
+                    />
+                    <button id="search-clear" class="search-clear hidden" aria-label="Clear search">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div id="search-results-count" class="search-results-count hidden" aria-live="polite"></div>
+            </div>
             <div id="messageItems" class="message-items" role="listbox" aria-label="Email messages" tabindex="0">
                 <!-- Message items will be inserted here -->
             </div>

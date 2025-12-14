@@ -2,6 +2,7 @@ import { MessageListRenderer } from './MessageListRenderer.js';
 import { MessageContentRenderer } from './MessageContentRenderer.js';
 import { AttachmentModalManager } from './AttachmentModalManager.js';
 import { ToastManager } from './ToastManager.js';
+import { SearchManager } from '../SearchManager.js';
 
 /**
  * Manages the user interface for the email reader application
@@ -19,6 +20,7 @@ class UIManager {
         // Initialize sub-managers
         this.toasts = new ToastManager();
         this.modal = new AttachmentModalManager((msg, type) => this.showToast(msg, type));
+        this.searchManager = new SearchManager(messageHandler);
         this.messageList = new MessageListRenderer(
             document.getElementById('messageItems'),
             messageHandler
@@ -29,8 +31,15 @@ class UIManager {
             this.modal
         );
 
+        // Search elements
+        this.searchInput = document.getElementById('search-input');
+        this.searchClearBtn = document.getElementById('search-clear');
+        this.searchResultsCount = document.getElementById('search-results-count');
+        this.srAnnouncements = document.getElementById('srAnnouncements');
+
         this.keyboardManager = null;
         this.initEventDelegation();
+        this.initSearchListeners();
     }
 
     setKeyboardManager(keyboardManager) {
@@ -65,6 +74,130 @@ class UIManager {
         });
     }
 
+    /**
+     * Initialize search input event listeners
+     */
+    initSearchListeners() {
+        if (!this.searchInput) return;
+
+        // Search input handler with debounce
+        this.searchInput.addEventListener('input', (e) => {
+            const query = e.target.value;
+            this.updateSearchUI(query);
+
+            this.searchManager.searchDebounced(query, (results) => {
+                this.messageList.renderFiltered(results);
+                this.updateSearchResultsCount(results.length, query);
+            });
+        });
+
+        // Keyboard navigation from search
+        this.searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.clearSearch();
+                this.searchInput.blur();
+            } else if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                // Jump to first result
+                const filteredMessages = this.messageList.getFilteredMessages();
+                if (filteredMessages.length > 0 && window.app) {
+                    e.preventDefault();
+                    const allMessages = this.messageHandler.getMessages();
+                    const firstResultIndex = allMessages.indexOf(filteredMessages[0]);
+                    window.app.showMessage(firstResultIndex);
+                    this.searchInput.blur();
+                    document.getElementById('messageItems')?.focus();
+                }
+            }
+        });
+
+        // Clear button handler
+        this.searchClearBtn?.addEventListener('click', () => {
+            this.clearSearch();
+            this.searchInput.focus();
+        });
+    }
+
+    /**
+     * Update search UI elements (clear button visibility)
+     * @param {string} query - Current search query
+     */
+    updateSearchUI(query) {
+        if (this.searchClearBtn) {
+            if (query.length > 0) {
+                this.searchClearBtn.classList.remove('hidden');
+            } else {
+                this.searchClearBtn.classList.add('hidden');
+            }
+        }
+    }
+
+    /**
+     * Update search results count display
+     * @param {number} count - Number of results
+     * @param {string} query - Search query
+     */
+    updateSearchResultsCount(count, query) {
+        if (!this.searchResultsCount) return;
+
+        // Hide count if no query or no results (empty state handles "no results" display)
+        if (!query || query.trim().length === 0 || count === 0) {
+            this.searchResultsCount.classList.add('hidden');
+            this.searchResultsCount.classList.remove('no-results');
+        } else {
+            this.searchResultsCount.classList.remove('hidden');
+            this.searchResultsCount.classList.remove('no-results');
+            this.searchResultsCount.textContent = `${count} ${count === 1 ? 'result' : 'results'} found`;
+        }
+
+        // Announce for screen readers
+        this.announceSearchResults(count);
+    }
+
+    /**
+     * Announce search results for screen readers
+     * @param {number} count - Number of results
+     */
+    announceSearchResults(count) {
+        if (!this.srAnnouncements) return;
+
+        const message = count === 0
+            ? 'No results found'
+            : `${count} ${count === 1 ? 'result' : 'results'} found`;
+
+        this.srAnnouncements.textContent = message;
+        setTimeout(() => {
+            this.srAnnouncements.textContent = '';
+        }, 1000);
+    }
+
+    /**
+     * Clear search and restore full message list
+     */
+    clearSearch() {
+        if (this.searchInput) {
+            this.searchInput.value = '';
+        }
+        this.updateSearchUI('');
+        const allMessages = this.searchManager.clearSearch();
+        this.messageList.renderFiltered(allMessages);
+        this.updateSearchResultsCount(0, '');
+    }
+
+    /**
+     * Focus the search input
+     */
+    focusSearch() {
+        this.searchInput?.focus();
+    }
+
+    /**
+     * Check if search input is focused
+     * @returns {boolean}
+     */
+    isSearchFocused() {
+        return document.activeElement === this.searchInput;
+    }
+
     // Screen management
     showWelcomeScreen() {
         this.welcomeScreen.style.display = 'flex';
@@ -78,7 +211,13 @@ class UIManager {
 
     // Message rendering - delegated
     updateMessageList() {
-        this.messageList.render();
+        // If search is active, render filtered results, otherwise render all
+        if (this.searchManager.isSearchActive()) {
+            const results = this.searchManager.search(this.searchManager.getQuery());
+            this.messageList.renderFiltered(results);
+        } else {
+            this.messageList.render();
+        }
     }
 
     showMessage(msgInfo) {

@@ -74,9 +74,15 @@ describe('KeyboardManager', () => {
                 closeAttachmentModal: jest.fn(),
                 showPrevAttachment: jest.fn(),
                 showNextAttachment: jest.fn(),
+                focusSearch: jest.fn(),
+                clearSearch: jest.fn(),
+                searchManager: {
+                    isSearchActive: jest.fn(() => false)
+                },
                 messageList: {
                     scrollToMessage: jest.fn(),
-                    getMessageElement: jest.fn((index) => document.querySelector(`[data-message-index="${index}"]`))
+                    getMessageElement: jest.fn((index) => document.querySelector(`[data-message-index="${index}"]`)),
+                    getFilteredMessages: jest.fn(() => mockMessages)
                 }
             },
             showMessage: jest.fn(),
@@ -562,6 +568,7 @@ describe('KeyboardManager', () => {
     describe('edge cases - empty message list', () => {
         test('navigation has no effect on empty list', () => {
             mockApp.messageHandler.getMessages.mockReturnValue([]);
+            mockApp.uiManager.messageList.getFilteredMessages.mockReturnValue([]);
             const event = createKeyEvent('j');
             keyboardManager.handleKeyDown(event);
             expect(mockApp.showMessage).not.toHaveBeenCalled();
@@ -569,6 +576,7 @@ describe('KeyboardManager', () => {
 
         test('navigateToMessage has no effect on empty list', () => {
             mockApp.messageHandler.getMessages.mockReturnValue([]);
+            mockApp.uiManager.messageList.getFilteredMessages.mockReturnValue([]);
             const event = createKeyEvent('Home');
             keyboardManager.handleKeyDown(event);
             expect(mockApp.showMessage).not.toHaveBeenCalled();
@@ -576,6 +584,7 @@ describe('KeyboardManager', () => {
 
         test('selectCurrentMessage has no effect on empty list', () => {
             mockApp.messageHandler.getMessages.mockReturnValue([]);
+            mockApp.uiManager.messageList.getFilteredMessages.mockReturnValue([]);
             const event = createKeyEvent('Enter');
             keyboardManager.handleKeyDown(event);
             expect(mockApp.showMessage).not.toHaveBeenCalled();
