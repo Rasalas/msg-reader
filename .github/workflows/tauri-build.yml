@@ -203,7 +203,8 @@ jobs:
 
           # Download and install minisign
           echo "Downloading minisign..."
-          curl -sL "https://github.com/jedisct1/minisign/releases/download/0.11/minisign-0.11-linux.tar.gz" | tar -xz
+          curl -sL "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-linux.tar.gz" -o minisign.tar.gz
+          tar -xzf minisign.tar.gz
           chmod +x minisign-linux/x86_64/minisign
           MINISIGN="./minisign-linux/x86_64/minisign"
 
@@ -257,7 +258,7 @@ jobs:
 
           # Download minisign for Windows
           Write-Host "Downloading minisign..."
-          $minisignUrl = "https://github.com/jedisct1/minisign/releases/download/0.11/minisign-win64.zip"
+          $minisignUrl = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip"
           Invoke-WebRequest -Uri $minisignUrl -OutFile "minisign.zip"
           Expand-Archive -Path "minisign.zip" -DestinationPath "minisign" -Force
           $minisignExe = Get-ChildItem -Path "minisign" -Filter "minisign.exe" -Recurse | Select-Object -First 1
