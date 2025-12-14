@@ -607,7 +607,8 @@ describe('MessageListRenderer', () => {
 
     test('renders empty list', () => {
         renderer.render();
-        expect(container.innerHTML).toBe('');
+        // Virtual list creates its own DOM structure, but no message items
+        expect(container.querySelectorAll('.message-item').length).toBe(0);
     });
 
     test('renders message items', () => {

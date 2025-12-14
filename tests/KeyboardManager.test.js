@@ -55,6 +55,7 @@ describe('KeyboardManager', () => {
     }
 
     beforeEach(() => {
+        jest.useFakeTimers();
         setupDOM();
 
         mockMessages = [
@@ -72,7 +73,11 @@ describe('KeyboardManager', () => {
             uiManager: {
                 closeAttachmentModal: jest.fn(),
                 showPrevAttachment: jest.fn(),
-                showNextAttachment: jest.fn()
+                showNextAttachment: jest.fn(),
+                messageList: {
+                    scrollToMessage: jest.fn(),
+                    getMessageElement: jest.fn((index) => document.querySelector(`[data-message-index="${index}"]`))
+                }
             },
             showMessage: jest.fn(),
             togglePin: jest.fn(),
@@ -86,6 +91,7 @@ describe('KeyboardManager', () => {
         keyboardManager.destroy();
         document.body.innerHTML = '';
         jest.clearAllMocks();
+        jest.useRealTimers();
     });
 
     describe('constructor and initialization', () => {
@@ -683,18 +689,19 @@ describe('KeyboardManager', () => {
     });
 
     describe('accessibility - focus management', () => {
-        test('scrollMessageIntoView focuses message item', () => {
-            const messageItem = document.querySelector('[data-message-index="1"]');
-            const focusSpy = jest.spyOn(messageItem, 'focus');
+        test('scrollMessageIntoView delegates to virtual list scrollToMessage', () => {
             keyboardManager.scrollMessageIntoView(1);
-            expect(focusSpy).toHaveBeenCalled();
+            expect(mockApp.uiManager.messageList.scrollToMessage).toHaveBeenCalledWith(1, {
+                behavior: 'smooth',
+                block: 'nearest'
+            });
         });
 
-        test('scrollMessageIntoView scrolls message into view', () => {
-            const messageItem = document.querySelector('[data-message-index="1"]');
-            const scrollSpy = jest.spyOn(messageItem, 'scrollIntoView');
+        test('scrollMessageIntoView gets element from virtual list', () => {
             keyboardManager.scrollMessageIntoView(1);
-            expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' });
+            // Uses requestAnimationFrame, so we need to flush
+            jest.runAllTimers();
+            expect(mockApp.uiManager.messageList.getMessageElement).toHaveBeenCalledWith(1);
         });
 
         test('selectCurrentMessage focuses message viewer', () => {

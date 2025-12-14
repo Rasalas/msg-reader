@@ -8,3 +8,4 @@ export { MessageListRenderer } from './MessageListRenderer.js';
 export { MessageContentRenderer } from './MessageContentRenderer.js';
 export { AttachmentModalManager } from './AttachmentModalManager.js';
 export { ToastManager } from './ToastManager.js';
+export { VirtualList } from './VirtualList.js';

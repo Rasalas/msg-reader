@@ -11,3 +11,4 @@ coverage/*
 src-tauri/target/
 doc/todo/*
 doc/release-notes/*
+doc/eml/bulk/*

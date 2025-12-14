@@ -308,16 +308,23 @@ class KeyboardManager {
 
     /**
      * Scroll a message item into view
+     * Uses the virtual list's scrollToMessage for proper handling
      * @param {number} index - Message index
      */
     scrollMessageIntoView(index) {
-        const messageItem = document.querySelector(`[data-message-index="${index}"]`);
-        if (messageItem) {
-            messageItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Use the message list renderer's scroll method for virtual list support
+        this.app.uiManager.messageList.scrollToMessage(index, {
+            behavior: 'smooth',
+            block: 'nearest'
+        });
 
-            // Update focus for accessibility
-            messageItem.focus();
-        }
+        // Focus the element after a short delay to allow virtual list to render
+        requestAnimationFrame(() => {
+            const messageItem = this.app.uiManager.messageList.getMessageElement(index);
+            if (messageItem) {
+                messageItem.focus();
+            }
+        });
     }
 
     /**

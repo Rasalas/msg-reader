@@ -1,4 +1,4 @@
-.PHONY: all install build dev preview start deploy clean help mocks version release-patch release-minor release-major test test-unit test-integration check-main
+.PHONY: all install build dev preview start deploy clean help mocks mocks-bulk version release-patch release-minor release-major test test-unit test-integration check-main
 
 # Default target
 all: build
@@ -41,6 +41,11 @@ clean-all: clean
 # Generate mock email files
 mocks:
 	python3 script/generate_mock_emails.py
+
+# Generate bulk mock email files (usage: make mocks-bulk COUNT=100)
+COUNT ?= 100
+mocks-bulk:
+	python3 script/generate_bulk_emails.py $(COUNT)
 
 # Reinstall everything from scratch
 reinstall: clean-all install build
@@ -127,7 +132,8 @@ help:
 	@echo "  make build-gh-pages- Build for GH Pages without deploying"
 	@echo "  make clean         - Remove build artifacts"
 	@echo "  make clean-all     - Remove build artifacts and node_modules"
-	@echo "  make mocks         - Generate mock email files"
+	@echo "  make mocks         - Generate mock email files (scenarios)"
+	@echo "  make mocks-bulk    - Generate bulk emails (COUNT=100)"
 	@echo "  make reinstall     - Clean all and reinstall from scratch"
 	@echo "  make test          - Run all tests"
 	@echo "  make test-unit     - Run only unit tests (faster)"
