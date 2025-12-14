@@ -1,6 +1,9 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+    --color-primary: #3b82f6; /* blue-500 */
+    --color-secondary: #64748b; /* slate-500 */
+}
 
 @layer components {
     :root {

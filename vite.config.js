@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import tailwindcss from '@tailwindcss/vite';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 
@@ -25,6 +26,7 @@ export default defineConfig({
   base: isTauri ? '/' : '/msg-reader/',
   publicDir: 'res',
   plugins: [
+    tailwindcss(),
     nodePolyfills({
       include: ['buffer', 'stream', 'util', 'events', 'process'],
       globals: {
@@ -53,9 +55,6 @@ export default defineConfig({
     // Don't auto-open browser for Tauri dev
     open: !isTauri,
     strictPort: true,
-  },
-  css: {
-    postcss: './postcss.config.cjs',
   },
   // Tauri needs to know about env variables
   envPrefix: ['VITE_', 'TAURI_'],
