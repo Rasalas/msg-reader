@@ -128,12 +128,12 @@ export async function checkForUpdates() {
 
         if (update) {
             const yes = await ask(
-                `Version ${update.version} ist verfügbar!\n\nMöchtest du jetzt aktualisieren?`,
+                `Version ${update.version} is available!\n\nWould you like to update now?`,
                 {
-                    title: 'Update verfügbar',
+                    title: 'Update available',
                     kind: 'info',
-                    okLabel: 'Aktualisieren',
-                    cancelLabel: 'Später',
+                    okLabel: 'Update',
+                    cancelLabel: 'Later',
                 }
             );
 
