@@ -502,6 +502,7 @@ jobs:
           export SIG_WINDOWS
 
           # Create latest.json
+          # NOTE: Signatures must be BASE64 ENCODED (same format as pubkey in tauri.conf.json)
           node -e "
             const fs = require('fs');
             const version = '${VERSION}';
@@ -509,25 +510,28 @@ jobs:
             const linuxTar = '${LINUX_TAR_NAME}';
             const windowsZip = '${WINDOWS_ZIP_NAME}';
 
+            // Base64 encode signatures (Tauri updater expects base64-encoded minisign format)
+            const encodeSignature = (sig) => sig ? Buffer.from(sig).toString('base64') : '';
+
             const json = {
               version: version,
               notes: 'See release notes at https://github.com/${{ github.repository }}/releases/tag/${TAG_NAME}',
               pub_date: new Date().toISOString(),
               platforms: {
                 'darwin-aarch64': {
-                  signature: process.env.SIG_DARWIN_AARCH64 || '',
+                  signature: encodeSignature(process.env.SIG_DARWIN_AARCH64),
                   url: baseUrl + '/msgReader_aarch64.app.tar.gz'
                 },
                 'darwin-x86_64': {
-                  signature: process.env.SIG_DARWIN_X86_64 || '',
+                  signature: encodeSignature(process.env.SIG_DARWIN_X86_64),
                   url: baseUrl + '/msgReader_x64.app.tar.gz'
                 },
                 'linux-x86_64': {
-                  signature: process.env.SIG_LINUX || '',
+                  signature: encodeSignature(process.env.SIG_LINUX),
                   url: baseUrl + '/' + linuxTar
                 },
                 'windows-x86_64': {
-                  signature: process.env.SIG_WINDOWS || '',
+                  signature: encodeSignature(process.env.SIG_WINDOWS),
                   url: baseUrl + '/' + windowsZip
                 }
               }
