@@ -261,7 +261,8 @@ jobs:
           $minisignUrl = "https://github.com/jedisct1/minisign/releases/download/0.12/minisign-0.12-win64.zip"
           Invoke-WebRequest -Uri $minisignUrl -OutFile "minisign.zip"
           Expand-Archive -Path "minisign.zip" -DestinationPath "minisign" -Force
-          $minisignExe = Get-ChildItem -Path "minisign" -Filter "minisign.exe" -Recurse | Select-Object -First 1
+          # Use x86_64 version explicitly (zip contains both aarch64 and x86_64)
+          $minisignExe = Get-Item "minisign/minisign-win64/x86_64/minisign.exe"
 
           # Write private key to temp file
           $keyBytes = [System.Convert]::FromBase64String($env:TAURI_SIGNING_PRIVATE_KEY)
