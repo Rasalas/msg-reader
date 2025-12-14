@@ -271,10 +271,16 @@ jobs:
           # Sign the file
           Write-Host "Signing $ZIP_NAME..."
           if ($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
-            $env:MINISIGN_PASSWORD = $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-            & $minisignExe.FullName -S -s "$env:TEMP\private.key" -m $ZIP_NAME -t "msgReader v$VERSION" -q
+            # Pipe password via stdin
+            $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD | & $minisignExe.FullName -S -s "$env:TEMP\private.key" -m $ZIP_NAME -t "msgReader v$VERSION"
           } else {
-            & $minisignExe.FullName -S -s "$env:TEMP\private.key" -m $ZIP_NAME -t "msgReader v$VERSION" -q
+            & $minisignExe.FullName -S -s "$env:TEMP\private.key" -m $ZIP_NAME -t "msgReader v$VERSION"
+          }
+
+          # Check if signature was created
+          if (-not (Test-Path "$ZIP_NAME.minisig")) {
+            Write-Host "ERROR: Signature file not created!"
+            exit 1
           }
 
           # Clean up
