@@ -463,7 +463,8 @@ export class AttachmentModalManager {
 
             const headerFields = [
                 { label: 'From', value: emailData.senderName ? `${emailData.senderName} <${emailData.senderEmail}>` : emailData.senderEmail },
-                { label: 'To', value: emailData.recipients },
+                { label: 'To', value: this.formatRecipients(emailData.recipients, 'to') },
+                { label: 'CC', value: this.formatRecipients(emailData.recipients, 'cc') },
                 { label: 'Subject', value: emailData.subject },
                 { label: 'Date', value: emailData.messageDeliveryTime ? new Date(emailData.messageDeliveryTime).toLocaleString() : '' }
             ];
@@ -629,6 +630,24 @@ export class AttachmentModalManager {
             errorDiv.textContent = 'Unable to preview this email file';
             this.attachmentModalContent.appendChild(errorDiv);
         }
+    }
+
+    /**
+     * Formats recipients of a specific type for display
+     * @param {Array} recipients - Array of recipient objects
+     * @param {string} type - Recipient type ('to' or 'cc')
+     * @returns {string} Formatted recipient string
+     */
+    formatRecipients(recipients, type) {
+        if (!recipients || !Array.isArray(recipients)) return '';
+        return recipients
+            .filter(recipient => recipient.recipType === type)
+            .map(recipient => {
+                const name = recipient.name || '';
+                const email = recipient.email || recipient.address || '';
+                return name && name !== email ? `${name} <${email}>` : email;
+            })
+            .join(', ');
     }
 
     /**
