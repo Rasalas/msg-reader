@@ -707,7 +707,8 @@ describe('MessageContentRenderer', () => {
             isPreviewable: jest.fn(() => false),
             isPreviewableImage: jest.fn(() => false),
             isPdf: jest.fn(() => false),
-            isText: jest.fn(() => false)
+            isText: jest.fn(() => false),
+            isPreviewableEml: jest.fn(() => false)
         };
 
         renderer = new MessageContentRenderer(container, mockHandler, mockModal);
@@ -871,7 +872,7 @@ describe('MessageContentRenderer', () => {
         test('renders non-previewable as download', () => {
             mockModal.isPreviewable.mockReturnValue(false);
             const result = renderer.renderAttachments({ attachments: [{ fileName: 'archive.zip', attachMimeTag: 'application/zip', contentBase64: 'data:', contentLength: 100 }] });
-            expect(result).toContain('download="archive.zip"');
+            expect(result).toContain('data-action="download"');
             expect(result).not.toContain('data-action="preview"');
         });
     });
