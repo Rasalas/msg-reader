@@ -355,6 +355,12 @@ class KeyboardManager {
      */
     closeCurrentModal() {
         if (this.context === KEYBOARD_CONTEXTS.MODAL) {
+            // Check if we should navigate back instead of closing
+            const attachmentModal = this.app.uiManager.modal;
+            if (attachmentModal?.handleEscape()) {
+                // Handled by navigating back in nested content
+                return;
+            }
             // Close attachment modal
             this.app.uiManager.closeAttachmentModal();
             this.setContext(KEYBOARD_CONTEXTS.MAIN);

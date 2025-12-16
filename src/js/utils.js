@@ -272,6 +272,23 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
             }
 
             results.attachments.push(attachment);
+        } else if (contentType.startsWith('message/')) {
+            // Handle nested email attachments (e.g., message/rfc822)
+            const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
+            const filename = filenameMatch ? filenameMatch[1] : 'embedded_message.eml';
+            const mimeType = contentType.split(';')[0];
+
+            // Encode the entire part content as base64
+            let base64Content;
+            if (contentTransferEncoding.toLowerCase() === 'base64') {
+                base64Content = partContent.replace(/\s/g, '');
+            } else {
+                // For 7bit/8bit/quoted-printable, encode to base64
+                base64Content = btoa(unescape(encodeURIComponent(partContent)));
+            }
+
+            const attachment = createAttachment(filename, mimeType, base64Content, contentId);
+            results.attachments.push(attachment);
         }
     });
 

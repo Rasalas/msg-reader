@@ -1,4 +1,5 @@
 import { isTauri, openWithSystemViewer } from '../tauri-bridge.js';
+import { extractEml } from '../utils.js';
 
 /**
  * Manages the attachment preview modal
@@ -26,6 +27,10 @@ export class AttachmentModalManager {
         this.currentAttachmentIndex = 0;
         this.previewableAttachments = [];
         this.currentAttachments = [];
+
+        // Navigation stack for nested content (e.g., attachments within nested emails)
+        this.navigationStack = [];
+        this.attachmentModalBack = document.getElementById('attachmentModalBack');
 
         // Reference to keyboard manager (set externally)
         this.keyboardManager = null;
@@ -74,6 +79,9 @@ export class AttachmentModalManager {
         // Navigation buttons
         this.attachmentModalPrev?.addEventListener('click', () => this.showPrevAttachment());
         this.attachmentModalNext?.addEventListener('click', () => this.showNextAttachment());
+
+        // Back button for nested navigation
+        this.attachmentModalBack?.addEventListener('click', () => this.navigateBack());
     }
 
     /**
@@ -117,12 +125,22 @@ export class AttachmentModalManager {
     }
 
     /**
+     * Checks if a MIME type is a nested email (message/rfc822)
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the MIME type is a nested email
+     */
+    isPreviewableEml(mimeType) {
+        if (!mimeType) return false;
+        return mimeType.toLowerCase() === 'message/rfc822';
+    }
+
+    /**
      * Checks if an attachment can be previewed in the modal
      * @param {string} mimeType - MIME type to check
      * @returns {boolean} True if the attachment is previewable
      */
     isPreviewable(mimeType) {
-        return this.isPreviewableImage(mimeType) || this.isPdf(mimeType) || this.isText(mimeType);
+        return this.isPreviewableImage(mimeType) || this.isPdf(mimeType) || this.isText(mimeType) || this.isPreviewableEml(mimeType);
     }
 
     /**
@@ -155,6 +173,9 @@ export class AttachmentModalManager {
      */
     open(attachment) {
         if (!this.attachmentModal) return;
+
+        // Clear navigation stack when opening a new attachment
+        this.clearNavigationStack();
 
         // In Tauri, open PDFs with system viewer (WebKit has issues with data: URLs)
         if (this._shouldOpenWithSystemViewer(attachment)) {
@@ -194,8 +215,8 @@ export class AttachmentModalManager {
      * @param {Object} attachment - Attachment object to render
      */
     renderAttachmentPreview(attachment) {
-        // Set filename
-        this.attachmentModalFilename.textContent = attachment.fileName;
+        // Set filename with breadcrumb if navigating from nested content
+        this.updateFilenameWithBreadcrumb(attachment.fileName);
 
         // Set download link
         this.attachmentModalDownload.href = attachment.contentBase64;
@@ -237,6 +258,9 @@ export class AttachmentModalManager {
                 errorDiv.textContent = 'Unable to preview this file';
                 this.attachmentModalContent.appendChild(errorDiv);
             }
+        } else if (this.isPreviewableEml(attachment.attachMimeTag)) {
+            // Render nested email preview
+            this.renderNestedEmailPreview(attachment);
         }
 
         // Update navigation buttons
@@ -277,6 +301,258 @@ export class AttachmentModalManager {
     }
 
     /**
+     * Pushes current attachment to navigation stack for back navigation
+     * @param {Object} attachment - Current attachment to save
+     */
+    pushToStack(attachment) {
+        this.navigationStack.push(attachment);
+        this.updateBackButton();
+    }
+
+    /**
+     * Navigates back to the previous attachment in the stack
+     */
+    navigateBack() {
+        if (this.navigationStack.length > 0) {
+            const previousAttachment = this.navigationStack.pop();
+            this.renderAttachmentPreview(previousAttachment);
+            this.updateBackButton();
+        }
+    }
+
+    /**
+     * Updates the visibility of the back button based on stack state
+     */
+    updateBackButton() {
+        if (this.attachmentModalBack) {
+            this.attachmentModalBack.style.display = this.navigationStack.length > 0 ? 'flex' : 'none';
+        }
+    }
+
+    /**
+     * Clears the navigation stack
+     */
+    clearNavigationStack() {
+        this.navigationStack = [];
+        this.updateBackButton();
+    }
+
+    /**
+     * Updates the filename display with breadcrumb navigation
+     * Shows parent > child format when navigating nested content
+     * Parent items are clickable to navigate back
+     * @param {string} currentFileName - The current attachment filename
+     */
+    updateFilenameWithBreadcrumb(currentFileName) {
+        // Clear existing content
+        this.attachmentModalFilename.innerHTML = '';
+
+        if (this.navigationStack.length > 0) {
+            // Build clickable breadcrumb from stack
+            this.navigationStack.forEach((att, index) => {
+                const link = document.createElement('button');
+                link.type = 'button';
+                link.className = 'breadcrumb-link';
+                link.textContent = att.fileName;
+                link.addEventListener('click', () => {
+                    // Navigate back to this level by popping until we reach it
+                    while (this.navigationStack.length > index) {
+                        this.navigationStack.pop();
+                    }
+                    this.renderAttachmentPreview(att);
+                    this.updateBackButton();
+                });
+                this.attachmentModalFilename.appendChild(link);
+
+                // Add separator
+                const separator = document.createElement('span');
+                separator.className = 'breadcrumb-separator';
+                separator.textContent = ' › ';
+                this.attachmentModalFilename.appendChild(separator);
+            });
+
+            // Add current (non-clickable) filename
+            const current = document.createElement('span');
+            current.className = 'breadcrumb-current';
+            current.textContent = currentFileName;
+            this.attachmentModalFilename.appendChild(current);
+        } else {
+            this.attachmentModalFilename.textContent = currentFileName;
+        }
+    }
+
+    /**
+     * Renders a nested email preview in the modal
+     * @param {Object} attachment - Attachment object containing the nested email
+     */
+    renderNestedEmailPreview(attachment) {
+        try {
+            const base64Data = attachment.contentBase64?.split(',')[1];
+            if (!base64Data) {
+                throw new Error('Invalid base64 data format');
+            }
+
+            // Decode base64 to text
+            const emlContent = decodeURIComponent(escape(atob(base64Data)));
+
+            // Convert string to ArrayBuffer for extractEml
+            const encoder = new TextEncoder();
+            const uint8Array = encoder.encode(emlContent);
+            const arrayBuffer = uint8Array.buffer;
+
+            // Parse the EML content
+            const emailData = extractEml(arrayBuffer);
+
+            // Create structured email preview
+            const emailContainer = document.createElement('div');
+            emailContainer.className = 'nested-email-preview';
+
+            // Email header section
+            const headerSection = document.createElement('div');
+            headerSection.className = 'nested-email-header';
+
+            const headerFields = [
+                { label: 'From', value: emailData.senderName ? `${emailData.senderName} <${emailData.senderEmail}>` : emailData.senderEmail },
+                { label: 'To', value: emailData.recipients },
+                { label: 'Subject', value: emailData.subject },
+                { label: 'Date', value: emailData.messageDeliveryTime ? new Date(emailData.messageDeliveryTime).toLocaleString() : '' }
+            ];
+
+            headerFields.forEach(field => {
+                if (field.value) {
+                    const row = document.createElement('div');
+                    row.className = 'nested-email-header-row';
+                    row.innerHTML = `<span class="nested-email-label">${field.label}:</span> <span class="nested-email-value">${this.escapeHtml(field.value)}</span>`;
+                    headerSection.appendChild(row);
+                }
+            });
+
+            emailContainer.appendChild(headerSection);
+
+            // Email body section
+            const bodySection = document.createElement('div');
+            bodySection.className = 'nested-email-body';
+
+            if (emailData.bodyContentHTML) {
+                // Create a sandboxed iframe for HTML content
+                const iframe = document.createElement('iframe');
+                iframe.className = 'nested-email-iframe';
+                iframe.sandbox = 'allow-same-origin';
+                bodySection.appendChild(iframe);
+
+                // Write content after iframe is in DOM
+                setTimeout(() => {
+                    const doc = iframe.contentDocument || iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(`
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <style>
+                                body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; margin: 1rem; color: #333; }
+                                img { max-width: 100%; height: auto; }
+                            </style>
+                        </head>
+                        <body>${emailData.bodyContentHTML}</body>
+                        </html>
+                    `);
+                    doc.close();
+                }, 0);
+            } else if (emailData.bodyContent) {
+                const pre = document.createElement('pre');
+                pre.className = 'nested-email-text';
+                pre.textContent = emailData.bodyContent;
+                bodySection.appendChild(pre);
+            }
+
+            emailContainer.appendChild(bodySection);
+
+            // Attachments section (if any)
+            if (emailData.attachments && emailData.attachments.length > 0) {
+                const attachmentsSection = document.createElement('div');
+                attachmentsSection.className = 'nested-email-attachments';
+                attachmentsSection.innerHTML = `<div class="nested-email-attachments-title">Anhänge (${emailData.attachments.length})</div>`;
+
+                const attachmentsList = document.createElement('div');
+                attachmentsList.className = 'nested-email-attachments-list';
+
+                emailData.attachments.forEach(att => {
+                    const isPreviewable = this.isPreviewable(att.attachMimeTag);
+
+                    if (isPreviewable) {
+                        // Clickable button for previewable attachments
+                        const attItem = document.createElement('button');
+                        attItem.className = 'nested-email-attachment-item nested-email-attachment-previewable';
+                        attItem.type = 'button';
+                        attItem.innerHTML = `<span class="attachment-icon">📎</span> ${this.escapeHtml(att.fileName)} <span class="attachment-size">(${this.formatFileSize(att.contentLength)})</span>`;
+                        attItem.addEventListener('click', () => {
+                            this.pushToStack(attachment);
+                            this.renderAttachmentPreview(att);
+                        });
+                        attachmentsList.appendChild(attItem);
+                    } else {
+                        // Download link for non-previewable attachments
+                        const attItem = document.createElement('a');
+                        attItem.className = 'nested-email-attachment-item';
+                        attItem.href = att.contentBase64;
+                        attItem.download = att.fileName;
+                        attItem.innerHTML = `<span class="attachment-icon">📎</span> ${this.escapeHtml(att.fileName)} <span class="attachment-size">(${this.formatFileSize(att.contentLength)})</span>`;
+                        attachmentsList.appendChild(attItem);
+                    }
+                });
+
+                attachmentsSection.appendChild(attachmentsList);
+                emailContainer.appendChild(attachmentsSection);
+            }
+
+            this.attachmentModalContent.appendChild(emailContainer);
+
+        } catch (error) {
+            console.error('Error rendering nested email:', error);
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'text-center p-4 text-gray-500';
+            errorDiv.textContent = 'Unable to preview this email file';
+            this.attachmentModalContent.appendChild(errorDiv);
+        }
+    }
+
+    /**
+     * Escapes HTML special characters
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text
+     */
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Formats file size in human-readable format
+     * @param {number} bytes - File size in bytes
+     * @returns {string} Formatted file size
+     */
+    formatFileSize(bytes) {
+        if (!bytes) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    /**
+     * Handles Escape key press - navigates back if in nested content, otherwise closes
+     * @returns {boolean} True if handled (navigated back), false if modal should close
+     */
+    handleEscape() {
+        if (this.navigationStack.length > 0) {
+            this.navigateBack();
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Closes the attachment preview modal and restores page scroll
      */
     close() {
@@ -284,6 +560,7 @@ export class AttachmentModalManager {
 
         this.attachmentModal.classList.remove('active');
         this.attachmentModalContent.innerHTML = '';
+        this.clearNavigationStack();
 
         // Restore body scroll
         document.body.style.overflow = '';

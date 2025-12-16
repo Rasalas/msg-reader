@@ -524,13 +524,37 @@
     }
 
     .attachment-modal-filename {
+        flex: 1;
         font-size: 0.875rem;
         font-weight: 500;
         color: var(--text-secondary);
-        max-width: 400px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        text-align: left;
+    }
+
+    .breadcrumb-link {
+        background: none;
+        border: none;
+        padding: 0;
+        font: inherit;
+        color: var(--primary-color);
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
+    .breadcrumb-link:hover {
+        color: var(--primary-hover);
+    }
+
+    .breadcrumb-separator {
+        color: var(--text-tertiary);
+    }
+
+    .breadcrumb-current {
+        color: var(--text-secondary);
     }
 
     .attachment-modal-actions {
@@ -552,6 +576,25 @@
     .attachment-modal-download:hover {
         background-color: var(--hover-bg);
         color: var(--primary-color);
+    }
+
+    .attachment-modal-back {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem;
+        margin-right: 0.5rem;
+        color: var(--text-tertiary);
+        border: none;
+        background: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .attachment-modal-back:hover {
+        background-color: var(--surface-tertiary);
+        color: var(--text-primary);
     }
 
     .attachment-modal-close {
@@ -650,6 +693,112 @@
         overflow: auto;
         white-space: pre;
         tab-size: 4;
+    }
+
+    /* Nested Email Preview */
+    .nested-email-preview {
+        background-color: var(--surface-secondary);
+        border: 1px solid var(--border-color);
+        width: 80vw;
+        max-height: 75vh;
+        overflow: auto;
+    }
+
+    .nested-email-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        background-color: var(--surface-tertiary);
+    }
+
+    .nested-email-header-row {
+        margin-bottom: 0.25rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+
+    .nested-email-label {
+        font-weight: 600;
+        color: var(--text-secondary);
+        min-width: 4rem;
+        display: inline-block;
+    }
+
+    .nested-email-value {
+        color: var(--text-primary);
+    }
+
+    .attachment-modal-content .nested-email-iframe {
+        width: 100%;
+        min-height: 300px;
+        border: none;
+        border-radius: 0;
+        background: white;
+    }
+
+    .nested-email-text {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        margin: 0;
+        color: var(--text-primary);
+    }
+
+    .nested-email-attachments {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+        background-color: var(--surface-tertiary);
+    }
+
+    .nested-email-attachments-title {
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .nested-email-attachments-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .nested-email-attachment-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.375rem 0.75rem;
+        background-color: var(--surface-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 0.25rem;
+        font-size: 0.8125rem;
+        color: var(--text-primary);
+        text-decoration: none;
+        transition: background-color 0.15s ease;
+    }
+
+    .nested-email-attachment-item:hover {
+        background-color: var(--surface-primary);
+    }
+
+    .nested-email-attachment-item .attachment-size {
+        color: var(--text-tertiary);
+        font-size: 0.75rem;
+    }
+
+    .nested-email-attachment-previewable {
+        cursor: pointer;
+    }
+
+    .nested-email-attachment-previewable:hover {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .nested-email-attachment-previewable:hover .attachment-size {
+        color: rgba(255, 255, 255, 0.8);
     }
 
     /* ========================================
