@@ -30,6 +30,8 @@ function sanitizeFilename(filename) {
         .replace(/\ufffd/g, '')            // Remove replacement character
         // Replace Windows reserved characters
         .replace(/[<>:"|?*]/g, '_')        // Replace chars invalid in Windows filenames
+        // Remove trailing encoding artifacts from MIME (e.g., _= or trailing =)
+        .replace(/[_=]+$/, '')
         .trim();
 
     // Extract only the filename (remove any remaining path components)
@@ -68,6 +70,42 @@ function decodeMIMEWord(str) {
         }
         return match; // Return original string if decoding fails
     });
+}
+
+/**
+ * Extracts filename from Content-Disposition header
+ * Handles RFC 2231 encoding and MIME encoded-words
+ * @param {string} contentDisposition - Content-Disposition header value
+ * @param {string} [defaultName='attachment'] - Default filename if none found
+ * @returns {string} Extracted filename
+ */
+function extractFilename(contentDisposition, defaultName = 'attachment') {
+    if (!contentDisposition) return defaultName;
+
+    // Try RFC 2231 format first: filename*=UTF-8''encoded_value
+    const rfc2231Match = contentDisposition.match(/filename\*=([^']*)'([^']*)'([^;\s]+)/i);
+    if (rfc2231Match) {
+        const encoded = rfc2231Match[3];
+        try {
+            // Decode percent-encoded characters
+            return decodeURIComponent(encoded);
+        } catch (error) {
+            console.error('Error decoding RFC 2231 filename:', error);
+        }
+    }
+
+    // Try standard filename with potential MIME encoding
+    const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
+    if (filenameMatch) {
+        let filename = filenameMatch[1];
+        // Decode MIME words if present
+        filename = decodeMIMEWord(filename);
+        // Remove trailing artifacts from incomplete encoding (e.g., _= or trailing =)
+        filename = filename.replace(/[_=]+$/, '');
+        return filename;
+    }
+
+    return defaultName;
 }
 
 /**
@@ -250,8 +288,7 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
                 ? results.bodyText + '\n' + decodedContent
                 : decodedContent;
         } else if (contentType.startsWith('image/') || contentType.startsWith('application/')) {
-            const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
-            const filename = filenameMatch ? filenameMatch[1] : 'attachment';
+            const filename = extractFilename(contentDisposition);
             const mimeType = contentType.split(';')[0];
 
             let base64Content;
@@ -274,8 +311,7 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
             results.attachments.push(attachment);
         } else if (contentType.startsWith('message/')) {
             // Handle nested email attachments (e.g., message/rfc822)
-            const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
-            const filename = filenameMatch ? filenameMatch[1] : 'embedded_message.eml';
+            const filename = extractFilename(contentDisposition, 'embedded_message.eml');
             const mimeType = contentType.split(';')[0];
 
             // Encode the entire part content as base64
@@ -446,8 +482,7 @@ function handleSinglePartContent(bodyContent, contentType, contentTransferEncodi
 
     if (contentType.startsWith('application/') || contentType.startsWith('image/')) {
         // Handle as attachment
-        const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
-        const filename = filenameMatch ? filenameMatch[1] : 'attachment';
+        const filename = extractFilename(contentDisposition);
         const mimeType = contentType.split(';')[0];
 
         const base64Content = contentTransferEncoding.toLowerCase() === 'base64'

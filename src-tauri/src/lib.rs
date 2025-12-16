@@ -43,10 +43,16 @@ fn open_file_with_system(base64_content: String, file_name: String) -> Result<()
 
     #[cfg(target_os = "windows")]
     {
-        // Use PowerShell's Start-Process for better path handling
-        std::process::Command::new("powershell")
-            .args(["-Command", "Start-Process", "-FilePath"])
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        // Use cmd.exe's start command - more reliable than PowerShell for opening files
+        // The empty "" is required as start interprets the first quoted arg as window title
+        // CREATE_NO_WINDOW prevents the console window from flashing
+        std::process::Command::new("cmd")
+            .args(["/c", "start", ""])
             .arg(&temp_path)
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("Failed to open file: {}", e))?;
     }
