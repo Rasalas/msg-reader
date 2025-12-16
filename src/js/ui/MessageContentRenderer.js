@@ -244,28 +244,35 @@ export class MessageContentRenderer {
                                             <p class="attachment-filename">${attachment.fileName}</p>
                                             <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
                                         </div>
-                                        <div class="ml-auto pl-2">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 attachment-icon">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.573-3.007-9.963-7.178Z" />
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                        <a href="${attachment.contentBase64}" download="${attachment.fileName}"
+                                           class="ml-auto pl-2 attachment-download-btn"
+                                           title="Download"
+                                           onclick="event.stopPropagation()">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                                             </svg>
-                                        </div>
+                                        </a>
                                     </div>
                                 </div>
                             `;
         } else {
             // Non-previewable files: direct download
             return `
-                                <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="no-underline min-w-[250px] max-w-fit">
-                                    <div class="attachment-item flex items-center">
-                                        <div class="shrink-0 w-10 h-10 flex items-center justify-center">
+                                <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="no-underline min-w-[250px] max-w-fit" title="Click to download">
+                                    <div class="attachment-item flex items-center space-x-2">
+                                        <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                                             </svg>
                                         </div>
-                                        <div class="ml-2">
+                                        <div>
                                             <p class="attachment-filename">${attachment.fileName}</p>
                                             <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                        </div>
+                                        <div class="ml-auto pl-2 attachment-download-btn">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                            </svg>
                                         </div>
                                     </div>
                                 </a>

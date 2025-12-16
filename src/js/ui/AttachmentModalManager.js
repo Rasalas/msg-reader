@@ -471,23 +471,64 @@ export class AttachmentModalManager {
             if (emailData.attachments && emailData.attachments.length > 0) {
                 const attachmentsSection = document.createElement('div');
                 attachmentsSection.className = 'nested-email-attachments';
-                attachmentsSection.innerHTML = `<div class="nested-email-attachments-title">Anhänge (${emailData.attachments.length})</div>`;
+                attachmentsSection.innerHTML = `<div class="nested-email-attachments-title">Attachments (${emailData.attachments.length})</div>`;
 
                 const attachmentsList = document.createElement('div');
                 attachmentsList.className = 'nested-email-attachments-list';
 
                 emailData.attachments.forEach(att => {
                     const isPreviewable = this.isPreviewable(att.attachMimeTag);
+                    const isImage = this.isPreviewableImage(att.attachMimeTag);
+                    const isPdf = this.isPdf(att.attachMimeTag);
+                    const isText = this.isText(att.attachMimeTag);
+
+                    // Icon selection helper
+                    const getIcon = () => {
+                        if (isImage) {
+                            return `<img src="${att.contentBase64}" alt="Attachment" class="w-10 h-10 object-cover">`;
+                        } else if (isPdf) {
+                            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-500">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                            </svg>`;
+                        } else if (isText) {
+                            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                            </svg>`;
+                        }
+                        return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        </svg>`;
+                    };
+
+                    const downloadIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>`;
 
                     if (isPreviewable) {
-                        // Clickable button for previewable attachments
-                        const attItem = document.createElement('button');
-                        attItem.className = 'nested-email-attachment-item nested-email-attachment-previewable';
-                        attItem.type = 'button';
-                        attItem.innerHTML = `<span class="attachment-icon">📎</span> ${this.escapeHtml(att.fileName)} <span class="attachment-size">(${this.formatFileSize(att.contentLength)})</span>`;
-                        attItem.addEventListener('click', () => {
-                            this.pushToStack(attachment);
-                            this.renderAttachmentPreview(att);
+                        // Clickable card for previewable attachments
+                        const attItem = document.createElement('div');
+                        attItem.className = 'nested-email-attachment-item nested-email-attachment-previewable cursor-pointer';
+                        attItem.title = 'Click to preview';
+                        attItem.innerHTML = `
+                            <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center overflow-hidden">
+                                ${getIcon()}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="attachment-filename">${this.escapeHtml(att.fileName)}</p>
+                                <p class="attachment-meta">${att.attachMimeTag} - ${this.formatFileSize(att.contentLength)}</p>
+                            </div>
+                            <a href="${att.contentBase64}" download="${this.escapeHtml(att.fileName)}"
+                               class="ml-auto pl-2 attachment-download-btn nested-download-btn"
+                               title="Download">
+                                ${downloadIcon}
+                            </a>
+                        `;
+                        // Click on card opens preview (except download button)
+                        attItem.addEventListener('click', (e) => {
+                            if (!e.target.closest('.nested-download-btn')) {
+                                this.pushToStack(attachment);
+                                this.renderAttachmentPreview(att);
+                            }
                         });
                         attachmentsList.appendChild(attItem);
                     } else {
@@ -496,7 +537,19 @@ export class AttachmentModalManager {
                         attItem.className = 'nested-email-attachment-item';
                         attItem.href = att.contentBase64;
                         attItem.download = att.fileName;
-                        attItem.innerHTML = `<span class="attachment-icon">📎</span> ${this.escapeHtml(att.fileName)} <span class="attachment-size">(${this.formatFileSize(att.contentLength)})</span>`;
+                        attItem.title = 'Click to download';
+                        attItem.innerHTML = `
+                            <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center">
+                                ${getIcon()}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="attachment-filename">${this.escapeHtml(att.fileName)}</p>
+                                <p class="attachment-meta">${att.attachMimeTag} - ${this.formatFileSize(att.contentLength)}</p>
+                            </div>
+                            <div class="ml-auto pl-2 attachment-download-btn">
+                                ${downloadIcon}
+                            </div>
+                        `;
                         attachmentsList.appendChild(attItem);
                     }
                 });
