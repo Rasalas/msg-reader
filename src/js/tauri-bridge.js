@@ -114,6 +114,29 @@ export async function openWithSystemViewer(base64Data, fileName) {
 }
 
 /**
+ * Save a file with a "Save As" dialog (Tauri only)
+ * @param {string} base64Data - Base64 data URL (data:mime/type;base64,...)
+ * @param {string} fileName - Suggested filename
+ * @returns {Promise<boolean>} True if file was saved, false if user cancelled
+ */
+export async function saveFileWithDialog(base64Data, fileName) {
+    if (!isTauri()) {
+        throw new Error('saveFileWithDialog is only available in Tauri');
+    }
+
+    const { invoke } = await import('@tauri-apps/api/core');
+
+    // Extract the base64 content (remove data:mime/type;base64, prefix)
+    const base64Content = base64Data.split(',')[1];
+
+    // Call Rust command to show save dialog and save file
+    return await invoke('save_file_with_dialog', {
+        base64Content,
+        fileName,
+    });
+}
+
+/**
  * Check for app updates and prompt user to install
  * @returns {Promise<void>}
  */

@@ -1,4 +1,4 @@
-import { isTauri, openWithSystemViewer } from '../tauri-bridge.js';
+import { isTauri, openWithSystemViewer, saveFileWithDialog } from '../tauri-bridge.js';
 import { extractEml } from '../utils.js';
 
 /**
@@ -82,6 +82,56 @@ export class AttachmentModalManager {
 
         // Back button for nested navigation
         this.attachmentModalBack?.addEventListener('click', () => this.navigateBack());
+
+        // Download button - intercept clicks for Tauri save dialog
+        this.attachmentModalDownload?.addEventListener('click', (e) => {
+            if (isTauri()) {
+                e.preventDefault();
+                this.downloadCurrentAttachment();
+            }
+            // In browser, let the default href/download behavior work
+        });
+    }
+
+    /**
+     * Downloads the current attachment using save dialog in Tauri or browser fallback
+     */
+    async downloadCurrentAttachment() {
+        const attachment = this.previewableAttachments[this.currentAttachmentIndex];
+        if (!attachment) return;
+
+        await this.downloadAttachment(attachment);
+    }
+
+    /**
+     * Downloads an attachment using save dialog in Tauri or browser fallback
+     * @param {Object} attachment - Attachment object with contentBase64 and fileName
+     */
+    async downloadAttachment(attachment) {
+        if (isTauri()) {
+            try {
+                const saved = await saveFileWithDialog(
+                    attachment.contentBase64,
+                    attachment.fileName
+                );
+                if (saved && this.showToast) {
+                    this.showToast('File saved successfully', 'info');
+                }
+            } catch (error) {
+                console.error('Failed to save file:', error);
+                if (this.showToast) {
+                    this.showToast('Failed to save file', 'error');
+                }
+            }
+        } else {
+            // Browser fallback: use traditional download
+            const link = document.createElement('a');
+            link.href = attachment.contentBase64;
+            link.download = attachment.fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
     }
 
     /**
@@ -522,26 +572,27 @@ export class AttachmentModalManager {
                                 <p class="attachment-filename">${this.escapeHtml(att.fileName)}</p>
                                 <p class="attachment-meta">${att.attachMimeTag} - ${this.formatFileSize(att.contentLength)}</p>
                             </div>
-                            <a href="${att.contentBase64}" download="${this.escapeHtml(att.fileName)}"
-                               class="ml-auto pl-2 attachment-download-btn nested-download-btn"
-                               title="Download">
+                            <button class="ml-auto pl-2 attachment-download-btn nested-download-btn"
+                                    title="Download">
                                 ${downloadIcon}
-                            </a>
+                            </button>
                         `;
                         // Click on card opens preview (except download button)
                         attItem.addEventListener('click', (e) => {
-                            if (!e.target.closest('.nested-download-btn')) {
+                            const downloadBtn = e.target.closest('.nested-download-btn');
+                            if (downloadBtn) {
+                                e.stopPropagation();
+                                this.downloadAttachment(att);
+                            } else {
                                 this.pushToStack(attachment);
                                 this.renderAttachmentPreview(att);
                             }
                         });
                         attachmentsList.appendChild(attItem);
                     } else {
-                        // Download link for non-previewable attachments
-                        const attItem = document.createElement('a');
-                        attItem.className = 'nested-email-attachment-item';
-                        attItem.href = att.contentBase64;
-                        attItem.download = att.fileName;
+                        // Clickable card for non-previewable attachments (download on click)
+                        const attItem = document.createElement('div');
+                        attItem.className = 'nested-email-attachment-item cursor-pointer';
                         attItem.title = 'Click to download';
                         attItem.innerHTML = `
                             <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center">
@@ -555,6 +606,9 @@ export class AttachmentModalManager {
                                 ${downloadIcon}
                             </div>
                         `;
+                        attItem.addEventListener('click', () => {
+                            this.downloadAttachment(att);
+                        });
                         attachmentsList.appendChild(attItem);
                     }
                 });

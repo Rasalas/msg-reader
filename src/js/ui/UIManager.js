@@ -3,6 +3,7 @@ import { MessageContentRenderer } from './MessageContentRenderer.js';
 import { AttachmentModalManager } from './AttachmentModalManager.js';
 import { ToastManager } from './ToastManager.js';
 import { SearchManager } from '../SearchManager.js';
+import { isTauri, saveFileWithDialog } from '../tauri-bridge.js';
 
 /**
  * Manages the user interface for the email reader application
@@ -70,6 +71,13 @@ class UIManager {
                 const attIdx = parseInt(btn.dataset.attachmentIndex, 10);
                 const attachments = this.modal.getAttachments();
                 if (attachments?.[attIdx]) this.modal.open(attachments[attIdx]);
+            } else if (action === 'download') {
+                e.stopPropagation();
+                const attIdx = parseInt(btn.dataset.attachmentIndex, 10);
+                const attachments = this.modal.getAttachments();
+                if (attachments?.[attIdx]) {
+                    this.downloadAttachment(attachments[attIdx]);
+                }
             }
         });
     }
@@ -249,6 +257,35 @@ class UIManager {
 
     showInfo(message, duration = 3000) {
         this.toasts.info(message, duration);
+    }
+
+    /**
+     * Download an attachment using save dialog in Tauri or browser fallback
+     * @param {Object} attachment - Attachment object with contentBase64 and fileName
+     */
+    async downloadAttachment(attachment) {
+        if (isTauri()) {
+            try {
+                const saved = await saveFileWithDialog(
+                    attachment.contentBase64,
+                    attachment.fileName
+                );
+                if (saved) {
+                    this.showInfo('File saved successfully');
+                }
+            } catch (error) {
+                console.error('Failed to save file:', error);
+                this.showError('Failed to save file');
+            }
+        } else {
+            // Browser fallback: use traditional download
+            const link = document.createElement('a');
+            link.href = attachment.contentBase64;
+            link.download = attachment.fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
     }
 
     // Attachment modal - delegated

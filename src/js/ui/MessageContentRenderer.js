@@ -249,21 +249,24 @@ export class MessageContentRenderer {
                                             <p class="attachment-filename">${attachment.fileName}</p>
                                             <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
                                         </div>
-                                        <a href="${attachment.contentBase64}" download="${attachment.fileName}"
-                                           class="ml-auto pl-2 attachment-download-btn"
-                                           title="Download"
-                                           onclick="event.stopPropagation()">
+                                        <button data-action="download"
+                                                data-attachment-index="${index}"
+                                                class="ml-auto pl-2 attachment-download-btn"
+                                                title="Download">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                                             </svg>
-                                        </a>
+                                        </button>
                                     </div>
                                 </div>
                             `;
         } else {
-            // Non-previewable files: direct download
+            // Non-previewable files: click to download
             return `
-                                <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="no-underline min-w-[250px] max-w-fit" title="Click to download">
+                                <div class="cursor-pointer min-w-[250px] max-w-fit"
+                                     data-action="download"
+                                     data-attachment-index="${index}"
+                                     title="Click to download">
                                     <div class="attachment-item flex items-center space-x-2">
                                         <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
@@ -280,7 +283,7 @@ export class MessageContentRenderer {
                                             </svg>
                                         </div>
                                     </div>
-                                </a>
+                                </div>
                             `;
         }
     }).join('')}

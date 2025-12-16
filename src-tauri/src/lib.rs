@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 use std::io::Write;
+use tauri_plugin_dialog::DialogExt;
 
 /// Store pending file paths for when app is launched via file association
 pub struct PendingFiles(pub Mutex<Vec<PathBuf>>);
@@ -59,6 +60,50 @@ fn open_file_with_system(base64_content: String, file_name: String) -> Result<()
     }
 
     Ok(())
+}
+
+/// Save a file with a "Save As" dialog
+#[tauri::command]
+async fn save_file_with_dialog(
+    app: AppHandle,
+    base64_content: String,
+    file_name: String,
+) -> Result<bool, String> {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use tauri_plugin_dialog::FilePath;
+
+    // Extract file extension for filter
+    let extension = std::path::Path::new(&file_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_string();
+
+    // Build the save dialog
+    let file_path = app
+        .dialog()
+        .file()
+        .set_file_name(&file_name)
+        .add_filter("File", &[&extension])
+        .blocking_save_file();
+
+    match file_path {
+        Some(FilePath::Path(path)) => {
+            // Decode base64 content
+            let bytes = STANDARD
+                .decode(&base64_content)
+                .map_err(|e| format!("Failed to decode base64: {}", e))?;
+
+            // Write to the selected file
+            let mut file = std::fs::File::create(&path)
+                .map_err(|e| format!("Failed to create file: {}", e))?;
+            file.write_all(&bytes)
+                .map_err(|e| format!("Failed to write file: {}", e))?;
+
+            Ok(true)
+        }
+        _ => Ok(false), // User cancelled
+    }
 }
 
 /// Get files that were passed to the app on startup
@@ -131,7 +176,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_files, open_file_with_system]);
+        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_files, open_file_with_system, save_file_with_dialog]);
 
     builder
         .build(tauri::generate_context!())
