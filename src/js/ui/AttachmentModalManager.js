@@ -583,6 +583,9 @@ export class AttachmentModalManager {
                             if (downloadBtn) {
                                 e.stopPropagation();
                                 this.downloadAttachment(att);
+                            } else if (this._shouldOpenWithSystemViewer(att)) {
+                                // PDF in Tauri: open with system viewer instead of modal preview
+                                this._openPdfWithSystemViewer(att);
                             } else {
                                 this.pushToStack(attachment);
                                 this.renderAttachmentPreview(att);
