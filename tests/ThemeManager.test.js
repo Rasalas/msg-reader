@@ -271,10 +271,10 @@ describe('ThemeManager', () => {
 
     describe('getThemeLabel', () => {
         test('returns correct labels for themes', () => {
-            expect(themeManager.getThemeLabel(THEMES.LIGHT)).toBe('Hell');
-            expect(themeManager.getThemeLabel(THEMES.DARK)).toBe('Dunkel');
+            expect(themeManager.getThemeLabel(THEMES.LIGHT)).toBe('Light');
+            expect(themeManager.getThemeLabel(THEMES.DARK)).toBe('Dark');
             expect(themeManager.getThemeLabel(THEMES.SYSTEM)).toBe('System');
-            expect(themeManager.getThemeLabel(EMAIL_THEMES.INHERIT)).toBe('Wie App');
+            expect(themeManager.getThemeLabel(EMAIL_THEMES.INHERIT)).toBe('Same as App');
         });
 
         test('returns theme value for unknown themes', () => {

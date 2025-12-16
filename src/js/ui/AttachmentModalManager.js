@@ -236,7 +236,7 @@ export class AttachmentModalManager {
             const pdfObject = document.createElement('object');
             pdfObject.data = attachment.contentBase64;
             pdfObject.type = 'application/pdf';
-            pdfObject.innerHTML = `<p class="text-center p-4">PDF kann nicht angezeigt werden. <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-blue-500 underline">Hier herunterladen</a></p>`;
+            pdfObject.innerHTML = `<p class="text-center p-4">PDF cannot be displayed. <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-blue-500 underline">Download here</a></p>`;
             this.attachmentModalContent.appendChild(pdfObject);
         } else if (this.isText(attachment.attachMimeTag)) {
             // Decode base64 to text

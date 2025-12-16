@@ -233,10 +233,10 @@ export class ThemeManager {
      */
     getThemeLabel(theme) {
         const labels = {
-            [THEMES.LIGHT]: 'Hell',
-            [THEMES.DARK]: 'Dunkel',
+            [THEMES.LIGHT]: 'Light',
+            [THEMES.DARK]: 'Dark',
             [THEMES.SYSTEM]: 'System',
-            [EMAIL_THEMES.INHERIT]: 'Wie App'
+            [EMAIL_THEMES.INHERIT]: 'Same as App'
         };
         return labels[theme] || theme;
     }
