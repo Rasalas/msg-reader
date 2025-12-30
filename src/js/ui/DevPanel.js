@@ -349,14 +349,13 @@ export class DevPanel {
     renderMimeTree(structure, depth = 0) {
         if (!structure || !structure.parts) return '';
 
-        const indent = '  '.repeat(depth);
         let html = '';
 
         structure.parts.forEach((part, index) => {
-            const typeClass = part.contentType.startsWith('text/html') ? 'mime-html' :
-                              part.contentType.startsWith('text/') ? 'mime-text' :
-                              part.contentType.startsWith('image/') ? 'mime-image' :
-                              part.contentType.startsWith('multipart/') ? 'mime-multipart' : '';
+            const typeClass = part.contentType.startsWith('text/html') ? 'mime-html'
+                : part.contentType.startsWith('text/') ? 'mime-text'
+                    : part.contentType.startsWith('image/') ? 'mime-image'
+                        : part.contentType.startsWith('multipart/') ? 'mime-multipart' : '';
 
             html += `
                 <div class="mime-part ${typeClass}" style="margin-left: ${depth * 20}px">
