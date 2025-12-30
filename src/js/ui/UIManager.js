@@ -5,6 +5,9 @@ import { ToastManager } from './ToastManager.js';
 import { SearchManager } from '../SearchManager.js';
 import { isTauri, saveFileWithDialog } from '../tauri-bridge.js';
 
+// Debounce time for attachment clicks (Windows double-click interval)
+const ATTACHMENT_CLICK_DEBOUNCE_MS = 500;
+
 /**
  * Manages the user interface for the email reader application
  * Delegates to specialized sub-managers
@@ -12,6 +15,7 @@ import { isTauri, saveFileWithDialog } from '../tauri-bridge.js';
 class UIManager {
     constructor(messageHandler) {
         this.messageHandler = messageHandler;
+        this.lastAttachmentClickTime = 0;
 
         // Screen elements
         this.welcomeScreen = document.getElementById('welcomeScreen');
@@ -76,15 +80,22 @@ class UIManager {
 
             if (action === 'pin') window.app.togglePin(index);
             else if (action === 'delete') window.app.deleteMessage(index);
-            else if (action === 'preview') {
+            else if (action === 'preview' || action === 'download') {
+                // Debounce attachment clicks to prevent double-open from Outlook habits
+                const now = Date.now();
+                if (now - this.lastAttachmentClickTime < ATTACHMENT_CLICK_DEBOUNCE_MS) {
+                    return;
+                }
+                this.lastAttachmentClickTime = now;
+
                 const attIdx = parseInt(btn.dataset.attachmentIndex, 10);
                 const attachments = this.modal.getAttachments();
-                if (attachments?.[attIdx]) this.modal.open(attachments[attIdx]);
-            } else if (action === 'download') {
-                e.stopPropagation();
-                const attIdx = parseInt(btn.dataset.attachmentIndex, 10);
-                const attachments = this.modal.getAttachments();
-                if (attachments?.[attIdx]) {
+                if (!attachments?.[attIdx]) return;
+
+                if (action === 'preview') {
+                    this.modal.open(attachments[attIdx]);
+                } else {
+                    e.stopPropagation();
                     this.downloadAttachment(attachments[attIdx]);
                 }
             }
