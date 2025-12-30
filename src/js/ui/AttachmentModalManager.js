@@ -644,7 +644,8 @@ export class AttachmentModalManager {
             .filter(recipient => recipient.recipType === type)
             .map(recipient => {
                 const name = recipient.name || '';
-                const email = recipient.email || recipient.address || '';
+                // Prefer smtpAddress over email (email may contain Exchange X.500 DN)
+                const email = recipient.smtpAddress || recipient.email || recipient.address || '';
                 return name && name !== email ? `${name} <${email}>` : email;
             })
             .join(', ');

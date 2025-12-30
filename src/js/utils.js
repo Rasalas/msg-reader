@@ -361,25 +361,14 @@ function initializeMsgReader(fileBuffer) {
 
 /**
  * Extracts HTML content from MSG file data
- * Handles compressed RTF, raw HTML arrays, and plain text fallback
+ * Handles raw HTML arrays, compressed RTF, and plain text fallback
  * @param {Object} msgInfo - Parsed MSG file data
  * @returns {string} HTML content
  */
 function extractMsgHtmlContent(msgInfo) {
     const emailBodyContent = msgInfo.bodyHTML || msgInfo.body || '';
 
-    // Try compressed RTF first
-    if (msgInfo.compressedRtf) {
-        try {
-            const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
-            return convertRTFToHTML(decompressedRtf);
-        } catch (error) {
-            console.error('Failed to decompress or convert RTF:', error);
-            return emailBodyContent;
-        }
-    }
-
-    // Try HTML from Uint8Array
+    // Try HTML from Uint8Array first (preserves tables and formatting better)
     if (msgInfo.html && typeof msgInfo.html === 'object') {
         try {
             const htmlArr = Array.isArray(msgInfo.html)
@@ -399,7 +388,16 @@ function extractMsgHtmlContent(msgInfo) {
             return iconvLite.decode(Buffer.from(htmlArr), charset);
         } catch (error) {
             console.error('Failed to decode HTML from Uint8Array:', error);
-            return emailBodyContent;
+        }
+    }
+
+    // Fallback to compressed RTF
+    if (msgInfo.compressedRtf) {
+        try {
+            const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
+            return convertRTFToHTML(decompressedRtf);
+        } catch (error) {
+            console.error('Failed to decompress or convert RTF:', error);
         }
     }
 
@@ -456,11 +454,20 @@ export function extractMsg(fileBuffer) {
 
 /**
  * Converts decompressed RTF content to HTML
- * @param {string} rtfContent - Decompressed RTF content
+ * @param {string|Array|Uint8Array} rtfContent - Decompressed RTF content (may be array-like)
  * @returns {string} HTML representation of the RTF content
  */
 function convertRTFToHTML(rtfContent) {
-    const result = deEncapsulateSync(rtfContent, { decode: iconvLite.decode });
+    // decompressRTF may return an array-like object, convert to string
+    let rtfString = rtfContent;
+    if (typeof rtfContent !== 'string') {
+        const arr = rtfContent instanceof Uint8Array
+            ? rtfContent
+            : Uint8Array.from(Object.values(rtfContent));
+        rtfString = new TextDecoder('latin1').decode(arr);
+    }
+
+    const result = deEncapsulateSync(rtfString, { decode: iconvLite.decode });
     return result.text;
 }
 

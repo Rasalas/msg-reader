@@ -1336,6 +1336,21 @@
     .email-content {
         color: var(--text-primary);
         line-height: 1.6;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Constrain images to container */
+    .email-content img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    /* Make wide tables scrollable without affecting container height */
+    .email-content table {
+        max-width: 100%;
+        overflow-x: auto;
+        display: block;
     }
 
     /* Ensure email links are visible in both themes */

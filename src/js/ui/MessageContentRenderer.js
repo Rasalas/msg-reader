@@ -130,7 +130,11 @@ export class MessageContentRenderer {
     formatRecipients(recipients, type) {
         return recipients
             .filter(recipient => recipient.recipType === type)
-            .map(recipient => `${recipient.name} &lt;${recipient.email}&gt;`)
+            .map(recipient => {
+                // Prefer smtpAddress over email (email may contain Exchange X.500 DN)
+                const email = recipient.smtpAddress || recipient.email || '';
+                return `${recipient.name} &lt;${email}&gt;`;
+            })
             .join(', ');
     }
 

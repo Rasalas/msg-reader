@@ -52,6 +52,30 @@ export const SANITIZE_CONFIG = {
 };
 
 /**
+ * Removes problematic MS Office CSS properties that break layout in browsers
+ * @param {string} html - HTML content with style attributes
+ * @returns {string} HTML with cleaned style attributes
+ */
+function cleanMsoStyles(html) {
+    if (!html) return '';
+
+    // Clean style attributes in the HTML
+    return html.replace(/style="([^"]*)"/gi, (match, styleValue) => {
+        const cleaned = styleValue
+            // Remove absolute/fixed positioning (breaks layout outside Outlook)
+            .replace(/position\s*:\s*(absolute|fixed)[^;]*/gi, '')
+            // Remove MSO-specific positioning properties only
+            .replace(/mso-position[^:]*:[^;]+;?/gi, '')
+            // Clean up multiple semicolons and whitespace
+            .replace(/;\s*;/g, ';')
+            .replace(/^\s*;\s*/g, '')
+            .trim();
+
+        return cleaned ? `style="${cleaned}"` : '';
+    });
+}
+
+/**
  * Sanitizes HTML content to prevent XSS attacks
  * @param {string} html - The untrusted HTML content
  * @returns {string} Sanitized HTML safe for innerHTML
@@ -59,10 +83,13 @@ export const SANITIZE_CONFIG = {
 export function sanitizeHTML(html) {
     if (!html) return '';
 
+    // Clean problematic MSO styles before sanitizing
+    const cleanedHtml = cleanMsoStyles(html);
+
     // Create a DOMPurify instance (for browser environment)
     let cleanHTML;
     try {
-        cleanHTML = DOMPurify.sanitize(html, SANITIZE_CONFIG);
+        cleanHTML = DOMPurify.sanitize(cleanedHtml, SANITIZE_CONFIG);
     } catch (error) {
         console.error('Error sanitizing HTML:', error);
         // Return escaped text as fallback
