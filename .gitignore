@@ -11,5 +11,6 @@ coverage/*
 src-tauri/target/
 doc/todo/*
 doc/release-notes/*
-doc/eml/bulk/*
-doc/eml/pec_nested_email.eml
+
+doc/res/email/confidential/*
+doc/res/email/bulk/*

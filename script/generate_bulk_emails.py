@@ -153,8 +153,8 @@ def main():
     parser.add_argument('count', type=int, help='Number of emails to generate')
     parser.add_argument('--format', choices=['eml', 'both'], default='eml',
                         help='Output format (eml only or both eml and msg stub)')
-    parser.add_argument('--output', default='doc/eml/bulk',
-                        help='Output directory (default: doc/eml/bulk)')
+    parser.add_argument('--output', default='doc/res/email/bulk',
+                        help='Output directory (default: doc/res/email/bulk)')
     parser.add_argument('--no-attachments', action='store_true',
                         help='Do not add random attachments')
     args = parser.parse_args()
