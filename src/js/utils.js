@@ -268,8 +268,31 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
             return;
         }
 
+        // Check if this part is explicitly marked as an attachment
+        const isExplicitAttachment = contentDisposition.toLowerCase().startsWith('attachment');
+
         // Decode and handle content based on type
-        if (contentType.startsWith('text/html')) {
+        if (isExplicitAttachment) {
+            // Treat as attachment regardless of content-type
+            const filename = extractFilename(contentDisposition);
+            const mimeType = contentType.split(';')[0] || 'application/octet-stream';
+
+            let base64Content;
+            if (contentTransferEncoding.toLowerCase() === 'base64') {
+                base64Content = partContent.replace(/\s/g, '');
+            } else {
+                // For text-based attachments, properly encode to base64
+                const decodedContent = decodeTransferEncoding(
+                    partContent.trim(),
+                    contentTransferEncoding,
+                    partCharset
+                );
+                base64Content = btoa(unescape(encodeURIComponent(decodedContent)));
+            }
+
+            const attachment = createAttachment(filename, mimeType, base64Content, contentId);
+            results.attachments.push(attachment);
+        } else if (contentType.startsWith('text/html')) {
             const decodedContent = decodeTransferEncoding(
                 partContent.trim(),
                 contentTransferEncoding,
@@ -325,6 +348,20 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
 
             const attachment = createAttachment(filename, mimeType, base64Content, contentId);
             results.attachments.push(attachment);
+        } else if (contentType.startsWith('text/')) {
+            // Other text types (text/x-diff, text/csv, etc.) - treat as attachment if has filename
+            const filename = extractFilename(contentDisposition);
+            if (filename && filename !== 'attachment') {
+                const mimeType = contentType.split(';')[0];
+                const decodedContent = decodeTransferEncoding(
+                    partContent.trim(),
+                    contentTransferEncoding,
+                    partCharset
+                );
+                const base64Content = btoa(unescape(encodeURIComponent(decodedContent)));
+                const attachment = createAttachment(filename, mimeType, base64Content, contentId);
+                results.attachments.push(attachment);
+            }
         }
     });
 
