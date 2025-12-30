@@ -220,8 +220,14 @@
                 Press <kbd>?</kbd> for shortcuts
             </button>
         </div>
-        <div id="messageViewer" class="message-viewer" role="main" aria-label="Message content" tabindex="-1">
-            <!-- Message content will be shown here -->
+        <div class="message-viewer-wrapper">
+            <div id="messageViewer" class="message-viewer" role="main" aria-label="Message content" tabindex="-1">
+                <!-- Message content will be shown here -->
+            </div>
+            <!-- Dev Panel (hidden by default, shown via ?dev or D key) -->
+            <div id="devPanel" class="dev-panel" style="display: none;" role="region" aria-label="Developer debug panel">
+                <!-- DevPanel content will be inserted here -->
+            </div>
         </div>
     </div>
 </body>

@@ -39,6 +39,7 @@ class UIManager {
         this.srAnnouncements = document.getElementById('srAnnouncements');
 
         this.keyboardManager = null;
+        this.devPanel = null;
         this.initEventDelegation();
         this.initSearchListeners();
     }
@@ -46,6 +47,14 @@ class UIManager {
     setKeyboardManager(keyboardManager) {
         this.keyboardManager = keyboardManager;
         this.modal.setKeyboardManager(keyboardManager);
+    }
+
+    /**
+     * Set the dev panel reference
+     * @param {DevPanel} devPanel - DevPanel instance
+     */
+    setDevPanel(devPanel) {
+        this.devPanel = devPanel;
     }
 
     initEventDelegation() {
@@ -231,6 +240,16 @@ class UIManager {
     showMessage(msgInfo) {
         this.messageContent.render(msgInfo);
         this.updateMessageList();
+
+        // Update dev panel with debug data if available or panel is visible
+        if (this.devPanel && this.devPanel.isVisible) {
+            if (msgInfo._debugData) {
+                this.devPanel.setDebugData(msgInfo._debugData);
+            } else if (msgInfo._rawBuffer && window.app?.reloadDebugData) {
+                // Reload debug data on demand
+                window.app.reloadDebugData(msgInfo);
+            }
+        }
     }
 
     // Drop overlay

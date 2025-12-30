@@ -13,12 +13,14 @@ class FileHandler {
      * @param {Object} parsers - Parser functions for email files
      * @param {Function} parsers.extractMsg - MSG file parser
      * @param {Function} parsers.extractEml - EML file parser
+     * @param {Object} [devModeManager] - Optional dev mode manager for debug data collection
      */
-    constructor(messageHandler, uiManager, parsers = {}) {
+    constructor(messageHandler, uiManager, parsers = {}, devModeManager = null) {
         this.messageHandler = messageHandler;
         this.uiManager = uiManager;
         this.extractMsg = parsers.extractMsg || null;
         this.extractEml = parsers.extractEml || null;
+        this.devModeManager = devModeManager;
         this.setupEventListeners();
     }
 
@@ -93,16 +95,24 @@ class FileHandler {
                 const fileBuffer = e.target.result;
                 const extension = file.name.toLowerCase().split('.').pop();
 
+                // Check if dev mode is enabled for debug data collection
+                const collectDebugData = this.devModeManager?.isEnabled() || false;
+                const parseOptions = { collectDebugData };
+
                 let msgInfo = null;
                 if (extension === 'msg' && this.extractMsg) {
-                    msgInfo = this.extractMsg(fileBuffer);
+                    msgInfo = this.extractMsg(fileBuffer, parseOptions);
                 } else if (extension === 'eml' && this.extractEml) {
-                    msgInfo = this.extractEml(fileBuffer);
+                    msgInfo = this.extractEml(fileBuffer, parseOptions);
                 }
 
                 if (!msgInfo) {
                     throw new Error(`Failed to parse ${extension.toUpperCase()} file`);
                 }
+
+                // Store raw buffer and file type for potential re-parsing in dev mode
+                msgInfo._rawBuffer = fileBuffer;
+                msgInfo._fileType = extension;
 
                 const message = this.messageHandler.addMessage(msgInfo, file.name);
 
@@ -150,17 +160,25 @@ class FileHandler {
             // Read file from filesystem via Tauri
             const fileBuffer = await readFileFromPath(filePath);
 
+            // Check if dev mode is enabled for debug data collection
+            const collectDebugData = this.devModeManager?.isEnabled() || false;
+            const parseOptions = { collectDebugData };
+
             // Parse the email content
             let msgInfo = null;
             if (extension === 'msg' && this.extractMsg) {
-                msgInfo = this.extractMsg(fileBuffer);
+                msgInfo = this.extractMsg(fileBuffer, parseOptions);
             } else if (extension === 'eml' && this.extractEml) {
-                msgInfo = this.extractEml(fileBuffer);
+                msgInfo = this.extractEml(fileBuffer, parseOptions);
             }
 
             if (!msgInfo) {
                 throw new Error(`Failed to parse ${extension.toUpperCase()} file`);
             }
+
+            // Store raw buffer and file type for potential re-parsing in dev mode
+            msgInfo._rawBuffer = fileBuffer;
+            msgInfo._fileType = extension;
 
             // Add to message handler
             const message = this.messageHandler.addMessage(msgInfo, fileName);
@@ -211,6 +229,10 @@ class FileHandler {
         const messages = [];
         let errorCount = 0;
 
+        // Check if dev mode is enabled for debug data collection
+        const collectDebugData = this.devModeManager?.isEnabled() || false;
+        const parseOptions = { collectDebugData };
+
         for (let i = 0; i < supportedPaths.length; i += BATCH_SIZE) {
             const batch = supportedPaths.slice(i, i + BATCH_SIZE);
 
@@ -226,14 +248,18 @@ class FileHandler {
                         // Parse the email content
                         let msgInfo = null;
                         if (extension === 'msg' && this.extractMsg) {
-                            msgInfo = this.extractMsg(fileBuffer);
+                            msgInfo = this.extractMsg(fileBuffer, parseOptions);
                         } else if (extension === 'eml' && this.extractEml) {
-                            msgInfo = this.extractEml(fileBuffer);
+                            msgInfo = this.extractEml(fileBuffer, parseOptions);
                         }
 
                         if (!msgInfo) {
                             throw new Error(`Failed to parse ${extension.toUpperCase()} file`);
                         }
+
+                        // Store raw buffer and file type for potential re-parsing in dev mode
+                        msgInfo._rawBuffer = fileBuffer;
+                        msgInfo._fileType = extension;
 
                         return { msgInfo, fileName };
                     } catch (error) {

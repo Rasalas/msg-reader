@@ -363,9 +363,10 @@ function initializeMsgReader(fileBuffer) {
  * Extracts HTML content from MSG file data
  * Handles raw HTML arrays, compressed RTF, and plain text fallback
  * @param {Object} msgInfo - Parsed MSG file data
+ * @param {Object} [debugData] - Optional debug data object to populate
  * @returns {string} HTML content
  */
-function extractMsgHtmlContent(msgInfo) {
+function extractMsgHtmlContent(msgInfo, debugData = null) {
     const emailBodyContent = msgInfo.bodyHTML || msgInfo.body || '';
 
     // Try HTML from Uint8Array first (preserves tables and formatting better)
@@ -377,15 +378,28 @@ function extractMsgHtmlContent(msgInfo) {
 
             const charset = getCharsetFromCodepage(msgInfo.internetCodepage);
 
+            if (debugData) {
+                debugData.htmlSource = 'uint8array';
+                debugData.htmlRawBytes = htmlArr;
+                debugData.charset = charset;
+            }
+
             // Try TextDecoder first, fallback to iconv-lite
+            let result;
             if (typeof TextDecoder !== 'undefined') {
                 try {
-                    return new TextDecoder(charset).decode(htmlArr);
+                    result = new TextDecoder(charset).decode(htmlArr);
                 } catch {
-                    return iconvLite.decode(Buffer.from(htmlArr), charset);
+                    result = iconvLite.decode(Buffer.from(htmlArr), charset);
                 }
+            } else {
+                result = iconvLite.decode(Buffer.from(htmlArr), charset);
             }
-            return iconvLite.decode(Buffer.from(htmlArr), charset);
+
+            if (debugData) {
+                debugData.htmlBeforeCid = result;
+            }
+            return result;
         } catch (error) {
             console.error('Failed to decode HTML from Uint8Array:', error);
         }
@@ -394,11 +408,37 @@ function extractMsgHtmlContent(msgInfo) {
     // Fallback to compressed RTF
     if (msgInfo.compressedRtf) {
         try {
-            const decompressedRtf = decompressRTF(Uint8Array.from(Object.values(msgInfo.compressedRtf)));
-            return convertRTFToHTML(decompressedRtf);
+            const compressedRtfArr = Uint8Array.from(Object.values(msgInfo.compressedRtf));
+            const decompressedRtf = decompressRTF(compressedRtfArr);
+
+            if (debugData) {
+                debugData.htmlSource = 'rtf';
+                debugData.compressedRtf = compressedRtfArr;
+                debugData.decompressedRtf = typeof decompressedRtf === 'string'
+                    ? decompressedRtf
+                    : new TextDecoder('latin1').decode(
+                        decompressedRtf instanceof Uint8Array
+                            ? decompressedRtf
+                            : Uint8Array.from(Object.values(decompressedRtf))
+                    );
+            }
+
+            const result = convertRTFToHTML(decompressedRtf);
+
+            if (debugData) {
+                debugData.rtfToHtml = result;
+                debugData.htmlBeforeCid = result;
+            }
+
+            return result;
         } catch (error) {
             console.error('Failed to decompress or convert RTF:', error);
         }
+    }
+
+    if (debugData) {
+        debugData.htmlSource = 'fallback';
+        debugData.htmlBeforeCid = emailBodyContent;
     }
 
     return emailBodyContent;
@@ -427,29 +467,85 @@ function processMsgAttachments(msgReader, attachments) {
 /**
  * Extracts email data from a Microsoft Outlook MSG file
  * @param {ArrayBuffer} fileBuffer - The raw MSG file content
+ * @param {Object} [options] - Options object
+ * @param {boolean} [options.collectDebugData=false] - Whether to collect debug data
  * @returns {Object|null} Parsed email object with subject, sender, recipients, body, attachments
  */
-export function extractMsg(fileBuffer) {
+export function extractMsg(fileBuffer, options = {}) {
+    const { collectDebugData = false } = options;
+
+    // Initialize debug data object if collecting
+    const debugData = collectDebugData ? {
+        fileType: 'msg',
+        rawSize: fileBuffer.byteLength,
+        rawBuffer: fileBuffer,
+        timestamp: new Date().toISOString()
+    } : null;
+
     const result = initializeMsgReader(fileBuffer);
     if (!result) return null;
 
     const { reader: msgReader, info: msgInfo } = result;
     const emailBodyContent = msgInfo.bodyHTML || msgInfo.body || '';
 
+    // Store raw msgInfo for debug
+    if (debugData) {
+        // Create a clean copy without circular references
+        debugData.msgInfoRaw = JSON.parse(JSON.stringify(msgInfo, (key, value) => {
+            // Skip large binary data in JSON representation
+            if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+                return `[Binary: ${value.byteLength || value.length} bytes]`;
+            }
+            if (key === 'content' && typeof value === 'object') {
+                return '[Attachment content]';
+            }
+            return value;
+        }));
+        debugData.plainText = emailBodyContent;
+    }
+
     // Extract HTML content from various sources
-    let emailBodyContentHTML = extractMsgHtmlContent(msgInfo);
+    let emailBodyContentHTML = extractMsgHtmlContent(msgInfo, debugData);
 
     // Process attachments
     if (msgInfo.attachments && msgInfo.attachments.length > 0) {
         msgInfo.attachments = processMsgAttachments(msgReader, msgInfo.attachments);
+
+        if (debugData) {
+            debugData.htmlBeforeCid = emailBodyContentHTML;
+        }
+
         emailBodyContentHTML = replaceCidReferences(emailBodyContentHTML, msgInfo.attachments);
+
+        if (debugData) {
+            debugData.htmlAfterCid = emailBodyContentHTML;
+            debugData.attachmentCount = msgInfo.attachments.length;
+            debugData.attachments = msgInfo.attachments.map(a => ({
+                fileName: a.fileName,
+                mimeType: a.attachMimeTag,
+                contentLength: a.contentLength,
+                contentId: a.contentId || null
+            }));
+        }
     }
 
-    return {
+    // Store final sanitized HTML will be done by caller
+    if (debugData) {
+        debugData.htmlFinal = emailBodyContentHTML;
+    }
+
+    const emailData = {
         ...msgInfo,
         bodyContent: emailBodyContent,
         bodyContentHTML: emailBodyContentHTML
     };
+
+    // Attach debug data to result if collected
+    if (debugData) {
+        emailData._debugData = debugData;
+    }
+
+    return emailData;
 }
 
 /**
@@ -514,13 +610,29 @@ function handleSinglePartContent(bodyContent, contentType, contentTransferEncodi
 /**
  * Extracts email data from an EML (RFC 5322) file
  * @param {ArrayBuffer} fileBuffer - The raw EML file content
+ * @param {Object} [options] - Options object
+ * @param {boolean} [options.collectDebugData=false] - Whether to collect debug data
  * @returns {Object} Parsed email object with subject, sender, recipients, body, attachments
  * @throws {Error} If the EML file cannot be parsed
  */
-export function extractEml(fileBuffer) {
+export function extractEml(fileBuffer, options = {}) {
+    const { collectDebugData = false } = options;
+
+    // Initialize debug data object if collecting
+    const debugData = collectDebugData ? {
+        fileType: 'eml',
+        rawSize: fileBuffer.byteLength,
+        rawBuffer: fileBuffer,
+        timestamp: new Date().toISOString()
+    } : null;
+
     try {
         // Convert ArrayBuffer to String
         const emailString = Buffer.from(fileBuffer).toString('binary');
+
+        if (debugData) {
+            debugData.rawString = emailString;
+        }
 
         // Split email into headers and body
         const headerBodySplit = emailString.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
@@ -530,8 +642,17 @@ export function extractEml(fileBuffer) {
 
         const [, headersPart, bodyContent] = headerBodySplit;
 
+        if (debugData) {
+            debugData.headersRaw = headersPart;
+            debugData.bodyRaw = bodyContent;
+        }
+
         // Parse headers using helper function
         const headers = parseEmailHeaders(headersPart);
+
+        if (debugData) {
+            debugData.headersParsed = { ...headers };
+        }
 
         // Extract content type info
         const contentType = headers['content-type'] || '';
@@ -539,15 +660,36 @@ export function extractEml(fileBuffer) {
         const charsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
         const detectedCharset = charsetMatch ? charsetMatch[1] : 'utf-8';
 
+        if (debugData) {
+            debugData.contentType = contentType;
+            debugData.charset = detectedCharset;
+            debugData.isMultipart = !!boundaryMatch;
+            debugData.boundary = boundaryMatch ? boundaryMatch[1] : null;
+        }
+
         // Parse content based on whether it's multipart or single-part
         let results;
+        let htmlBeforeCid = '';
+
         if (boundaryMatch) {
             // Multipart email
             results = parseMultipartContent(bodyContent, boundaryMatch[1], 0, detectedCharset);
 
+            if (debugData) {
+                debugData.mimeStructure = buildMimeStructure(bodyContent, boundaryMatch[1]);
+            }
+
+            htmlBeforeCid = results.bodyHTML;
+
             // Replace CID references with base64 attachment data
             if (results.bodyHTML && results.attachments.length > 0) {
+                if (debugData) {
+                    debugData.htmlBeforeCid = results.bodyHTML;
+                }
                 results.bodyHTML = replaceCidReferences(results.bodyHTML, results.attachments);
+                if (debugData) {
+                    debugData.htmlAfterCid = results.bodyHTML;
+                }
             }
         } else {
             // Single-part email
@@ -558,6 +700,22 @@ export function extractEml(fileBuffer) {
                 headers['content-disposition'] || '',
                 detectedCharset
             );
+            htmlBeforeCid = results.bodyHTML;
+        }
+
+        if (debugData) {
+            debugData.plainText = results.bodyText;
+            debugData.htmlFinal = results.bodyHTML || results.bodyText;
+            debugData.attachmentCount = results.attachments.length;
+            debugData.attachments = results.attachments.map(a => ({
+                fileName: a.fileName,
+                mimeType: a.attachMimeTag,
+                contentLength: a.contentLength,
+                contentId: a.contentId || null
+            }));
+            if (!debugData.htmlBeforeCid) {
+                debugData.htmlBeforeCid = htmlBeforeCid;
+            }
         }
 
         // Extract sender and recipients
@@ -566,7 +724,7 @@ export function extractEml(fileBuffer) {
         const cc = extractEmailAddresses(headers.cc);
         const date = headers.date ? new Date(headers.date) : new Date();
 
-        return {
+        const emailData = {
             subject: decodeMIMEWord(headers.subject) || '',
             senderName: from.name || from.address,
             senderEmail: from.address,
@@ -579,8 +737,73 @@ export function extractEml(fileBuffer) {
             bodyContentHTML: results.bodyHTML || results.bodyText,
             attachments: results.attachments
         };
+
+        // Attach debug data to result if collected
+        if (debugData) {
+            emailData._debugData = debugData;
+        }
+
+        return emailData;
     } catch (error) {
         console.error('Error parsing EML file:', error);
         throw error;
     }
+}
+
+/**
+ * Builds a MIME structure tree for visualization
+ * @param {string} content - Raw multipart content
+ * @param {string} boundary - MIME boundary string
+ * @param {number} [depth=0] - Current recursion depth
+ * @returns {Object} MIME structure tree
+ */
+function buildMimeStructure(content, boundary, depth = 0) {
+    const structure = {
+        type: 'multipart',
+        boundary: boundary,
+        parts: []
+    };
+
+    const boundaryRegExp = new RegExp(`--${boundary}(?:--)?(?:\r?\n|\r|$)`, 'g');
+    const parts = content.split(boundaryRegExp).filter(part => part.trim());
+
+    parts.forEach((part, index) => {
+        const partMatch = part.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
+        if (!partMatch) return;
+
+        const [, partHeadersStr, partContent] = partMatch;
+        const partHeaders = parseEmailHeaders(partHeadersStr);
+        const contentType = partHeaders['content-type'] || 'text/plain';
+
+        const partInfo = {
+            index: index,
+            contentType: contentType.split(';')[0].trim(),
+            headers: partHeaders,
+            size: partContent.length
+        };
+
+        // Check for nested multipart
+        const nestedBoundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
+        if (nestedBoundaryMatch) {
+            partInfo.nested = buildMimeStructure(partContent, nestedBoundaryMatch[1], depth + 1);
+        }
+
+        // Add disposition info
+        if (partHeaders['content-disposition']) {
+            partInfo.disposition = partHeaders['content-disposition'].split(';')[0].trim();
+            const filenameMatch = partHeaders['content-disposition'].match(/filename="?([^";\n]+)"?/i);
+            if (filenameMatch) {
+                partInfo.filename = filenameMatch[1];
+            }
+        }
+
+        // Add content-id if present
+        if (partHeaders['content-id']) {
+            partInfo.contentId = partHeaders['content-id'].replace(/[<>]/g, '');
+        }
+
+        structure.parts.push(partInfo);
+    });
+
+    return structure;
 }

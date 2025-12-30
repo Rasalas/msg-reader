@@ -6,6 +6,8 @@ import KeyboardManager from './KeyboardManager.js';
 import { extractMsg, extractEml } from './utils.js';
 import { isTauri, getPendingFiles, onFileOpen, onFileDrop, checkForUpdates } from './tauri-bridge.js';
 import { themeManager, THEMES, EMAIL_THEMES } from './ThemeManager.js';
+import { devModeManager } from './DevModeManager.js';
+import { DevPanel } from './ui/DevPanel.js';
 
 /**
  * Main application class
@@ -17,10 +19,12 @@ class App {
         this.uiManager = new UIManager(this.messageHandler);
 
         // Inject parsers into FileHandler (Dependency Injection)
+        // Pass devModeManager to enable debug data collection
         this.fileHandler = new FileHandler(
             this.messageHandler,
             this.uiManager,
-            { extractMsg, extractEml }
+            { extractMsg, extractEml },
+            devModeManager
         );
 
         // Initialize keyboard manager for shortcuts and navigation
@@ -28,6 +32,84 @@ class App {
 
         // Connect keyboard manager to UI manager for modal context changes
         this.uiManager.setKeyboardManager(this.keyboardManager);
+
+        // Initialize DevPanel if dev mode is enabled
+        this.devPanel = null;
+        this.initDevMode();
+    }
+
+    /**
+     * Initialize developer mode panel and listeners
+     */
+    initDevMode() {
+        const devPanelContainer = document.getElementById('devPanel');
+        if (devPanelContainer) {
+            this.devPanel = new DevPanel(devPanelContainer);
+
+            // Connect UI manager to dev panel
+            this.uiManager.setDevPanel(this.devPanel);
+
+            // Listen for dev mode state changes
+            devModeManager.addListener((state) => {
+                if (state.panelVisible && this.devPanel) {
+                    this.devPanel.show();
+                } else if (this.devPanel) {
+                    this.devPanel.hide();
+                }
+            });
+
+            // If dev mode is enabled via URL, show panel initially
+            if (devModeManager.isEnabled()) {
+                devModeManager.showPanel();
+            }
+        }
+    }
+
+    /**
+     * Toggle the dev panel visibility
+     * If debug data is missing for current message, re-parse to collect it
+     */
+    toggleDevPanel() {
+        devModeManager.enable(); // Ensure dev mode is enabled
+
+        // Check if we need to reload debug data for current message
+        const currentMessage = this.messageHandler.getCurrentMessage();
+        if (currentMessage && !currentMessage._debugData && currentMessage._rawBuffer) {
+            this.reloadDebugData(currentMessage);
+        }
+
+        devModeManager.togglePanel();
+    }
+
+    /**
+     * Re-parse message to collect debug data
+     * @param {Object} message - Message to re-parse
+     */
+    reloadDebugData(message) {
+        if (!message._rawBuffer || !message._fileType) return;
+
+        try {
+            const parseOptions = { collectDebugData: true };
+            let parsedInfo = null;
+
+            if (message._fileType === 'msg') {
+                parsedInfo = extractMsg(message._rawBuffer, parseOptions);
+            } else if (message._fileType === 'eml') {
+                parsedInfo = extractEml(message._rawBuffer, parseOptions);
+            }
+
+            if (parsedInfo?._debugData) {
+                // Attach debug data to the existing message
+                message._debugData = parsedInfo._debugData;
+
+                // Update dev panel if visible
+                if (this.devPanel) {
+                    this.devPanel.setDebugData(message._debugData);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to reload debug data:', error);
+        }
     }
 
     /**

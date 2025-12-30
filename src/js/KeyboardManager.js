@@ -111,6 +111,15 @@ class KeyboardManager {
             return;
         }
 
+        // Handle hidden dev panel shortcut (not in shortcuts list)
+        if (event.key === 'd' || event.key === 'D') {
+            if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+                event.preventDefault();
+                this.toggleDevPanel();
+                return;
+            }
+        }
+
         // Build the key identifier (e.g., "Ctrl+o", "Meta+o", "s")
         const keyId = this.buildKeyIdentifier(event);
 
@@ -123,6 +132,15 @@ class KeyboardManager {
                 event.preventDefault();
                 handler();
             }
+        }
+    }
+
+    /**
+     * Toggle the developer panel (hidden shortcut)
+     */
+    toggleDevPanel() {
+        if (this.app.toggleDevPanel) {
+            this.app.toggleDevPanel();
         }
     }
 
