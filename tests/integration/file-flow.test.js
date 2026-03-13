@@ -269,6 +269,7 @@ describe('File Opening Flow Integration', () => {
             expect(domElements.attachmentModal.classList.contains('active')).toBe(true);
             expect(document.getElementById('attachmentModalFilename').textContent).toContain('inline-image.png');
             expect(document.querySelector('#attachmentModalContent img').src).toContain(inlineImage);
+            expect(document.getElementById('attachmentModalZoomControls').hidden).toBe(false);
         });
 
         it('should hide inline images by default behind a toggle', async () => {

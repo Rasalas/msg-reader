@@ -59,6 +59,11 @@ function setupDOM() {
             <button id="attachmentModalClose"></button>
             <a id="attachmentModalDownload"></a>
             <button id="attachmentModalBack" style="display: none;"></button>
+            <div id="attachmentModalZoomControls" hidden>
+                <button id="attachmentModalZoomOut"></button>
+                <button id="attachmentModalZoomReset"><span id="attachmentModalZoomValue">100%</span></button>
+                <button id="attachmentModalZoomIn"></button>
+            </div>
             <span id="attachmentModalFilename"></span>
             <div id="attachmentModalContent"></div>
             <button id="attachmentModalPrev" style="display: none;"></button>
@@ -391,6 +396,7 @@ describe('ToastManager', () => {
 
 describe('AttachmentModalManager', () => {
     let modal;
+    let loadImageDimensions;
 
     beforeEach(() => {
         document.body.innerHTML = `
@@ -398,6 +404,12 @@ describe('AttachmentModalManager', () => {
                 <div class="attachment-modal-backdrop"></div>
                 <button id="attachmentModalClose"></button>
                 <a id="attachmentModalDownload"></a>
+                <button id="attachmentModalBack" style="display: none;"></button>
+                <div id="attachmentModalZoomControls" hidden>
+                    <button id="attachmentModalZoomOut"></button>
+                    <button id="attachmentModalZoomReset"><span id="attachmentModalZoomValue">100%</span></button>
+                    <button id="attachmentModalZoomIn"></button>
+                </div>
                 <span id="attachmentModalFilename"></span>
                 <div id="attachmentModalContent"></div>
                 <button id="attachmentModalPrev" style="display: none;"></button>
@@ -406,6 +418,11 @@ describe('AttachmentModalManager', () => {
         `;
         isTauri.mockReturnValue(false);
         modal = new AttachmentModalManager(jest.fn());
+        loadImageDimensions = (image, { naturalWidth = 1200, naturalHeight = 600 } = {}) => {
+            Object.defineProperty(image, 'naturalWidth', { configurable: true, value: naturalWidth });
+            Object.defineProperty(image, 'naturalHeight', { configurable: true, value: naturalHeight });
+            image.dispatchEvent(new Event('load'));
+        };
     });
 
     afterEach(() => {
@@ -528,6 +545,80 @@ describe('AttachmentModalManager', () => {
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
             expect(modal.attachmentModalContent.querySelector('img')).toBeTruthy();
+        });
+
+        test('shows zoom controls for image previews', () => {
+            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            modal.setAttachments([att]);
+            modal.renderAttachmentPreview(att);
+
+            const image = modal.attachmentModalContent.querySelector('img');
+            loadImageDimensions(image);
+
+            expect(modal.attachmentModalZoomControls.hidden).toBe(false);
+            expect(modal.attachmentModalZoomValue.textContent).toBe('100%');
+            expect(modal.attachmentModalZoomOut.disabled).toBe(true);
+        });
+
+        test('hides zoom controls for non-image previews', () => {
+            const att = { fileName: 'test.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:application/pdf;base64,abc' };
+            modal.setAttachments([att]);
+            modal.renderAttachmentPreview(att);
+
+            expect(modal.attachmentModalZoomControls.hidden).toBe(true);
+        });
+
+        test('zooms image previews with the toolbar controls', () => {
+            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            modal.setAttachments([att]);
+            modal.renderAttachmentPreview(att);
+
+            const image = modal.attachmentModalContent.querySelector('img');
+            loadImageDimensions(image);
+
+            modal.attachmentModalZoomIn.click();
+
+            expect(modal.imageZoomLevel).toBe(1.25);
+            expect(modal.attachmentModalZoomValue.textContent).toBe('125%');
+            expect(image.style.width).toBe('1200px');
+
+            modal.attachmentModalZoomReset.click();
+
+            expect(modal.imageZoomLevel).toBe(1);
+            expect(modal.attachmentModalZoomValue.textContent).toBe('100%');
+            expect(image.style.width).toBe('960px');
+        });
+
+        test('supports Ctrl+wheel zoom for image previews', () => {
+            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            modal.setAttachments([att]);
+            modal.renderAttachmentPreview(att);
+
+            const image = modal.attachmentModalContent.querySelector('img');
+            loadImageDimensions(image);
+
+            const preventDefault = jest.fn();
+            modal.handleModalWheel({ ctrlKey: true, metaKey: false, deltaY: -120, preventDefault });
+
+            expect(preventDefault).toHaveBeenCalled();
+            expect(modal.imageZoomLevel).toBe(1.25);
+        });
+
+        test('resets image zoom when switching previews', () => {
+            const first = { fileName: 'first.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,first' };
+            const second = { fileName: 'second.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,second' };
+            modal.setAttachments([first, second]);
+
+            modal.renderAttachmentPreview(first);
+            loadImageDimensions(modal.attachmentModalContent.querySelector('img'));
+            modal.attachmentModalZoomIn.click();
+
+            modal.renderAttachmentPreview(second);
+            loadImageDimensions(modal.attachmentModalContent.querySelector('img'), { naturalWidth: 800, naturalHeight: 800 });
+
+            expect(modal.imageZoomLevel).toBe(1);
+            expect(modal.attachmentModalZoomValue.textContent).toBe('100%');
+            expect(modal.attachmentModalZoomOut.disabled).toBe(true);
         });
 
         test('creates object for PDFs', () => {

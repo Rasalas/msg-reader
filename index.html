@@ -51,6 +51,21 @@
                 </button>
                 <span id="attachmentModalFilename" class="attachment-modal-filename" role="heading" aria-level="2"></span>
                 <div class="attachment-modal-actions">
+                    <div id="attachmentModalZoomControls" class="attachment-modal-zoom-controls" hidden>
+                        <button id="attachmentModalZoomOut" type="button" class="attachment-modal-zoom-button" title="Zoom out" aria-label="Zoom out">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+                            </svg>
+                        </button>
+                        <button id="attachmentModalZoomReset" type="button" class="attachment-modal-zoom-button attachment-modal-zoom-reset" title="Reset zoom" aria-label="Reset zoom">
+                            <span id="attachmentModalZoomValue" class="attachment-modal-zoom-value">100%</span>
+                        </button>
+                        <button id="attachmentModalZoomIn" type="button" class="attachment-modal-zoom-button" title="Zoom in" aria-label="Zoom in">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14" />
+                            </svg>
+                        </button>
+                    </div>
                     <a id="attachmentModalDownload" href="#" download="" class="attachment-modal-download" title="Download">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />

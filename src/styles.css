@@ -565,8 +565,11 @@
         position: relative;
         display: flex;
         flex-direction: column;
-        max-width: 90vw;
-        max-height: 90vh;
+        width: min(92vw, 1180px);
+        min-width: min(92vw, 720px);
+        min-height: min(78vh, 760px);
+        max-width: 92vw;
+        max-height: 92vh;
         background-color: var(--surface-color);
         border-radius: 1rem;
         overflow: hidden;
@@ -620,6 +623,51 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
+    }
+
+    .attachment-modal-zoom-controls {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem;
+        border: 1px solid var(--border-color);
+        border-radius: 999px;
+        background-color: color-mix(in srgb, var(--surface-color) 88%, transparent);
+    }
+
+    .attachment-modal-zoom-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2.25rem;
+        height: 2.25rem;
+        padding: 0 0.625rem;
+        border: none;
+        border-radius: 999px;
+        background: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .attachment-modal-zoom-button:hover:not(:disabled) {
+        background-color: var(--hover-bg);
+        color: var(--text-primary);
+    }
+
+    .attachment-modal-zoom-button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+    .attachment-modal-zoom-reset {
+        min-width: 4.5rem;
+    }
+
+    .attachment-modal-zoom-value {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
     }
 
     .attachment-modal-download {
@@ -676,19 +724,49 @@
 
     .attachment-modal-content {
         display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 1rem;
+        flex: 1;
+        align-items: stretch;
+        justify-content: stretch;
+        padding: 0.75rem;
         overflow: auto;
         min-width: 300px;
-        min-height: 200px;
+        min-height: min(70vh, 680px);
         background-color: var(--surface-color);
     }
 
-    .attachment-modal-content img {
-        max-width: 85vw;
-        max-height: 80vh;
+    .attachment-modal-content--image {
+        padding: 0;
+        background:
+            radial-gradient(circle at top left, color-mix(in srgb, var(--surface-tertiary) 82%, transparent), transparent 45%),
+            linear-gradient(180deg, color-mix(in srgb, var(--surface-tertiary) 72%, transparent), var(--surface-color));
+    }
+
+    .attachment-image-viewer {
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+    }
+
+    .attachment-image-stage {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 100%;
+        min-height: 100%;
+        padding: 2rem;
+        box-sizing: border-box;
+    }
+
+    .attachment-preview-image {
+        display: block;
+        max-width: none;
+        max-height: none;
+        width: auto;
+        height: auto;
         object-fit: contain;
+        border-radius: 0.75rem;
+        box-shadow: 0 24px 60px -36px rgb(15 23 42 / 0.55);
+        user-select: none;
     }
 
     .attachment-modal-content:has(iframe),
@@ -735,6 +813,39 @@
 
     .attachment-modal-nav-next {
         right: calc(50% - 45vw - 4rem);
+    }
+
+    @media (max-width: 768px) {
+        .attachment-modal-container {
+            width: 96vw;
+            min-width: 96vw;
+            min-height: 72vh;
+            max-height: 94vh;
+            border-radius: 0.875rem;
+        }
+
+        .attachment-modal-header {
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: flex-start;
+        }
+
+        .attachment-modal-filename {
+            order: 2;
+            width: 100%;
+        }
+
+        .attachment-modal-actions {
+            margin-left: auto;
+        }
+
+        .attachment-modal-content {
+            min-height: 60vh;
+        }
+
+        .attachment-image-stage {
+            padding: 1rem;
+        }
     }
 
     .attachment-text-preview {
