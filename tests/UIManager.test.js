@@ -660,7 +660,7 @@ describe('MessageListRenderer', () => {
     });
 
     test('does not show attachment icon for inline attachments only', () => {
-        mockHandler.getMessages.mockReturnValue([createMockMessage({ attachments: [{ fileName: 'inline.png', pidContentId: 'cid123' }] })]);
+        mockHandler.getMessages.mockReturnValue([createMockMessage({ attachments: [{ fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid123' }] })]);
         renderer.render();
         expect(container.querySelector('.attachment-icon')).toBeFalsy();
     });
@@ -710,6 +710,7 @@ describe('MessageContentRenderer', () => {
     let container;
 
     beforeEach(() => {
+        window.localStorage.clear();
         container = document.createElement('div');
         container.id = 'messageViewer';
         document.body.appendChild(container);
@@ -735,6 +736,7 @@ describe('MessageContentRenderer', () => {
 
     afterEach(() => {
         document.body.innerHTML = '';
+        window.localStorage.clear();
     });
 
     test('sets current message in handler', () => {
@@ -774,21 +776,22 @@ describe('MessageContentRenderer', () => {
         const inlineImage = 'data:image/png;base64,abc';
         renderer.render(createMockMessage({
             bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image"></p>`,
-            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage }]
+            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage, pidContentId: 'cid-1' }]
         }));
 
         const image = container.querySelector('.email-content img');
         expect(image.dataset.inlineImagePreviewable).toBe('true');
         expect(image.dataset.inlineImageFilename).toBe('inline-image.png');
         expect(image.getAttribute('role')).toBe('button');
-        expect(image.tabIndex).toBe(0);
+        expect(image.tabIndex).toBe(-1);
     });
 
     test('clicking inline images opens the modal preview', () => {
+        window.localStorage.setItem('msgReader_showInlineImages', JSON.stringify(true));
         const inlineImage = 'data:image/png;base64,abc';
         renderer.render(createMockMessage({
             bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image"></p>`,
-            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage }]
+            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage, pidContentId: 'cid-1' }]
         }));
 
         container.querySelector('.email-content img').click();
@@ -799,7 +802,7 @@ describe('MessageContentRenderer', () => {
         });
     });
 
-    test('collapses small decorative inline images and shows a toggle', () => {
+    test('hides inline images by default and shows a toggle', () => {
         const iconImage = 'data:image/png;base64,icon';
         const screenshotImage = 'data:image/png;base64,screen';
 
@@ -811,51 +814,61 @@ describe('MessageContentRenderer', () => {
                 </p>
             `,
             attachments: [
-                { fileName: 'asset-a.png', attachMimeTag: 'image/png', contentBase64: iconImage },
-                { fileName: 'asset-b.jpg', attachMimeTag: 'image/png', contentBase64: screenshotImage }
+                { fileName: 'asset-a.png', attachMimeTag: 'image/png', contentBase64: iconImage, pidContentId: 'cid-a' },
+                { fileName: 'asset-b.jpg', attachMimeTag: 'image/png', contentBase64: screenshotImage, pidContentId: 'cid-b' }
             ]
         }));
 
         const images = container.querySelectorAll('.email-content img');
         expect(images[0].hidden).toBe(true);
-        expect(images[1].hidden).toBe(false);
+        expect(images[1].hidden).toBe(true);
 
         const toggle = container.querySelector('.inline-image-toggle');
         expect(toggle).toBeTruthy();
-        expect(toggle.textContent).toContain('1 small inline image hidden');
+        expect(toggle.textContent).toContain('2 inline images hidden');
     });
 
-    test('toggle reveals collapsed small inline images', () => {
+    test('toggle reveals inline images and persists the preference', () => {
         const iconImage = 'data:image/png;base64,icon';
+        const screenshotImage = 'data:image/png;base64,screen';
 
         renderer.render(createMockMessage({
-            bodyContentHTML: `<p><img src="${iconImage}" alt="asset-a.png" width="84" height="67"></p>`,
-            attachments: [{ fileName: 'asset-a.png', attachMimeTag: 'image/png', contentBase64: iconImage }]
+            bodyContentHTML: `
+                <p>
+                    <img src="${iconImage}" alt="asset-a.png" width="84" height="67">
+                    <img src="${screenshotImage}" alt="asset-b.jpg" width="640" height="480">
+                </p>
+            `,
+            attachments: [
+                { fileName: 'asset-a.png', attachMimeTag: 'image/png', contentBase64: iconImage, pidContentId: 'cid-a' },
+                { fileName: 'asset-b.jpg', attachMimeTag: 'image/png', contentBase64: screenshotImage, pidContentId: 'cid-b' }
+            ]
         }));
 
-        const image = container.querySelector('.email-content img');
-        const toggleButton = container.querySelector('[data-action="toggle-small-inline-images"]');
-
-        expect(image.hidden).toBe(true);
+        const images = container.querySelectorAll('.email-content img');
+        const toggleButton = container.querySelector('[data-action="toggle-inline-images"]');
 
         toggleButton.click();
 
-        expect(image.hidden).toBe(false);
-        expect(container.querySelector('.inline-image-toggle').textContent).toContain('1 small inline image shown');
-        expect(toggleButton.textContent).toBe('Hide');
+        expect(images[0].hidden).toBe(false);
+        expect(images[1].hidden).toBe(false);
+        expect(container.querySelector('.inline-image-toggle').textContent).toContain('2 inline images shown');
+        expect(toggleButton.textContent).toBe('Hide inline images');
+        expect(JSON.parse(window.localStorage.getItem('msgReader_showInlineImages'))).toBe(true);
     });
 
-    test('keeps larger inline images visible even with neutral filenames', () => {
+    test('respects saved preference to show inline images', () => {
+        window.localStorage.setItem('msgReader_showInlineImages', JSON.stringify(true));
         const screenshotImage = 'data:image/png;base64,screen';
 
         renderer.render(createMockMessage({
             bodyContentHTML: `<p><img src="${screenshotImage}" alt="asset-c.png" width="220" height="140"></p>`,
-            attachments: [{ fileName: 'asset-c.png', attachMimeTag: 'image/png', contentBase64: screenshotImage }]
+            attachments: [{ fileName: 'asset-c.png', attachMimeTag: 'image/png', contentBase64: screenshotImage, pidContentId: 'cid-c' }]
         }));
 
         const image = container.querySelector('.email-content img');
         expect(image.hidden).toBe(false);
-        expect(container.querySelector('.inline-image-toggle')).toBeFalsy();
+        expect(container.querySelector('.inline-image-toggle').textContent).toContain('1 inline image shown');
     });
 
     test('renders pin button with data attributes', () => {
@@ -968,6 +981,13 @@ describe('MessageContentRenderer', () => {
 
         test('renders plural for multiple', () => {
             expect(renderer.renderAttachments({ attachments: [{ fileName: 'a.pdf' }, { fileName: 'b.pdf' }] })).toContain('2 Attachments');
+        });
+
+        test('excludes inline image attachments from attachment section', () => {
+            const result = renderer.renderAttachments({
+                attachments: [{ fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:' }]
+            });
+            expect(result).toBe('');
         });
 
         test('renders previewable with preview action', () => {

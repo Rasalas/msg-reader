@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE } from '../constants.js';
+import { isInlineImageAttachment } from '../helpers.js';
 import { VirtualList } from './VirtualList.js';
 
 /**
@@ -122,7 +123,7 @@ export class MessageListRenderer {
         // Get the original index in the full message list for data-message-index
         const originalIndex = allMessages.indexOf(msg);
 
-        const hasRealAttachments = msg.attachments?.some(att => !att.pidContentId) || false;
+        const hasRealAttachments = msg.attachments?.some(att => !isInlineImageAttachment(att)) || false;
         const date = msg.timestamp;
         const dateStr = this.formatMessageDate(date);
         const cleanBody = (msg.body || msg.bodyContent || '')

@@ -1,16 +1,9 @@
 import { sanitizeHTML } from '../sanitizer.js';
 import { parseColor, getContrastRatio, adjustColorForContrast } from '../colorUtils.js';
+import { storage } from '../storage.js';
+import { isInlineImageAttachment } from '../helpers.js';
 
-const SMALL_INLINE_IMAGE_MAX_DIMENSION = 96;
-const SMALL_INLINE_IMAGE_MAX_AREA = 9000;
-const INLINE_IMAGE_STRIP_MAX_THICKNESS = 24;
-const INLINE_IMAGE_STRIP_MAX_LENGTH = 180;
-const BORDERLINE_INLINE_IMAGE_MAX_DIMENSION = 180;
-const BORDERLINE_INLINE_IMAGE_MAX_AREA = 12000;
-const DECORATIVE_INLINE_IMAGE_HINTS = [
-    'icon', 'logo', 'facebook', 'instagram', 'linkedin', 'twitter',
-    'youtube', 'whatsapp', 'phone', 'mail', 'email', 'footer', 'header'
-];
+const INLINE_IMAGES_PREFERENCE_KEY = 'msgReader_showInlineImages';
 
 /**
  * Renders message content in the main viewer area
@@ -94,10 +87,10 @@ export class MessageContentRenderer {
         this.container.addEventListener('click', (event) => {
             if (!(event.target instanceof Element)) return;
 
-            const toggleButton = event.target.closest('[data-action="toggle-small-inline-images"]');
+            const toggleButton = event.target.closest('[data-action="toggle-inline-images"]');
             if (toggleButton && this.container.contains(toggleButton)) {
                 event.preventDefault();
-                this.toggleSmallInlineImages();
+                this.toggleInlineImages();
                 return;
             }
 
@@ -128,7 +121,7 @@ export class MessageContentRenderer {
         const emailContent = this.container?.querySelector('.email-content');
         if (!emailContent) return;
 
-        emailContent.dataset.showSmallInlineImages = 'false';
+        emailContent.dataset.showInlineImages = this.getShowInlineImagesPreference() ? 'true' : 'false';
         const attachments = msgInfo.attachments || [];
         const images = emailContent.querySelectorAll('img[src]');
 
@@ -159,13 +152,10 @@ export class MessageContentRenderer {
                 image.setAttribute('aria-label', `Open ${fileName} in preview`);
             }
 
-            this.classifyInlineImage(image);
-            if (!this.hasInlineImageSizeHint(image) && !image.complete) {
-                image.addEventListener('load', () => this.classifyInlineImage(image), { once: true });
-            }
+            this.applyInlineImageVisibility(image);
         });
 
-        this.updateSmallInlineImagesUI();
+        this.updateInlineImagesUI(images.length);
     }
 
     /**
@@ -181,129 +171,13 @@ export class MessageContentRenderer {
     }
 
     /**
-     * Marks an inline image as collapsed when it looks decorative or too small to be useful inline
-     * @param {HTMLImageElement} image - Image element to classify
-     */
-    classifyInlineImage(image) {
-        const shouldCollapse = this.shouldCollapseInlineImage(image);
-        image.dataset.inlineImageCollapsed = shouldCollapse ? 'true' : 'false';
-        this.applyInlineImageVisibility(image);
-        this.updateSmallInlineImagesUI();
-    }
-
-    /**
-     * Returns true when the image has enough size information for heuristic evaluation
-     * @param {HTMLImageElement} image - Image element to inspect
-     * @returns {boolean}
-     */
-    hasInlineImageSizeHint(image) {
-        const widthAttr = Number.parseInt(image.getAttribute('width') || '', 10);
-        const heightAttr = Number.parseInt(image.getAttribute('height') || '', 10);
-        return Number.isFinite(widthAttr) || Number.isFinite(heightAttr) || image.naturalWidth > 0 || image.naturalHeight > 0;
-    }
-
-    /**
-     * Determines whether an inline image should start collapsed
-     * @param {HTMLImageElement} image - Image element to inspect
-     * @returns {boolean}
-     */
-    shouldCollapseInlineImage(image) {
-        const displayedDimensions = this.getDisplayedInlineImageDimensions(image);
-        const intrinsicDimensions = this.getInlineImageDimensions(image);
-        const hasDisplayedDimensions = displayedDimensions.width > 0 || displayedDimensions.height > 0;
-        const { width, height } = hasDisplayedDimensions ? displayedDimensions : intrinsicDimensions;
-        const hasDimensions = width > 0 || height > 0;
-        const decorativeHint = this.hasDecorativeInlineImageHint(image);
-
-        if (decorativeHint && !hasDimensions) {
-            return true;
-        }
-
-        if (!hasDimensions) {
-            return false;
-        }
-
-        const maxDimension = Math.max(width, height);
-        const minDimension = Math.min(width, height);
-        const area = width * height;
-
-        // Very thin bars and separators are almost always decorative.
-        if (minDimension <= INLINE_IMAGE_STRIP_MAX_THICKNESS && maxDimension <= INLINE_IMAGE_STRIP_MAX_LENGTH) {
-            return true;
-        }
-
-        // Small rendered images are hidden regardless of filename metadata.
-        if (maxDimension <= SMALL_INLINE_IMAGE_MAX_DIMENSION && area <= SMALL_INLINE_IMAGE_MAX_AREA) {
-            return true;
-        }
-
-        // Metadata only helps for borderline cases where size alone is ambiguous.
-        if (decorativeHint && maxDimension <= BORDERLINE_INLINE_IMAGE_MAX_DIMENSION && area <= BORDERLINE_INLINE_IMAGE_MAX_AREA) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Extracts the current rendered dimensions for an inline image
-     * @param {HTMLImageElement} image - Image element to inspect
-     * @returns {{width: number, height: number}}
-     */
-    getDisplayedInlineImageDimensions(image) {
-        const rect = image.getBoundingClientRect?.();
-        const widthAttr = Number.parseInt(image.getAttribute('width') || '', 10);
-        const heightAttr = Number.parseInt(image.getAttribute('height') || '', 10);
-
-        const width = Math.round(rect?.width || image.width || widthAttr || 0);
-        const height = Math.round(rect?.height || image.height || heightAttr || 0);
-
-        return { width, height };
-    }
-
-    /**
-     * Extracts the best available dimensions for an inline image
-     * @param {HTMLImageElement} image - Image element to inspect
-     * @returns {{width: number, height: number}}
-     */
-    getInlineImageDimensions(image) {
-        const widthAttr = Number.parseInt(image.getAttribute('width') || '', 10);
-        const heightAttr = Number.parseInt(image.getAttribute('height') || '', 10);
-
-        const width = image.naturalWidth || widthAttr || image.width || 0;
-        const height = image.naturalHeight || heightAttr || image.height || 0;
-
-        return { width, height };
-    }
-
-    /**
-     * Checks metadata for signs that an inline image is decorative rather than content-bearing
-     * @param {HTMLImageElement} image - Image element to inspect
-     * @returns {boolean}
-     */
-    hasDecorativeInlineImageHint(image) {
-        const hintSource = [
-            image.dataset.inlineImageFilename,
-            image.dataset.inlineImageContentId,
-            image.getAttribute('alt'),
-            image.getAttribute('src')
-        ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-        return DECORATIVE_INLINE_IMAGE_HINTS.some(hint => hintSource.includes(hint));
-    }
-
-    /**
-     * Applies collapsed/expanded visibility to a single inline image
+     * Applies the persisted inline-image visibility preference to a single image
      * @param {HTMLImageElement} image - Image element to update
      */
     applyInlineImageVisibility(image) {
         const emailContent = this.container?.querySelector('.email-content');
-        const shouldShowSmallImages = emailContent?.dataset.showSmallInlineImages === 'true';
-        const isCollapsed = image.dataset.inlineImageCollapsed === 'true';
-        const shouldHide = isCollapsed && !shouldShowSmallImages;
+        const shouldShowInlineImages = emailContent?.dataset.showInlineImages === 'true';
+        const shouldHide = !shouldShowInlineImages;
 
         image.hidden = shouldHide;
         image.setAttribute('aria-hidden', shouldHide ? 'true' : 'false');
@@ -311,44 +185,57 @@ export class MessageContentRenderer {
     }
 
     /**
-     * Refreshes the toggle that reveals collapsed small inline images
+     * Gets the persisted user preference for inline images
+     * @returns {boolean}
      */
-    updateSmallInlineImagesUI() {
+    getShowInlineImagesPreference() {
+        return storage.get(INLINE_IMAGES_PREFERENCE_KEY, false) === true;
+    }
+
+    /**
+     * Persists the inline-images preference
+     * @param {boolean} value - Whether inline images should be shown
+     */
+    setShowInlineImagesPreference(value) {
+        storage.set(INLINE_IMAGES_PREFERENCE_KEY, value);
+    }
+
+    /**
+     * Refreshes the show/hide toggle for inline images
+     * @param {number} inlineImageCount - Number of inline images in the current message
+     */
+    updateInlineImagesUI(inlineImageCount) {
         const emailContent = this.container?.querySelector('.email-content');
         if (!emailContent) return;
 
-        const collapsedImages = emailContent.querySelectorAll('img[data-inline-image-collapsed="true"]');
-        const hiddenCount = collapsedImages.length;
         const existingToggle = this.container.querySelector('.inline-image-toggle');
 
-        if (hiddenCount === 0) {
+        if (inlineImageCount === 0) {
             existingToggle?.remove();
             return;
         }
 
-        const toggle = existingToggle || this.createSmallInlineImagesToggle();
-        const expanded = emailContent.dataset.showSmallInlineImages === 'true';
-        const label = `${hiddenCount} small inline image${hiddenCount === 1 ? '' : 's'} ${expanded ? 'shown' : 'hidden'}`;
+        const toggle = existingToggle || this.createInlineImagesToggle();
+        const expanded = emailContent.dataset.showInlineImages === 'true';
+        const label = `${inlineImageCount} inline image${inlineImageCount === 1 ? '' : 's'} ${expanded ? 'shown' : 'hidden'}`;
 
         toggle.querySelector('.inline-image-toggle-label').textContent = label;
-        const button = toggle.querySelector('[data-action="toggle-small-inline-images"]');
-        button.textContent = expanded ? 'Hide' : 'Show';
+        const button = toggle.querySelector('[data-action="toggle-inline-images"]');
+        button.textContent = expanded ? 'Hide inline images' : 'Show inline images';
         button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-
-        collapsedImages.forEach(image => this.applyInlineImageVisibility(image));
     }
 
     /**
-     * Creates the toggle element used to reveal collapsed inline images
+     * Creates the toggle element used to reveal/collapse inline images
      * @returns {HTMLDivElement}
      */
-    createSmallInlineImagesToggle() {
+    createInlineImagesToggle() {
         const toggle = document.createElement('div');
         toggle.className = 'inline-image-toggle';
         toggle.innerHTML = `
             <span class="inline-image-toggle-label"></span>
-            <button type="button" class="inline-image-toggle-button" data-action="toggle-small-inline-images" aria-expanded="false">
-                Show
+            <button type="button" class="inline-image-toggle-button" data-action="toggle-inline-images" aria-expanded="false">
+                Show inline images
             </button>
         `;
 
@@ -358,15 +245,22 @@ export class MessageContentRenderer {
     }
 
     /**
-     * Toggles visibility of collapsed inline images for the current message
+     * Toggles visibility of inline images for the current user and persists the choice
      */
-    toggleSmallInlineImages() {
+    toggleInlineImages() {
         const emailContent = this.container?.querySelector('.email-content');
         if (!emailContent) return;
 
-        const expanded = emailContent.dataset.showSmallInlineImages === 'true';
-        emailContent.dataset.showSmallInlineImages = expanded ? 'false' : 'true';
-        this.updateSmallInlineImagesUI();
+        const expanded = emailContent.dataset.showInlineImages === 'true';
+        const nextValue = !expanded;
+        emailContent.dataset.showInlineImages = nextValue ? 'true' : 'false';
+        this.setShowInlineImagesPreference(nextValue);
+
+        emailContent.querySelectorAll('img[data-inline-image-previewable="true"]').forEach(image => {
+            this.applyInlineImageVisibility(image);
+        });
+
+        this.updateInlineImagesUI(emailContent.querySelectorAll('img[data-inline-image-previewable="true"]').length);
     }
 
     /**
@@ -497,6 +391,12 @@ export class MessageContentRenderer {
             this.attachmentModal.setAttachments(msgInfo.attachments);
         }
 
+        const visibleAttachments = msgInfo.attachments
+            .map((attachment, index) => ({ attachment, index }))
+            .filter(({ attachment }) => !isInlineImageAttachment(attachment));
+
+        if (visibleAttachments.length === 0) return '';
+
         return `
             <div class="mt-6">
                 <hr class="attachments-divider border-t mb-4">
@@ -504,10 +404,10 @@ export class MessageContentRenderer {
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 attachment-icon">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
                     </svg>
-                    <span class="attachment-label">${msgInfo.attachments.length} ${msgInfo.attachments.length === 1 ? 'Attachment' : 'Attachments'}</span>
+                    <span class="attachment-label">${visibleAttachments.length} ${visibleAttachments.length === 1 ? 'Attachment' : 'Attachments'}</span>
                 </div>
                 <div class="flex flex-wrap gap-4">
-                    ${msgInfo.attachments.map((attachment, index) => {
+                    ${visibleAttachments.map(({ attachment, index }) => {
         const isPreviewable = this.attachmentModal?.isPreviewable(attachment.attachMimeTag);
         const isImage = this.attachmentModal?.isPreviewableImage(attachment.attachMimeTag);
         const isPdf = this.attachmentModal?.isPdf(attachment.attachMimeTag);

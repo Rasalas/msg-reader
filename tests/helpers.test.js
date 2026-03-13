@@ -7,6 +7,7 @@ import {
     getCharsetFromCodepage,
     cleanContentId,
     isImageMimeType,
+    isInlineImageAttachment,
     isTextMimeType,
     extractBaseMimeType,
     extractCharset,
@@ -109,6 +110,32 @@ describe('isImageMimeType', () => {
         expect(isImageMimeType('')).toBe(false);
         expect(isImageMimeType(null)).toBe(false);
         expect(isImageMimeType(undefined)).toBe(false);
+    });
+});
+
+describe('isInlineImageAttachment', () => {
+    test('returns true for image attachments with content ids', () => {
+        expect(isInlineImageAttachment({
+            attachMimeTag: 'image/png',
+            pidContentId: 'cid-1'
+        })).toBe(true);
+
+        expect(isInlineImageAttachment({
+            attachMimeTag: 'image/jpeg',
+            contentId: 'cid-2'
+        })).toBe(true);
+    });
+
+    test('returns false for regular attachments', () => {
+        expect(isInlineImageAttachment({
+            attachMimeTag: 'image/png',
+            fileName: 'photo.png'
+        })).toBe(false);
+
+        expect(isInlineImageAttachment({
+            attachMimeTag: 'application/pdf',
+            pidContentId: 'cid-3'
+        })).toBe(false);
     });
 });
 
