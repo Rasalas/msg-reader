@@ -114,7 +114,7 @@ function extractFilename(contentDisposition, defaultName = 'attachment') {
  * @param {string} headerString - Raw header string
  * @returns {Object} Parsed headers as key-value pairs (keys are lowercase)
  */
-function parseEmailHeaders(headerString) {
+export function parseEmailHeaders(headerString) {
     const headers = {};
     let currentHeader = '';
 
@@ -501,6 +501,18 @@ function processMsgAttachments(msgReader, attachments) {
     });
 }
 
+function buildExportMeta(rawHeaders, fallbackHeaders = {}) {
+    const headerMap = rawHeaders ? parseEmailHeaders(rawHeaders) : {};
+
+    return {
+        rawHeaders: rawHeaders || '',
+        headerMap: {
+            ...fallbackHeaders,
+            ...headerMap
+        }
+    };
+}
+
 /**
  * Extracts email data from a Microsoft Outlook MSG file
  * @param {ArrayBuffer} fileBuffer - The raw MSG file content
@@ -574,7 +586,10 @@ export function extractMsg(fileBuffer, options = {}) {
     const emailData = {
         ...msgInfo,
         bodyContent: emailBodyContent,
-        bodyContentHTML: emailBodyContentHTML
+        bodyContentHTML: emailBodyContentHTML,
+        _exportMeta: buildExportMeta(msgInfo.headers, {
+            ...(msgInfo.messageId ? { 'message-id': msgInfo.messageId } : {})
+        })
     };
 
     // Attach debug data to result if collected
@@ -772,7 +787,8 @@ export function extractEml(fileBuffer, options = {}) {
             messageDeliveryTime: date.toISOString(),
             bodyContent: results.bodyText,
             bodyContentHTML: results.bodyHTML || results.bodyText,
-            attachments: results.attachments
+            attachments: results.attachments,
+            _exportMeta: buildExportMeta(headersPart, headers)
         };
 
         // Attach debug data to result if collected

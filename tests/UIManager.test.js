@@ -6,6 +6,7 @@
 // Mock the tauri-bridge module
 jest.mock('../src/js/tauri-bridge.js', () => ({
     isTauri: jest.fn(() => false),
+    saveFileWithDialog: jest.fn(() => Promise.resolve(true)),
     openWithSystemViewer: jest.fn(() => Promise.resolve())
 }));
 
@@ -19,7 +20,7 @@ import { ToastManager } from '../src/js/ui/ToastManager.js';
 import { AttachmentModalManager } from '../src/js/ui/AttachmentModalManager.js';
 import { MessageListRenderer } from '../src/js/ui/MessageListRenderer.js';
 import { MessageContentRenderer } from '../src/js/ui/MessageContentRenderer.js';
-import { isTauri, openWithSystemViewer } from '../src/js/tauri-bridge.js';
+import { isTauri, openWithSystemViewer, saveFileWithDialog } from '../src/js/tauri-bridge.js';
 
 /**
  * Creates a mock message object for testing
@@ -57,6 +58,7 @@ function setupDOM() {
             <div class="attachment-modal-backdrop"></div>
             <button id="attachmentModalClose"></button>
             <a id="attachmentModalDownload"></a>
+            <button id="attachmentModalBack" style="display: none;"></button>
             <span id="attachmentModalFilename"></span>
             <div id="attachmentModalContent"></div>
             <button id="attachmentModalPrev" style="display: none;"></button>
@@ -73,6 +75,7 @@ describe('UIManager (Facade)', () => {
         setupDOM();
         isTauri.mockReturnValue(false);
         openWithSystemViewer.mockClear();
+        saveFileWithDialog.mockClear();
 
         mockMessageHandler = {
             getMessages: jest.fn(() => []),
@@ -254,6 +257,55 @@ describe('UIManager (Facade)', () => {
             viewer.querySelector('[data-action="delete"]').click();
 
             expect(window.app.deleteMessage).toHaveBeenCalledWith(0);
+        });
+
+        test('clicking toggle-export-menu opens the export menu', () => {
+            const viewer = document.getElementById('messageViewer');
+            viewer.innerHTML = `
+                <div class="message-export-menu">
+                    <button data-action="toggle-export-menu" data-index="0">Export</button>
+                    <div class="message-export-dropdown"></div>
+                </div>
+            `;
+
+            viewer.querySelector('[data-action="toggle-export-menu"]').click();
+
+            expect(viewer.querySelector('.message-export-menu').classList.contains('active')).toBe(true);
+        });
+
+        test('clicking export-message calls exportMessage with the selected message and format', () => {
+            const message = createMockMessage({
+                _rawBuffer: new Uint8Array([1, 2, 3]).buffer,
+                _fileType: 'msg'
+            });
+            mockMessageHandler.getMessages.mockReturnValue([message]);
+
+            const spy = jest.spyOn(uiManager, 'exportMessage').mockResolvedValue();
+            const viewer = document.getElementById('messageViewer');
+            viewer.innerHTML = '<button data-action="export-message" data-index="0" data-format="eml">Export</button>';
+
+            viewer.querySelector('[data-action="export-message"]').click();
+
+            expect(spy).toHaveBeenCalledWith(message, 'eml');
+        });
+    });
+
+    describe('Message exports', () => {
+        test('uses Tauri save dialog for EML exports', async () => {
+            isTauri.mockReturnValue(true);
+            const showInfoSpy = jest.spyOn(uiManager, 'showInfo').mockImplementation(() => {});
+            const message = createMockMessage({
+                _rawBuffer: new Uint8Array([0x41, 0x42, 0x43]).buffer,
+                _fileType: 'msg'
+            });
+
+            await uiManager.exportMessage(message, 'eml');
+
+            expect(saveFileWithDialog).toHaveBeenCalledWith(
+                expect.stringMatching(/^data:message\/rfc822;charset=utf-8;base64,/),
+                'test.eml'
+            );
+            expect(showInfoSpy).toHaveBeenCalledWith('EML exported successfully');
         });
     });
 

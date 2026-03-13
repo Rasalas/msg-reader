@@ -362,11 +362,14 @@
     .message-actions {
         display: flex;
         gap: 0.5rem;
+        align-items: center;
+        position: relative;
     }
 
     .action-button {
         padding: 0.5rem;
         border: 1px solid var(--border-color);
+        background-color: var(--surface-color);
         cursor: pointer;
         transition: all 0.2s;
         color: var(--text-secondary);
@@ -383,6 +386,46 @@
 
     .action-button.pinned svg {
         stroke: var(--pinned-icon);
+    }
+
+    .message-export-menu {
+        position: relative;
+    }
+
+    .message-export-dropdown {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        min-width: 12rem;
+        display: none;
+        flex-direction: column;
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+        padding: 0.375rem;
+        z-index: 20;
+    }
+
+    .message-export-menu.active .message-export-dropdown {
+        display: flex;
+    }
+
+    .message-export-item {
+        padding: 0.625rem 0.75rem;
+        text-align: left;
+        border: none;
+        border-radius: 0.5rem;
+        background: transparent;
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 0.875rem;
+        transition: background-color 0.2s, color 0.2s;
+    }
+
+    .message-export-item:hover {
+        background: var(--hover-bg);
+        color: var(--primary-color);
     }
 
     .message-item.pinned {
