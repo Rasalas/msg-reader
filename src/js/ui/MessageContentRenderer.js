@@ -1,5 +1,9 @@
 import { sanitizeHTML } from '../sanitizer.js';
 import { parseColor, getContrastRatio, adjustColorForContrast } from '../colorUtils.js';
+import { storage } from '../storage.js';
+import { isInlineImageAttachment } from '../helpers.js';
+
+const INLINE_IMAGES_PREFERENCE_KEY = 'msgReader_showInlineImages';
 
 /**
  * Renders message content in the main viewer area
@@ -16,6 +20,8 @@ export class MessageContentRenderer {
         this.container = containerElement;
         this.messageHandler = messageHandler;
         this.attachmentModal = attachmentModal;
+
+        this.initInlineImageEventListeners();
     }
 
     /**
@@ -69,6 +75,192 @@ export class MessageContentRenderer {
 
         // Fix low-contrast text colors in dark mode
         this.fixLowContrastColors();
+        this.enhanceInlineImages(msgInfo);
+    }
+
+    /**
+     * Registers delegated handlers for inline images rendered inside email content
+     */
+    initInlineImageEventListeners() {
+        if (!this.container) return;
+
+        this.container.addEventListener('click', (event) => {
+            if (!(event.target instanceof Element)) return;
+
+            const toggleButton = event.target.closest('[data-action="toggle-inline-images"]');
+            if (toggleButton && this.container.contains(toggleButton)) {
+                event.preventDefault();
+                this.toggleInlineImages();
+                return;
+            }
+
+            const image = event.target.closest('img[data-inline-image-previewable="true"]');
+            if (!image || !this.container.contains(image)) return;
+
+            event.preventDefault();
+            this.openInlineImage(image);
+        });
+
+        this.container.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            if (!(event.target instanceof Element)) return;
+
+            const image = event.target.closest('img[data-inline-image-previewable="true"]');
+            if (!image || !this.container.contains(image)) return;
+
+            event.preventDefault();
+            this.openInlineImage(image);
+        });
+    }
+
+    /**
+     * Adds modal-preview affordances to rendered inline images
+     * @param {Object} msgInfo - Message object containing email content and attachments
+     */
+    enhanceInlineImages(msgInfo) {
+        const emailContent = this.container?.querySelector('.email-content');
+        if (!emailContent) return;
+
+        emailContent.dataset.showInlineImages = this.getShowInlineImagesPreference() ? 'true' : 'false';
+        const attachments = msgInfo.attachments || [];
+        const images = emailContent.querySelectorAll('img[src]');
+
+        images.forEach((image, index) => {
+            const source = image.getAttribute('src');
+            if (!source) return;
+
+            const matchingAttachment = attachments.find(attachment =>
+                attachment.attachMimeTag?.toLowerCase().startsWith('image/') &&
+                attachment.contentBase64 === source
+            );
+            const fileName = matchingAttachment?.fileName || image.getAttribute('alt') || `inline-image-${index + 1}`;
+            const contentId = matchingAttachment?.pidContentId || matchingAttachment?.contentId || '';
+
+            image.dataset.inlineImagePreviewable = 'true';
+            image.dataset.inlineImageSource = source;
+            image.dataset.inlineImageFilename = fileName;
+            image.dataset.inlineImageContentId = contentId;
+            image.tabIndex = image.tabIndex >= 0 ? image.tabIndex : 0;
+            image.style.cursor = 'zoom-in';
+            image.setAttribute('role', 'button');
+
+            if (!image.getAttribute('title')) {
+                image.setAttribute('title', 'Click to preview');
+            }
+
+            if (!image.getAttribute('aria-label')) {
+                image.setAttribute('aria-label', `Open ${fileName} in preview`);
+            }
+
+            this.applyInlineImageVisibility(image);
+        });
+
+        this.updateInlineImagesUI(images.length);
+    }
+
+    /**
+     * Opens a rendered inline image in the attachment preview modal
+     * @param {HTMLImageElement} image - Image element to preview
+     */
+    openInlineImage(image) {
+        const source = image.dataset.inlineImageSource || image.currentSrc || image.getAttribute('src');
+        if (!source || !this.attachmentModal?.openInlineImage) return;
+
+        const fileName = image.dataset.inlineImageFilename || image.getAttribute('alt') || 'inline-image';
+        this.attachmentModal.openInlineImage({ source, fileName });
+    }
+
+    /**
+     * Applies the persisted inline-image visibility preference to a single image
+     * @param {HTMLImageElement} image - Image element to update
+     */
+    applyInlineImageVisibility(image) {
+        const emailContent = this.container?.querySelector('.email-content');
+        const shouldShowInlineImages = emailContent?.dataset.showInlineImages === 'true';
+        const shouldHide = !shouldShowInlineImages;
+
+        image.hidden = shouldHide;
+        image.setAttribute('aria-hidden', shouldHide ? 'true' : 'false');
+        image.tabIndex = shouldHide ? -1 : 0;
+    }
+
+    /**
+     * Gets the persisted user preference for inline images
+     * @returns {boolean}
+     */
+    getShowInlineImagesPreference() {
+        return storage.get(INLINE_IMAGES_PREFERENCE_KEY, false) === true;
+    }
+
+    /**
+     * Persists the inline-images preference
+     * @param {boolean} value - Whether inline images should be shown
+     */
+    setShowInlineImagesPreference(value) {
+        storage.set(INLINE_IMAGES_PREFERENCE_KEY, value);
+    }
+
+    /**
+     * Refreshes the show/hide toggle for inline images
+     * @param {number} inlineImageCount - Number of inline images in the current message
+     */
+    updateInlineImagesUI(inlineImageCount) {
+        const emailContent = this.container?.querySelector('.email-content');
+        if (!emailContent) return;
+
+        const existingToggle = this.container.querySelector('.inline-image-toggle');
+
+        if (inlineImageCount === 0) {
+            existingToggle?.remove();
+            return;
+        }
+
+        const toggle = existingToggle || this.createInlineImagesToggle();
+        const expanded = emailContent.dataset.showInlineImages === 'true';
+        const label = `${inlineImageCount} inline image${inlineImageCount === 1 ? '' : 's'} ${expanded ? 'shown' : 'hidden'}`;
+
+        toggle.querySelector('.inline-image-toggle-label').textContent = label;
+        const button = toggle.querySelector('[data-action="toggle-inline-images"]');
+        button.textContent = expanded ? 'Hide inline images' : 'Show inline images';
+        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }
+
+    /**
+     * Creates the toggle element used to reveal/collapse inline images
+     * @returns {HTMLDivElement}
+     */
+    createInlineImagesToggle() {
+        const toggle = document.createElement('div');
+        toggle.className = 'inline-image-toggle';
+        toggle.innerHTML = `
+            <span class="inline-image-toggle-label"></span>
+            <button type="button" class="inline-image-toggle-button" data-action="toggle-inline-images" aria-expanded="false">
+                Show inline images
+            </button>
+        `;
+
+        const emailContent = this.container?.querySelector('.email-content');
+        emailContent?.insertAdjacentElement('beforebegin', toggle);
+        return toggle;
+    }
+
+    /**
+     * Toggles visibility of inline images for the current user and persists the choice
+     */
+    toggleInlineImages() {
+        const emailContent = this.container?.querySelector('.email-content');
+        if (!emailContent) return;
+
+        const expanded = emailContent.dataset.showInlineImages === 'true';
+        const nextValue = !expanded;
+        emailContent.dataset.showInlineImages = nextValue ? 'true' : 'false';
+        this.setShowInlineImagesPreference(nextValue);
+
+        emailContent.querySelectorAll('img[data-inline-image-previewable="true"]').forEach(image => {
+            this.applyInlineImageVisibility(image);
+        });
+
+        this.updateInlineImagesUI(emailContent.querySelectorAll('img[data-inline-image-previewable="true"]').length);
     }
 
     /**
@@ -199,6 +391,12 @@ export class MessageContentRenderer {
             this.attachmentModal.setAttachments(msgInfo.attachments);
         }
 
+        const visibleAttachments = msgInfo.attachments
+            .map((attachment, index) => ({ attachment, index }))
+            .filter(({ attachment }) => !isInlineImageAttachment(attachment));
+
+        if (visibleAttachments.length === 0) return '';
+
         return `
             <div class="mt-6">
                 <hr class="attachments-divider border-t mb-4">
@@ -206,10 +404,10 @@ export class MessageContentRenderer {
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 attachment-icon">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
                     </svg>
-                    <span class="attachment-label">${msgInfo.attachments.length} ${msgInfo.attachments.length === 1 ? 'Attachment' : 'Attachments'}</span>
+                    <span class="attachment-label">${visibleAttachments.length} ${visibleAttachments.length === 1 ? 'Attachment' : 'Attachments'}</span>
                 </div>
                 <div class="flex flex-wrap gap-4">
-                    ${msgInfo.attachments.map((attachment, index) => {
+                    ${visibleAttachments.map(({ attachment, index }) => {
         const isPreviewable = this.attachmentModal?.isPreviewable(attachment.attachMimeTag);
         const isImage = this.attachmentModal?.isPreviewableImage(attachment.attachMimeTag);
         const isPdf = this.attachmentModal?.isPdf(attachment.attachMimeTag);

@@ -32,6 +32,7 @@ import {
     setupFullDOM,
     createMockParsedMessage,
     createMockMessageWithAttachments,
+    createMockMessageWithInlineImages,
     createMockFile,
     createMockParsers,
     waitForDOMUpdate
@@ -45,6 +46,7 @@ describe('File Opening Flow Integration', () => {
     let domElements;
 
     beforeEach(() => {
+        window.localStorage.clear();
         // Setup full DOM structure
         domElements = setupFullDOM();
 
@@ -73,6 +75,7 @@ describe('File Opening Flow Integration', () => {
 
     afterEach(() => {
         document.body.innerHTML = '';
+        window.localStorage.clear();
         jest.clearAllMocks();
         delete window.app;
     });
@@ -229,6 +232,112 @@ describe('File Opening Flow Integration', () => {
             const messageItem = domElements.messageItems.querySelector('.message-item');
             expect(messageItem).not.toBeNull();
             expect(messageItem.innerHTML).toContain('attachment-icon');
+        });
+
+        it('should open inline images in the attachment modal', async () => {
+            // Arrange
+            window.localStorage.setItem('msgReader_showInlineImages', JSON.stringify(true));
+            const inlineImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAE';
+            const mockMessage = createMockMessageWithInlineImages({
+                bodyContentHTML: `<p>Here is an image: <img src="${inlineImage}" alt="inline-image.png"></p>`,
+                attachments: [
+                    {
+                        fileName: 'inline-image.png',
+                        attachMimeTag: 'image/png',
+                        contentLength: 1024,
+                        contentBase64: inlineImage,
+                        pidContentId: 'inline-image-1',
+                        contentId: 'inline-image-1'
+                    }
+                ]
+            });
+            mockParsers.extractMsg.mockReturnValue(mockMessage);
+
+            const msgFile = createMockFile('inline-image.msg', 'mock content');
+
+            // Act
+            fileHandler.handleFiles([msgFile]);
+            await waitForDOMUpdate(100);
+
+            const inlineImageElement = domElements.messageViewer.querySelector('.email-content img');
+            expect(inlineImageElement).not.toBeNull();
+
+            inlineImageElement.click();
+            await waitForDOMUpdate(0);
+
+            // Assert
+            expect(domElements.attachmentModal.classList.contains('active')).toBe(true);
+            expect(document.getElementById('attachmentModalFilename').textContent).toContain('inline-image.png');
+            expect(document.querySelector('#attachmentModalContent img').src).toContain(inlineImage);
+        });
+
+        it('should hide inline images by default behind a toggle', async () => {
+            // Arrange
+            const iconImage = 'data:image/png;base64,icon';
+            const screenshotImage = 'data:image/png;base64,screen';
+            const mockMessage = createMockParsedMessage({
+                bodyContentHTML: `
+                    <p>
+                        <img src="${iconImage}" alt="asset-a.png" width="84" height="67">
+                        <img src="${screenshotImage}" alt="asset-b.jpg" width="640" height="480">
+                    </p>
+                `,
+                attachments: [
+                    {
+                        fileName: 'asset-a.png',
+                        attachMimeTag: 'image/png',
+                        contentLength: 1336,
+                        contentBase64: iconImage,
+                        pidContentId: 'cid-a',
+                        contentId: 'cid-a'
+                    },
+                    {
+                        fileName: 'asset-b.jpg',
+                        attachMimeTag: 'image/png',
+                        contentLength: 4096,
+                        contentBase64: screenshotImage,
+                        pidContentId: 'cid-b',
+                        contentId: 'cid-b'
+                    }
+                ]
+            });
+            mockParsers.extractMsg.mockReturnValue(mockMessage);
+
+            const msgFile = createMockFile('inline-heuristic.msg', 'mock content');
+
+            // Act
+            fileHandler.handleFiles([msgFile]);
+            await waitForDOMUpdate(100);
+
+            const images = domElements.messageViewer.querySelectorAll('.email-content img');
+            const toggleButton = domElements.messageViewer.querySelector('[data-action="toggle-inline-images"]');
+
+            // Assert
+            expect(images[0].hidden).toBe(true);
+            expect(images[1].hidden).toBe(true);
+            expect(toggleButton).not.toBeNull();
+
+            toggleButton.click();
+
+            expect(images[0].hidden).toBe(false);
+            expect(images[1].hidden).toBe(false);
+            expect(JSON.parse(window.localStorage.getItem('msgReader_showInlineImages'))).toBe(true);
+        });
+
+        it('should not render inline images in the attachment section', async () => {
+            // Arrange
+            const mockMessage = createMockMessageWithInlineImages();
+            mockParsers.extractMsg.mockReturnValue(mockMessage);
+
+            const msgFile = createMockFile('inline-only.msg', 'mock content');
+
+            // Act
+            fileHandler.handleFiles([msgFile]);
+            await waitForDOMUpdate(100);
+
+            // Assert
+            expect(domElements.messageViewer.innerHTML).not.toContain('Attachment');
+            expect(domElements.messageViewer.innerHTML).not.toContain('inline-image.png');
         });
     });
 

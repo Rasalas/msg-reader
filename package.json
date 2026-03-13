@@ -25,6 +25,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "description": "A web-based MSG and EML email file reader",
   "dependencies": {
     "@kenjiuno/decompressrtf": "^0.1.4",

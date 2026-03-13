@@ -60,6 +60,19 @@ export function isImageMimeType(mimeType) {
 }
 
 /**
+ * Checks whether an attachment is an inline image embedded in the email body
+ * @param {Object} attachment - Attachment object to inspect
+ * @returns {boolean} True if attachment is an inline image
+ */
+export function isInlineImageAttachment(attachment) {
+    if (!attachment || !isImageMimeType(attachment.attachMimeTag)) {
+        return false;
+    }
+
+    return Boolean(attachment.pidContentId || attachment.contentId);
+}
+
+/**
  * Checks if a MIME type represents a text format
  * @param {string} mimeType - The MIME type to check
  * @returns {boolean} True if it's a text-based type
