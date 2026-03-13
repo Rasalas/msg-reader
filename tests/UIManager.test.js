@@ -930,7 +930,6 @@ describe('MessageContentRenderer', () => {
     });
 
     test('clicking inline images opens the modal preview', () => {
-        window.localStorage.setItem('msgReader_showInlineImages', JSON.stringify(true));
         const inlineImage = 'data:image/png;base64,abc';
         renderer.render(createMockMessage({
             bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image"></p>`,
@@ -945,7 +944,7 @@ describe('MessageContentRenderer', () => {
         });
     });
 
-    test('shows inline images by default and shows a toggle', () => {
+    test('always shows inline images in the message body', () => {
         const iconImage = 'data:image/png;base64,icon';
         const screenshotImage = 'data:image/png;base64,screen';
 
@@ -965,53 +964,7 @@ describe('MessageContentRenderer', () => {
         const images = container.querySelectorAll('.email-content img');
         expect(images[0].hidden).toBe(false);
         expect(images[1].hidden).toBe(false);
-
-        const toggle = container.querySelector('.inline-image-toggle');
-        expect(toggle).toBeTruthy();
-        expect(toggle.textContent).toContain('2 inline images shown');
-    });
-
-    test('toggle hides inline images and persists the preference', () => {
-        const iconImage = 'data:image/png;base64,icon';
-        const screenshotImage = 'data:image/png;base64,screen';
-
-        renderer.render(createMockMessage({
-            bodyContentHTML: `
-                <p>
-                    <img src="${iconImage}" alt="asset-a.png" width="84" height="67">
-                    <img src="${screenshotImage}" alt="asset-b.jpg" width="640" height="480">
-                </p>
-            `,
-            attachments: [
-                { fileName: 'asset-a.png', attachMimeTag: 'image/png', contentBase64: iconImage, pidContentId: 'cid-a' },
-                { fileName: 'asset-b.jpg', attachMimeTag: 'image/png', contentBase64: screenshotImage, pidContentId: 'cid-b' }
-            ]
-        }));
-
-        const images = container.querySelectorAll('.email-content img');
-        const toggleButton = container.querySelector('[data-action="toggle-inline-images"]');
-
-        toggleButton.click();
-
-        expect(images[0].hidden).toBe(true);
-        expect(images[1].hidden).toBe(true);
-        expect(container.querySelector('.inline-image-toggle').textContent).toContain('2 inline images hidden');
-        expect(toggleButton.textContent).toBe('Show inline images');
-        expect(JSON.parse(window.localStorage.getItem('msgReader_showInlineImages'))).toBe(false);
-    });
-
-    test('respects saved preference to hide inline images', () => {
-        window.localStorage.setItem('msgReader_showInlineImages', JSON.stringify(false));
-        const screenshotImage = 'data:image/png;base64,screen';
-
-        renderer.render(createMockMessage({
-            bodyContentHTML: `<p><img src="${screenshotImage}" alt="asset-c.png" width="220" height="140"></p>`,
-            attachments: [{ fileName: 'asset-c.png', attachMimeTag: 'image/png', contentBase64: screenshotImage, pidContentId: 'cid-c' }]
-        }));
-
-        const image = container.querySelector('.email-content img');
-        expect(image.hidden).toBe(true);
-        expect(container.querySelector('.inline-image-toggle').textContent).toContain('1 inline image hidden');
+        expect(container.querySelector('.inline-image-toggle')).toBeFalsy();
     });
 
     test('renders pin button with data attributes', () => {

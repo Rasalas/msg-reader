@@ -1,9 +1,6 @@
 import { sanitizeHTML } from '../sanitizer.js';
 import { parseColor, getContrastRatio, adjustColorForContrast } from '../colorUtils.js';
-import { storage } from '../storage.js';
 import { isInlineImageAttachment } from '../helpers.js';
-
-const INLINE_IMAGES_PREFERENCE_KEY = 'msgReader_showInlineImages';
 
 /**
  * Renders message content in the main viewer area
@@ -100,13 +97,6 @@ export class MessageContentRenderer {
         this.container.addEventListener('click', (event) => {
             if (!(event.target instanceof Element)) return;
 
-            const toggleButton = event.target.closest('[data-action="toggle-inline-images"]');
-            if (toggleButton && this.container.contains(toggleButton)) {
-                event.preventDefault();
-                this.toggleInlineImages();
-                return;
-            }
-
             const image = event.target.closest('img[data-inline-image-previewable="true"]');
             if (!image || !this.container.contains(image)) return;
 
@@ -134,7 +124,6 @@ export class MessageContentRenderer {
         const emailContent = this.container?.querySelector('.email-content');
         if (!emailContent) return;
 
-        emailContent.dataset.showInlineImages = this.getShowInlineImagesPreference() ? 'true' : 'false';
         const attachments = msgInfo.attachments || [];
         const images = emailContent.querySelectorAll('img[src]');
 
@@ -164,11 +153,7 @@ export class MessageContentRenderer {
             if (!image.getAttribute('aria-label')) {
                 image.setAttribute('aria-label', `Open ${fileName} in preview`);
             }
-
-            this.applyInlineImageVisibility(image);
         });
-
-        this.updateInlineImagesUI(images.length);
     }
 
     /**
@@ -181,99 +166,6 @@ export class MessageContentRenderer {
 
         const fileName = image.dataset.inlineImageFilename || image.getAttribute('alt') || 'inline-image';
         this.attachmentModal.openInlineImage({ source, fileName });
-    }
-
-    /**
-     * Applies the persisted inline-image visibility preference to a single image
-     * @param {HTMLImageElement} image - Image element to update
-     */
-    applyInlineImageVisibility(image) {
-        const emailContent = this.container?.querySelector('.email-content');
-        const shouldShowInlineImages = emailContent?.dataset.showInlineImages === 'true';
-        const shouldHide = !shouldShowInlineImages;
-
-        image.hidden = shouldHide;
-        image.setAttribute('aria-hidden', shouldHide ? 'true' : 'false');
-        image.tabIndex = shouldHide ? -1 : 0;
-    }
-
-    /**
-     * Gets the persisted user preference for inline images
-     * @returns {boolean}
-     */
-    getShowInlineImagesPreference() {
-        return storage.get(INLINE_IMAGES_PREFERENCE_KEY, true) !== false;
-    }
-
-    /**
-     * Persists the inline-images preference
-     * @param {boolean} value - Whether inline images should be shown
-     */
-    setShowInlineImagesPreference(value) {
-        storage.set(INLINE_IMAGES_PREFERENCE_KEY, value);
-    }
-
-    /**
-     * Refreshes the show/hide toggle for inline images
-     * @param {number} inlineImageCount - Number of inline images in the current message
-     */
-    updateInlineImagesUI(inlineImageCount) {
-        const emailContent = this.container?.querySelector('.email-content');
-        if (!emailContent) return;
-
-        const existingToggle = this.container.querySelector('.inline-image-toggle');
-
-        if (inlineImageCount === 0) {
-            existingToggle?.remove();
-            return;
-        }
-
-        const toggle = existingToggle || this.createInlineImagesToggle();
-        const expanded = emailContent.dataset.showInlineImages === 'true';
-        const label = `${inlineImageCount} inline image${inlineImageCount === 1 ? '' : 's'} ${expanded ? 'shown' : 'hidden'}`;
-
-        toggle.querySelector('.inline-image-toggle-label').textContent = label;
-        const button = toggle.querySelector('[data-action="toggle-inline-images"]');
-        button.textContent = expanded ? 'Hide inline images' : 'Show inline images';
-        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    }
-
-    /**
-     * Creates the toggle element used to reveal/collapse inline images
-     * @returns {HTMLDivElement}
-     */
-    createInlineImagesToggle() {
-        const toggle = document.createElement('div');
-        toggle.className = 'inline-image-toggle';
-        toggle.innerHTML = `
-            <span class="inline-image-toggle-label"></span>
-            <button type="button" class="inline-image-toggle-button" data-action="toggle-inline-images" aria-expanded="false">
-                Show inline images
-            </button>
-        `;
-
-        const emailContent = this.container?.querySelector('.email-content');
-        emailContent?.insertAdjacentElement('beforebegin', toggle);
-        return toggle;
-    }
-
-    /**
-     * Toggles visibility of inline images for the current user and persists the choice
-     */
-    toggleInlineImages() {
-        const emailContent = this.container?.querySelector('.email-content');
-        if (!emailContent) return;
-
-        const expanded = emailContent.dataset.showInlineImages === 'true';
-        const nextValue = !expanded;
-        emailContent.dataset.showInlineImages = nextValue ? 'true' : 'false';
-        this.setShowInlineImagesPreference(nextValue);
-
-        emailContent.querySelectorAll('img[data-inline-image-previewable="true"]').forEach(image => {
-            this.applyInlineImageVisibility(image);
-        });
-
-        this.updateInlineImagesUI(emailContent.querySelectorAll('img[data-inline-image-previewable="true"]').length);
     }
 
     /**
