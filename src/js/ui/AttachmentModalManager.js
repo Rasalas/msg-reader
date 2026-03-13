@@ -22,11 +22,25 @@ export class AttachmentModalManager {
         this.attachmentModalContent = document.getElementById('attachmentModalContent');
         this.attachmentModalPrev = document.getElementById('attachmentModalPrev');
         this.attachmentModalNext = document.getElementById('attachmentModalNext');
+        this.attachmentModalZoomControls = document.getElementById('attachmentModalZoomControls');
+        this.attachmentModalZoomOut = document.getElementById('attachmentModalZoomOut');
+        this.attachmentModalZoomReset = document.getElementById('attachmentModalZoomReset');
+        this.attachmentModalZoomIn = document.getElementById('attachmentModalZoomIn');
+        this.attachmentModalZoomValue = document.getElementById('attachmentModalZoomValue');
+        this.attachmentModalSourceLink = document.getElementById('attachmentModalSourceLink');
 
         // Modal state
         this.currentAttachmentIndex = 0;
         this.previewableAttachments = [];
         this.currentAttachments = [];
+        this.imageZoomLevel = 1;
+        this.currentImagePreview = null;
+        this.minImageZoom = 1;
+        this.maxImageZoom = 6;
+        this.imageZoomStep = 0.25;
+        this.imageViewerFallbackWidth = 960;
+        this.imageViewerFallbackHeight = 720;
+        this.inlineImageMetadataBySource = new Map();
 
         // Navigation stack for nested content (e.g., attachments within nested emails)
         this.navigationStack = [];
@@ -85,8 +99,12 @@ export class AttachmentModalManager {
      * @param {string} [options.fileName] - Suggested file name for the modal header/download
      * @returns {boolean} True when an image source was provided
      */
-    openInlineImage({ source, fileName = 'inline-image' }) {
+    openInlineImage({ source, fileName = 'inline-image', linkHref = '' }) {
         if (!source) return false;
+
+        if (linkHref) {
+            this.setInlineImageMetadata(source, { linkHref });
+        }
 
         const matchedAttachment = this.findAttachmentBySource(source);
         const attachment = matchedAttachment || this.createInlineImageAttachment(source, fileName);
@@ -97,6 +115,21 @@ export class AttachmentModalManager {
 
         this.open(attachment);
         return true;
+    }
+
+    /**
+     * Stores metadata for inline images so preview entry-points can share context
+     * @param {string} source - Rendered image source URL or data URI
+     * @param {Object} metadata - Metadata associated with the inline image
+     */
+    setInlineImageMetadata(source, metadata = {}) {
+        if (!source) return;
+
+        const existingMetadata = this.inlineImageMetadataBySource.get(source) || {};
+        this.inlineImageMetadataBySource.set(source, {
+            ...existingMetadata,
+            ...metadata
+        });
     }
 
     /**
@@ -196,6 +229,11 @@ export class AttachmentModalManager {
             }
             // In browser, let the default href/download behavior work
         });
+
+        this.attachmentModalZoomOut?.addEventListener('click', () => this.zoomOut());
+        this.attachmentModalZoomReset?.addEventListener('click', () => this.resetZoom());
+        this.attachmentModalZoomIn?.addEventListener('click', () => this.zoomIn());
+        this.attachmentModalContent?.addEventListener('wheel', (event) => this.handleModalWheel(event), { passive: false });
     }
 
     /**
@@ -366,8 +404,11 @@ export class AttachmentModalManager {
      * @param {Object} attachment - Attachment object to render
      */
     renderAttachmentPreview(attachment) {
+        this.resetImagePreviewState();
+
         // Set filename with breadcrumb if navigating from nested content
         this.updateFilenameWithBreadcrumb(attachment.fileName);
+        this.updateSourceLink(this.inlineImageMetadataBySource.get(attachment.contentBase64)?.linkHref || '');
 
         // Set download link
         this.attachmentModalDownload.href = attachment.contentBase64;
@@ -375,13 +416,11 @@ export class AttachmentModalManager {
 
         // Clear previous content
         this.attachmentModalContent.innerHTML = '';
+        this.attachmentModalContent.classList.remove('attachment-modal-content--image');
 
         // Render appropriate preview
         if (this.isPreviewableImage(attachment.attachMimeTag)) {
-            const img = document.createElement('img');
-            img.src = attachment.contentBase64;
-            img.alt = attachment.fileName;
-            this.attachmentModalContent.appendChild(img);
+            this.renderImagePreview(attachment);
         } else if (this.isPdf(attachment.attachMimeTag)) {
             // Use object tag for better PDF compatibility with data: URLs
             const pdfObject = document.createElement('object');
@@ -416,6 +455,210 @@ export class AttachmentModalManager {
 
         // Update navigation buttons
         this.updateNavButtons();
+    }
+
+    /**
+     * Renders an image preview with zoom support inside a fixed viewer area
+     * @param {Object} attachment - Image attachment to preview
+     */
+    renderImagePreview(attachment) {
+        const viewer = document.createElement('div');
+        viewer.className = 'attachment-image-viewer';
+
+        const stage = document.createElement('div');
+        stage.className = 'attachment-image-stage';
+
+        const img = document.createElement('img');
+        img.src = attachment.contentBase64;
+        img.alt = attachment.fileName;
+        img.className = 'attachment-preview-image';
+        img.draggable = false;
+
+        stage.appendChild(img);
+        viewer.appendChild(stage);
+        this.attachmentModalContent.classList.add('attachment-modal-content--image');
+        this.attachmentModalContent.appendChild(viewer);
+
+        this.currentImagePreview = { viewer, stage, image: img };
+        this.updateZoomControls();
+
+        img.addEventListener('load', () => {
+            this.applyImageZoom({ preserveViewport: false });
+        }, { once: true });
+
+        if (img.complete) {
+            queueMicrotask(() => this.applyImageZoom({ preserveViewport: false }));
+        }
+    }
+
+    /**
+     * Handles Ctrl/Cmd + wheel zoom for image previews
+     * @param {WheelEvent} event
+     */
+    handleModalWheel(event) {
+        if (!this.currentImagePreview || (!event.ctrlKey && !event.metaKey)) {
+            return;
+        }
+
+        event.preventDefault();
+        if (event.deltaY < 0) {
+            this.zoomIn();
+        } else if (event.deltaY > 0) {
+            this.zoomOut();
+        }
+    }
+
+    /**
+     * Zooms the current image in
+     */
+    zoomIn() {
+        this.setImageZoom(this.imageZoomLevel + this.imageZoomStep);
+    }
+
+    /**
+     * Zooms the current image out
+     */
+    zoomOut() {
+        this.setImageZoom(this.imageZoomLevel - this.imageZoomStep);
+    }
+
+    /**
+     * Resets the current image zoom to fit the viewer
+     */
+    resetZoom() {
+        this.setImageZoom(this.minImageZoom, { preserveViewport: false });
+    }
+
+    /**
+     * Updates the current image zoom level and re-renders the preview
+     * @param {number} nextZoomLevel - Requested zoom level
+     * @param {Object} [options]
+     * @param {boolean} [options.preserveViewport=true] - Keep current viewport center while zooming
+     */
+    setImageZoom(nextZoomLevel, { preserveViewport = true } = {}) {
+        if (!this.currentImagePreview) return;
+
+        const clampedZoom = Math.min(this.maxImageZoom, Math.max(this.minImageZoom, nextZoomLevel));
+        if (clampedZoom === this.imageZoomLevel && this.currentImagePreview.image?.style.width) {
+            this.updateZoomControls();
+            return;
+        }
+
+        this.imageZoomLevel = clampedZoom;
+        this.applyImageZoom({ preserveViewport });
+    }
+
+    /**
+     * Recomputes the image preview dimensions for the current zoom level
+     * @param {Object} [options]
+     * @param {boolean} [options.preserveViewport=true] - Keep current viewport center while zooming
+     */
+    applyImageZoom({ preserveViewport = true } = {}) {
+        if (!this.currentImagePreview) return;
+
+        const { viewer, stage, image } = this.currentImagePreview;
+        const naturalWidth = image.naturalWidth;
+        const naturalHeight = image.naturalHeight;
+
+        if (!naturalWidth || !naturalHeight) {
+            this.updateZoomControls();
+            return;
+        }
+
+        const { width: viewerWidth, height: viewerHeight } = this.getImageViewerSize(viewer);
+        const fitScale = Math.min(viewerWidth / naturalWidth, viewerHeight / naturalHeight);
+        const baseWidth = Math.max(1, Math.round(naturalWidth * fitScale));
+        const baseHeight = Math.max(1, Math.round(naturalHeight * fitScale));
+
+        const previousStageWidth = stage.scrollWidth || stage.clientWidth || viewerWidth;
+        const previousStageHeight = stage.scrollHeight || stage.clientHeight || viewerHeight;
+        const centerRatioX = preserveViewport ? (viewer.scrollLeft + (viewerWidth / 2)) / previousStageWidth : 0.5;
+        const centerRatioY = preserveViewport ? (viewer.scrollTop + (viewerHeight / 2)) / previousStageHeight : 0.5;
+
+        const scaledWidth = Math.max(1, Math.round(baseWidth * this.imageZoomLevel));
+        const scaledHeight = Math.max(1, Math.round(baseHeight * this.imageZoomLevel));
+        const stageWidth = Math.max(viewerWidth, scaledWidth);
+        const stageHeight = Math.max(viewerHeight, scaledHeight);
+
+        image.style.width = `${scaledWidth}px`;
+        image.style.height = `${scaledHeight}px`;
+        stage.style.width = `${stageWidth}px`;
+        stage.style.height = `${stageHeight}px`;
+
+        if (preserveViewport) {
+            viewer.scrollLeft = Math.max(0, Math.round((centerRatioX * stageWidth) - (viewerWidth / 2)));
+            viewer.scrollTop = Math.max(0, Math.round((centerRatioY * stageHeight) - (viewerHeight / 2)));
+        } else {
+            viewer.scrollLeft = Math.max(0, Math.round((stageWidth - viewerWidth) / 2));
+            viewer.scrollTop = Math.max(0, Math.round((stageHeight - viewerHeight) / 2));
+        }
+
+        this.updateZoomControls();
+    }
+
+    /**
+     * Returns the current image viewer dimensions with test-friendly fallbacks
+     * @param {HTMLElement} viewer - Viewer element
+     * @returns {{width: number, height: number}}
+     */
+    getImageViewerSize(viewer) {
+        return {
+            width: viewer?.clientWidth || this.imageViewerFallbackWidth,
+            height: viewer?.clientHeight || this.imageViewerFallbackHeight
+        };
+    }
+
+    /**
+     * Updates the optional source-link action for linked inline images
+     * @param {string} linkHref - Original link target wrapping the inline image
+     */
+    updateSourceLink(linkHref) {
+        if (!this.attachmentModalSourceLink) return;
+
+        if (!linkHref) {
+            this.attachmentModalSourceLink.hidden = true;
+            this.attachmentModalSourceLink.removeAttribute('href');
+            return;
+        }
+
+        this.attachmentModalSourceLink.href = linkHref;
+        this.attachmentModalSourceLink.hidden = false;
+    }
+
+    /**
+     * Resets image-specific preview state
+     */
+    resetImagePreviewState() {
+        this.imageZoomLevel = this.minImageZoom;
+        this.currentImagePreview = null;
+        this.updateZoomControls();
+    }
+
+    /**
+     * Updates the zoom controls visibility and disabled state
+     */
+    updateZoomControls() {
+        const hasImagePreview = Boolean(this.currentImagePreview);
+
+        if (this.attachmentModalZoomControls) {
+            this.attachmentModalZoomControls.hidden = !hasImagePreview;
+        }
+
+        if (this.attachmentModalZoomValue) {
+            this.attachmentModalZoomValue.textContent = `${Math.round(this.imageZoomLevel * 100)}%`;
+        }
+
+        if (this.attachmentModalZoomOut) {
+            this.attachmentModalZoomOut.disabled = !hasImagePreview || this.imageZoomLevel <= this.minImageZoom;
+        }
+
+        if (this.attachmentModalZoomReset) {
+            this.attachmentModalZoomReset.disabled = !hasImagePreview || this.imageZoomLevel === this.minImageZoom;
+        }
+
+        if (this.attachmentModalZoomIn) {
+            this.attachmentModalZoomIn.disabled = !hasImagePreview || this.imageZoomLevel >= this.maxImageZoom;
+        }
     }
 
     /**
@@ -796,7 +1039,10 @@ export class AttachmentModalManager {
 
         this.attachmentModal.classList.remove('active');
         this.attachmentModalContent.innerHTML = '';
+        this.attachmentModalContent.classList.remove('attachment-modal-content--image');
         this.clearNavigationStack();
+        this.resetImagePreviewState();
+        this.updateSourceLink('');
 
         // Restore body scroll
         document.body.style.overflow = '';

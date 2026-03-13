@@ -138,8 +138,17 @@ export function setupFullDOM() {
             <div class="attachment-modal-backdrop"></div>
             <div class="attachment-modal-container">
                 <div class="attachment-modal-header">
+                    <button id="attachmentModalBack" class="attachment-modal-back" title="Back" style="display: none;"></button>
                     <span id="attachmentModalFilename" class="attachment-modal-filename" role="heading" aria-level="2"></span>
                     <div class="attachment-modal-actions">
+                        <div id="attachmentModalZoomControls" class="attachment-modal-zoom-controls" hidden>
+                            <button id="attachmentModalZoomOut" type="button" class="attachment-modal-zoom-button" title="Zoom out"></button>
+                            <button id="attachmentModalZoomReset" type="button" class="attachment-modal-zoom-button attachment-modal-zoom-reset" title="Reset zoom">
+                                <span id="attachmentModalZoomValue" class="attachment-modal-zoom-value">100%</span>
+                            </button>
+                            <button id="attachmentModalZoomIn" type="button" class="attachment-modal-zoom-button" title="Zoom in"></button>
+                        </div>
+                        <a id="attachmentModalSourceLink" href="#" class="attachment-modal-source-link" title="Open linked target" hidden>Open link</a>
                         <a id="attachmentModalDownload" href="#" download="" class="attachment-modal-download" title="Download"></a>
                         <button id="attachmentModalClose" class="attachment-modal-close" title="Close"></button>
                     </div>
