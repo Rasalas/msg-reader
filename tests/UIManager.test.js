@@ -806,13 +806,13 @@ describe('MessageContentRenderer', () => {
         renderer.render(createMockMessage({
             bodyContentHTML: `
                 <p>
-                    <img src="${iconImage}" alt="image007.png" width="84" height="67">
-                    <img src="${screenshotImage}" alt="image001.jpg" width="640" height="480">
+                    <img src="${iconImage}" alt="asset-a.png" width="84" height="67">
+                    <img src="${screenshotImage}" alt="asset-b.jpg" width="640" height="480">
                 </p>
             `,
             attachments: [
-                { fileName: 'image007.png', attachMimeTag: 'image/png', contentBase64: iconImage },
-                { fileName: 'image001.jpg', attachMimeTag: 'image/png', contentBase64: screenshotImage }
+                { fileName: 'asset-a.png', attachMimeTag: 'image/png', contentBase64: iconImage },
+                { fileName: 'asset-b.jpg', attachMimeTag: 'image/png', contentBase64: screenshotImage }
             ]
         }));
 
@@ -829,8 +829,8 @@ describe('MessageContentRenderer', () => {
         const iconImage = 'data:image/png;base64,icon';
 
         renderer.render(createMockMessage({
-            bodyContentHTML: `<p><img src="${iconImage}" alt="image007.png" width="84" height="67"></p>`,
-            attachments: [{ fileName: 'image007.png', attachMimeTag: 'image/png', contentBase64: iconImage }]
+            bodyContentHTML: `<p><img src="${iconImage}" alt="asset-a.png" width="84" height="67"></p>`,
+            attachments: [{ fileName: 'asset-a.png', attachMimeTag: 'image/png', contentBase64: iconImage }]
         }));
 
         const image = container.querySelector('.email-content img');
@@ -843,6 +843,19 @@ describe('MessageContentRenderer', () => {
         expect(image.hidden).toBe(false);
         expect(container.querySelector('.inline-image-toggle').textContent).toContain('1 small inline image shown');
         expect(toggleButton.textContent).toBe('Hide');
+    });
+
+    test('keeps larger inline images visible even with neutral filenames', () => {
+        const screenshotImage = 'data:image/png;base64,screen';
+
+        renderer.render(createMockMessage({
+            bodyContentHTML: `<p><img src="${screenshotImage}" alt="asset-c.png" width="220" height="140"></p>`,
+            attachments: [{ fileName: 'asset-c.png', attachMimeTag: 'image/png', contentBase64: screenshotImage }]
+        }));
+
+        const image = container.querySelector('.email-content img');
+        expect(image.hidden).toBe(false);
+        expect(container.querySelector('.inline-image-toggle')).toBeFalsy();
     });
 
     test('renders pin button with data attributes', () => {

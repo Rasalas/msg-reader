@@ -2,6 +2,11 @@ import { sanitizeHTML } from '../sanitizer.js';
 import { parseColor, getContrastRatio, adjustColorForContrast } from '../colorUtils.js';
 
 const SMALL_INLINE_IMAGE_MAX_DIMENSION = 96;
+const SMALL_INLINE_IMAGE_MAX_AREA = 9000;
+const INLINE_IMAGE_STRIP_MAX_THICKNESS = 24;
+const INLINE_IMAGE_STRIP_MAX_LENGTH = 180;
+const BORDERLINE_INLINE_IMAGE_MAX_DIMENSION = 180;
+const BORDERLINE_INLINE_IMAGE_MAX_AREA = 12000;
 const DECORATIVE_INLINE_IMAGE_HINTS = [
     'icon', 'logo', 'facebook', 'instagram', 'linkedin', 'twitter',
     'youtube', 'whatsapp', 'phone', 'mail', 'email', 'footer', 'header'
@@ -222,19 +227,22 @@ export class MessageContentRenderer {
         const minDimension = Math.min(width, height);
         const area = width * height;
 
-        if (Math.min(width, height) <= 24 && Math.max(width, height) <= 180) {
+        // Very thin bars and separators are almost always decorative.
+        if (minDimension <= INLINE_IMAGE_STRIP_MAX_THICKNESS && maxDimension <= INLINE_IMAGE_STRIP_MAX_LENGTH) {
             return true;
         }
 
-        if (maxDimension <= 40 && area <= 2500) {
+        // Small rendered images are hidden regardless of filename metadata.
+        if (maxDimension <= SMALL_INLINE_IMAGE_MAX_DIMENSION && area <= SMALL_INLINE_IMAGE_MAX_AREA) {
             return true;
         }
 
-        if (decorativeHint && (maxDimension <= 160 || minDimension <= 48 || area <= 12000)) {
+        // Metadata only helps for borderline cases where size alone is ambiguous.
+        if (decorativeHint && maxDimension <= BORDERLINE_INLINE_IMAGE_MAX_DIMENSION && area <= BORDERLINE_INLINE_IMAGE_MAX_AREA) {
             return true;
         }
 
-        return maxDimension <= SMALL_INLINE_IMAGE_MAX_DIMENSION && minDimension <= SMALL_INLINE_IMAGE_MAX_DIMENSION;
+        return false;
     }
 
     /**

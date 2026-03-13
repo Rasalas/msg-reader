@@ -275,26 +275,26 @@ describe('File Opening Flow Integration', () => {
             const mockMessage = createMockParsedMessage({
                 bodyContentHTML: `
                     <p>
-                        <img src="${iconImage}" alt="image007.png" width="84" height="67">
-                        <img src="${screenshotImage}" alt="image001.jpg" width="640" height="480">
+                        <img src="${iconImage}" alt="asset-a.png" width="84" height="67">
+                        <img src="${screenshotImage}" alt="asset-b.jpg" width="640" height="480">
                     </p>
                 `,
                 attachments: [
                     {
-                        fileName: 'image007.png',
+                        fileName: 'asset-a.png',
                         attachMimeTag: 'image/png',
                         contentLength: 1336,
                         contentBase64: iconImage,
-                        pidContentId: 'image007',
-                        contentId: 'image007'
+                        pidContentId: 'cid-a',
+                        contentId: 'cid-a'
                     },
                     {
-                        fileName: 'image001.jpg',
+                        fileName: 'asset-b.jpg',
                         attachMimeTag: 'image/png',
                         contentLength: 4096,
                         contentBase64: screenshotImage,
-                        pidContentId: 'screenshot',
-                        contentId: 'screenshot'
+                        pidContentId: 'cid-b',
+                        contentId: 'cid-b'
                     }
                 ]
             });
