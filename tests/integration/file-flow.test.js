@@ -272,7 +272,7 @@ describe('File Opening Flow Integration', () => {
             expect(document.getElementById('attachmentModalZoomControls').hidden).toBe(false);
         });
 
-        it('should hide inline images by default behind a toggle', async () => {
+        it('should show inline images by default and allow hiding them behind a toggle', async () => {
             // Arrange
             const iconImage = 'data:image/png;base64,icon';
             const screenshotImage = 'data:image/png;base64,screen';
@@ -314,15 +314,15 @@ describe('File Opening Flow Integration', () => {
             const toggleButton = domElements.messageViewer.querySelector('[data-action="toggle-inline-images"]');
 
             // Assert
-            expect(images[0].hidden).toBe(true);
-            expect(images[1].hidden).toBe(true);
+            expect(images[0].hidden).toBe(false);
+            expect(images[1].hidden).toBe(false);
             expect(toggleButton).not.toBeNull();
 
             toggleButton.click();
 
-            expect(images[0].hidden).toBe(false);
-            expect(images[1].hidden).toBe(false);
-            expect(JSON.parse(window.localStorage.getItem('msgReader_showInlineImages'))).toBe(true);
+            expect(images[0].hidden).toBe(true);
+            expect(images[1].hidden).toBe(true);
+            expect(JSON.parse(window.localStorage.getItem('msgReader_showInlineImages'))).toBe(false);
         });
 
         it('should not render inline images in the attachment section', async () => {

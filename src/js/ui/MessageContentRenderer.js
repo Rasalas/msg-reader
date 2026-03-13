@@ -202,7 +202,7 @@ export class MessageContentRenderer {
      * @returns {boolean}
      */
     getShowInlineImagesPreference() {
-        return storage.get(INLINE_IMAGES_PREFERENCE_KEY, false) === true;
+        return storage.get(INLINE_IMAGES_PREFERENCE_KEY, true) !== false;
     }
 
     /**

@@ -926,7 +926,7 @@ describe('MessageContentRenderer', () => {
         expect(image.dataset.inlineImagePreviewable).toBe('true');
         expect(image.dataset.inlineImageFilename).toBe('inline-image.png');
         expect(image.getAttribute('role')).toBe('button');
-        expect(image.tabIndex).toBe(-1);
+        expect(image.tabIndex).toBe(0);
     });
 
     test('clicking inline images opens the modal preview', () => {
@@ -945,7 +945,7 @@ describe('MessageContentRenderer', () => {
         });
     });
 
-    test('hides inline images by default and shows a toggle', () => {
+    test('shows inline images by default and shows a toggle', () => {
         const iconImage = 'data:image/png;base64,icon';
         const screenshotImage = 'data:image/png;base64,screen';
 
@@ -963,15 +963,15 @@ describe('MessageContentRenderer', () => {
         }));
 
         const images = container.querySelectorAll('.email-content img');
-        expect(images[0].hidden).toBe(true);
-        expect(images[1].hidden).toBe(true);
+        expect(images[0].hidden).toBe(false);
+        expect(images[1].hidden).toBe(false);
 
         const toggle = container.querySelector('.inline-image-toggle');
         expect(toggle).toBeTruthy();
-        expect(toggle.textContent).toContain('2 inline images hidden');
+        expect(toggle.textContent).toContain('2 inline images shown');
     });
 
-    test('toggle reveals inline images and persists the preference', () => {
+    test('toggle hides inline images and persists the preference', () => {
         const iconImage = 'data:image/png;base64,icon';
         const screenshotImage = 'data:image/png;base64,screen';
 
@@ -993,15 +993,15 @@ describe('MessageContentRenderer', () => {
 
         toggleButton.click();
 
-        expect(images[0].hidden).toBe(false);
-        expect(images[1].hidden).toBe(false);
-        expect(container.querySelector('.inline-image-toggle').textContent).toContain('2 inline images shown');
-        expect(toggleButton.textContent).toBe('Hide inline images');
-        expect(JSON.parse(window.localStorage.getItem('msgReader_showInlineImages'))).toBe(true);
+        expect(images[0].hidden).toBe(true);
+        expect(images[1].hidden).toBe(true);
+        expect(container.querySelector('.inline-image-toggle').textContent).toContain('2 inline images hidden');
+        expect(toggleButton.textContent).toBe('Show inline images');
+        expect(JSON.parse(window.localStorage.getItem('msgReader_showInlineImages'))).toBe(false);
     });
 
-    test('respects saved preference to show inline images', () => {
-        window.localStorage.setItem('msgReader_showInlineImages', JSON.stringify(true));
+    test('respects saved preference to hide inline images', () => {
+        window.localStorage.setItem('msgReader_showInlineImages', JSON.stringify(false));
         const screenshotImage = 'data:image/png;base64,screen';
 
         renderer.render(createMockMessage({
@@ -1010,8 +1010,8 @@ describe('MessageContentRenderer', () => {
         }));
 
         const image = container.querySelector('.email-content img');
-        expect(image.hidden).toBe(false);
-        expect(container.querySelector('.inline-image-toggle').textContent).toContain('1 inline image shown');
+        expect(image.hidden).toBe(true);
+        expect(container.querySelector('.inline-image-toggle').textContent).toContain('1 inline image hidden');
     });
 
     test('renders pin button with data attributes', () => {
