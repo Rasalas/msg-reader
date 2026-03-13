@@ -32,6 +32,7 @@ import {
     setupFullDOM,
     createMockParsedMessage,
     createMockMessageWithAttachments,
+    createMockMessageWithInlineImages,
     createMockFile,
     createMockParsers,
     waitForDOMUpdate
@@ -229,6 +230,42 @@ describe('File Opening Flow Integration', () => {
             const messageItem = domElements.messageItems.querySelector('.message-item');
             expect(messageItem).not.toBeNull();
             expect(messageItem.innerHTML).toContain('attachment-icon');
+        });
+
+        it('should open inline images in the attachment modal', async () => {
+            // Arrange
+            const inlineImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAE';
+            const mockMessage = createMockMessageWithInlineImages({
+                bodyContentHTML: `<p>Here is an image: <img src="${inlineImage}" alt="inline-image.png"></p>`,
+                attachments: [
+                    {
+                        fileName: 'inline-image.png',
+                        attachMimeTag: 'image/png',
+                        contentLength: 1024,
+                        contentBase64: inlineImage,
+                        pidContentId: 'inline-image-1',
+                        contentId: 'inline-image-1'
+                    }
+                ]
+            });
+            mockParsers.extractMsg.mockReturnValue(mockMessage);
+
+            const msgFile = createMockFile('inline-image.msg', 'mock content');
+
+            // Act
+            fileHandler.handleFiles([msgFile]);
+            await waitForDOMUpdate(100);
+
+            const inlineImageElement = domElements.messageViewer.querySelector('.email-content img');
+            expect(inlineImageElement).not.toBeNull();
+
+            inlineImageElement.click();
+            await waitForDOMUpdate(0);
+
+            // Assert
+            expect(domElements.attachmentModal.classList.contains('active')).toBe(true);
+            expect(document.getElementById('attachmentModalFilename').textContent).toContain('inline-image.png');
+            expect(document.querySelector('#attachmentModalContent img').src).toContain(inlineImage);
         });
     });
 

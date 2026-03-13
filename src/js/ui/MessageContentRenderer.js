@@ -16,6 +16,8 @@ export class MessageContentRenderer {
         this.container = containerElement;
         this.messageHandler = messageHandler;
         this.attachmentModal = attachmentModal;
+
+        this.initInlineImageEventListeners();
     }
 
     /**
@@ -69,6 +71,84 @@ export class MessageContentRenderer {
 
         // Fix low-contrast text colors in dark mode
         this.fixLowContrastColors();
+        this.enhanceInlineImages(msgInfo);
+    }
+
+    /**
+     * Registers delegated handlers for inline images rendered inside email content
+     */
+    initInlineImageEventListeners() {
+        if (!this.container) return;
+
+        this.container.addEventListener('click', (event) => {
+            if (!(event.target instanceof Element)) return;
+            const image = event.target.closest('img[data-inline-image-previewable="true"]');
+            if (!image || !this.container.contains(image)) return;
+
+            event.preventDefault();
+            this.openInlineImage(image);
+        });
+
+        this.container.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            if (!(event.target instanceof Element)) return;
+
+            const image = event.target.closest('img[data-inline-image-previewable="true"]');
+            if (!image || !this.container.contains(image)) return;
+
+            event.preventDefault();
+            this.openInlineImage(image);
+        });
+    }
+
+    /**
+     * Adds modal-preview affordances to rendered inline images
+     * @param {Object} msgInfo - Message object containing email content and attachments
+     */
+    enhanceInlineImages(msgInfo) {
+        const emailContent = this.container?.querySelector('.email-content');
+        if (!emailContent) return;
+
+        const attachments = msgInfo.attachments || [];
+        const images = emailContent.querySelectorAll('img[src]');
+
+        images.forEach((image, index) => {
+            const source = image.getAttribute('src');
+            if (!source) return;
+
+            const matchingAttachment = attachments.find(attachment =>
+                attachment.attachMimeTag?.toLowerCase().startsWith('image/') &&
+                attachment.contentBase64 === source
+            );
+            const fileName = matchingAttachment?.fileName || image.getAttribute('alt') || `inline-image-${index + 1}`;
+
+            image.dataset.inlineImagePreviewable = 'true';
+            image.dataset.inlineImageSource = source;
+            image.dataset.inlineImageFilename = fileName;
+            image.tabIndex = image.tabIndex >= 0 ? image.tabIndex : 0;
+            image.style.cursor = 'zoom-in';
+            image.setAttribute('role', 'button');
+
+            if (!image.getAttribute('title')) {
+                image.setAttribute('title', 'Click to preview');
+            }
+
+            if (!image.getAttribute('aria-label')) {
+                image.setAttribute('aria-label', `Open ${fileName} in preview`);
+            }
+        });
+    }
+
+    /**
+     * Opens a rendered inline image in the attachment preview modal
+     * @param {HTMLImageElement} image - Image element to preview
+     */
+    openInlineImage(image) {
+        const source = image.dataset.inlineImageSource || image.currentSrc || image.getAttribute('src');
+        if (!source || !this.attachmentModal?.openInlineImage) return;
+
+        const fileName = image.dataset.inlineImageFilename || image.getAttribute('alt') || 'inline-image';
+        this.attachmentModal.openInlineImage({ source, fileName });
     }
 
     /**

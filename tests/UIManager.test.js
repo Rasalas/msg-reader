@@ -435,6 +435,24 @@ describe('AttachmentModalManager', () => {
             modal.close();
             expect(modal.attachmentModalContent.innerHTML).toBe('');
         });
+
+        test('openInlineImage reuses matching attachments', () => {
+            modal.setAttachments([attachment]);
+            modal.openInlineImage({ source: attachment.contentBase64, fileName: 'ignored.png' });
+
+            expect(modal.attachmentModal.classList.contains('active')).toBe(true);
+            expect(modal.attachmentModalFilename.textContent).toBe('test.png');
+            expect(modal.previewableAttachments).toHaveLength(1);
+        });
+
+        test('openInlineImage creates synthetic preview attachments when needed', () => {
+            modal.openInlineImage({ source: 'data:image/gif;base64,abc', fileName: 'inline-preview' });
+
+            expect(modal.attachmentModal.classList.contains('active')).toBe(true);
+            expect(modal.previewableAttachments).toHaveLength(1);
+            expect(modal.previewableAttachments[0].fileName).toBe('inline-preview.gif');
+            expect(modal.attachmentModalContent.querySelector('img').src).toContain('data:image/gif;base64,abc');
+        });
     });
 
     describe('renderAttachmentPreview', () => {
@@ -708,7 +726,8 @@ describe('MessageContentRenderer', () => {
             isPreviewableImage: jest.fn(() => false),
             isPdf: jest.fn(() => false),
             isText: jest.fn(() => false),
-            isPreviewableEml: jest.fn(() => false)
+            isPreviewableEml: jest.fn(() => false),
+            openInlineImage: jest.fn()
         };
 
         renderer = new MessageContentRenderer(container, mockHandler, mockModal);
@@ -749,6 +768,35 @@ describe('MessageContentRenderer', () => {
     test('renders HTML body content', () => {
         renderer.render(createMockMessage({ bodyContentHTML: '<p>This is <strong>HTML</strong></p>' }));
         expect(container.innerHTML).toContain('<strong>HTML</strong>');
+    });
+
+    test('marks inline images as previewable controls', () => {
+        const inlineImage = 'data:image/png;base64,abc';
+        renderer.render(createMockMessage({
+            bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image"></p>`,
+            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage }]
+        }));
+
+        const image = container.querySelector('.email-content img');
+        expect(image.dataset.inlineImagePreviewable).toBe('true');
+        expect(image.dataset.inlineImageFilename).toBe('inline-image.png');
+        expect(image.getAttribute('role')).toBe('button');
+        expect(image.tabIndex).toBe(0);
+    });
+
+    test('clicking inline images opens the modal preview', () => {
+        const inlineImage = 'data:image/png;base64,abc';
+        renderer.render(createMockMessage({
+            bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image"></p>`,
+            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage }]
+        }));
+
+        container.querySelector('.email-content img').click();
+
+        expect(mockModal.openInlineImage).toHaveBeenCalledWith({
+            source: inlineImage,
+            fileName: 'inline-image.png'
+        });
     });
 
     test('renders pin button with data attributes', () => {

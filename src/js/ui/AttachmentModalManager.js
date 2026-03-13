@@ -64,6 +64,111 @@ export class AttachmentModalManager {
     }
 
     /**
+     * Finds an image attachment by its rendered source URL
+     * @param {string} source - Image source URL or data URI
+     * @returns {Object|null} Matching attachment or null
+     */
+    findAttachmentBySource(source) {
+        if (!source) return null;
+
+        return this.currentAttachments.find(attachment =>
+            this.isPreviewableImage(attachment.attachMimeTag) &&
+            attachment.contentBase64 === source
+        ) || null;
+    }
+
+    /**
+     * Opens an inline image in the existing attachment preview modal
+     * Falls back to a synthetic image attachment when the source is not part of attachments
+     * @param {Object} options
+     * @param {string} options.source - Rendered image source URL or data URI
+     * @param {string} [options.fileName] - Suggested file name for the modal header/download
+     * @returns {boolean} True when an image source was provided
+     */
+    openInlineImage({ source, fileName = 'inline-image' }) {
+        if (!source) return false;
+
+        const matchedAttachment = this.findAttachmentBySource(source);
+        const attachment = matchedAttachment || this.createInlineImageAttachment(source, fileName);
+
+        if (!matchedAttachment) {
+            this.setAttachments([attachment]);
+        }
+
+        this.open(attachment);
+        return true;
+    }
+
+    /**
+     * Creates a temporary attachment model for inline images that are not in the attachment list
+     * @param {string} source - Rendered image source URL or data URI
+     * @param {string} fileName - Suggested file name
+     * @returns {Object} Attachment-like object for modal preview
+     */
+    createInlineImageAttachment(source, fileName) {
+        const mimeType = this.inferInlineImageMimeType(source);
+
+        return {
+            fileName: this.normalizeInlineImageFileName(fileName, mimeType),
+            attachMimeTag: mimeType,
+            contentBase64: source,
+            contentLength: 0
+        };
+    }
+
+    /**
+     * Infers an image MIME type from a data URI or file extension
+     * @param {string} source - Rendered image source URL or data URI
+     * @returns {string} Best-effort image MIME type
+     */
+    inferInlineImageMimeType(source) {
+        if (typeof source !== 'string') return 'image/png';
+
+        const dataUrlMatch = source.match(/^data:(image\/[^;]+);/i);
+        if (dataUrlMatch) {
+            return dataUrlMatch[1].toLowerCase();
+        }
+
+        const sourceWithoutQuery = source.split('?')[0].split('#')[0];
+        const extension = sourceWithoutQuery.split('.').pop()?.toLowerCase();
+        const mimeTypesByExtension = {
+            jpg: 'image/jpeg',
+            jpeg: 'image/jpeg',
+            png: 'image/png',
+            gif: 'image/gif',
+            webp: 'image/webp',
+            svg: 'image/svg+xml',
+            bmp: 'image/bmp'
+        };
+
+        return mimeTypesByExtension[extension] || 'image/png';
+    }
+
+    /**
+     * Ensures synthetic inline-image downloads keep a sensible file extension
+     * @param {string} fileName - Suggested file name
+     * @param {string} mimeType - Inferred MIME type
+     * @returns {string} Normalized file name
+     */
+    normalizeInlineImageFileName(fileName, mimeType) {
+        const normalizedFileName = (fileName || 'inline-image').trim() || 'inline-image';
+        if (/\.[a-z0-9]+$/i.test(normalizedFileName)) {
+            return normalizedFileName;
+        }
+
+        const extensionsByMimeType = {
+            'image/jpeg': 'jpg',
+            'image/png': 'png',
+            'image/gif': 'gif',
+            'image/webp': 'webp',
+            'image/svg+xml': 'svg',
+            'image/bmp': 'bmp'
+        };
+
+        return `${normalizedFileName}.${extensionsByMimeType[mimeType] || 'png'}`;
+    }
+
+    /**
      * Initializes event listeners for the attachment preview modal
      * Handles close button, backdrop click, and navigation
      */
@@ -141,11 +246,7 @@ export class AttachmentModalManager {
      */
     isPreviewableImage(mimeType) {
         if (!mimeType) return false;
-        const previewableTypes = [
-            'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
-            'image/webp', 'image/svg+xml', 'image/bmp'
-        ];
-        return previewableTypes.includes(mimeType.toLowerCase());
+        return mimeType.toLowerCase().startsWith('image/');
     }
 
     /**
