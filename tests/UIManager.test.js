@@ -799,6 +799,52 @@ describe('MessageContentRenderer', () => {
         });
     });
 
+    test('collapses small decorative inline images and shows a toggle', () => {
+        const iconImage = 'data:image/png;base64,icon';
+        const screenshotImage = 'data:image/png;base64,screen';
+
+        renderer.render(createMockMessage({
+            bodyContentHTML: `
+                <p>
+                    <img src="${iconImage}" alt="instagram-icon.png" width="24" height="24">
+                    <img src="${screenshotImage}" alt="screenshot.png" width="640" height="480">
+                </p>
+            `,
+            attachments: [
+                { fileName: 'instagram-icon.png', attachMimeTag: 'image/png', contentBase64: iconImage },
+                { fileName: 'screenshot.png', attachMimeTag: 'image/png', contentBase64: screenshotImage }
+            ]
+        }));
+
+        const images = container.querySelectorAll('.email-content img');
+        expect(images[0].hidden).toBe(true);
+        expect(images[1].hidden).toBe(false);
+
+        const toggle = container.querySelector('.inline-image-toggle');
+        expect(toggle).toBeTruthy();
+        expect(toggle.textContent).toContain('1 small inline image hidden');
+    });
+
+    test('toggle reveals collapsed small inline images', () => {
+        const iconImage = 'data:image/png;base64,icon';
+
+        renderer.render(createMockMessage({
+            bodyContentHTML: `<p><img src="${iconImage}" alt="facebook-icon.png" width="24" height="24"></p>`,
+            attachments: [{ fileName: 'facebook-icon.png', attachMimeTag: 'image/png', contentBase64: iconImage }]
+        }));
+
+        const image = container.querySelector('.email-content img');
+        const toggleButton = container.querySelector('[data-action="toggle-small-inline-images"]');
+
+        expect(image.hidden).toBe(true);
+
+        toggleButton.click();
+
+        expect(image.hidden).toBe(false);
+        expect(container.querySelector('.inline-image-toggle').textContent).toContain('1 small inline image shown');
+        expect(toggleButton.textContent).toBe('Hide');
+    });
+
     test('renders pin button with data attributes', () => {
         const msg = createMockMessage();
         mockHandler.getMessages.mockReturnValue([msg]);

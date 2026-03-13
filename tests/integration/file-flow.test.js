@@ -267,6 +267,57 @@ describe('File Opening Flow Integration', () => {
             expect(document.getElementById('attachmentModalFilename').textContent).toContain('inline-image.png');
             expect(document.querySelector('#attachmentModalContent img').src).toContain(inlineImage);
         });
+
+        it('should hide decorative inline images behind a toggle', async () => {
+            // Arrange
+            const iconImage = 'data:image/png;base64,icon';
+            const screenshotImage = 'data:image/png;base64,screen';
+            const mockMessage = createMockParsedMessage({
+                bodyContentHTML: `
+                    <p>
+                        <img src="${iconImage}" alt="facebook-icon.png" width="24" height="24">
+                        <img src="${screenshotImage}" alt="screenshot.png" width="640" height="480">
+                    </p>
+                `,
+                attachments: [
+                    {
+                        fileName: 'facebook-icon.png',
+                        attachMimeTag: 'image/png',
+                        contentLength: 256,
+                        contentBase64: iconImage,
+                        pidContentId: 'facebook-icon',
+                        contentId: 'facebook-icon'
+                    },
+                    {
+                        fileName: 'screenshot.png',
+                        attachMimeTag: 'image/png',
+                        contentLength: 4096,
+                        contentBase64: screenshotImage,
+                        pidContentId: 'screenshot',
+                        contentId: 'screenshot'
+                    }
+                ]
+            });
+            mockParsers.extractMsg.mockReturnValue(mockMessage);
+
+            const msgFile = createMockFile('inline-heuristic.msg', 'mock content');
+
+            // Act
+            fileHandler.handleFiles([msgFile]);
+            await waitForDOMUpdate(100);
+
+            const images = domElements.messageViewer.querySelectorAll('.email-content img');
+            const toggleButton = domElements.messageViewer.querySelector('[data-action="toggle-small-inline-images"]');
+
+            // Assert
+            expect(images[0].hidden).toBe(true);
+            expect(images[1].hidden).toBe(false);
+            expect(toggleButton).not.toBeNull();
+
+            toggleButton.click();
+
+            expect(images[0].hidden).toBe(false);
+        });
     });
 
     describe('Unsupported file types', () => {
