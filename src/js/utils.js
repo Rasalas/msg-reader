@@ -41,6 +41,87 @@ function sanitizeFilename(filename) {
     return sanitized || 'attachment';
 }
 
+const MIME_EXTENSION_FALLBACKS = {
+    'application/javascript': '.js',
+    'application/json': '.json',
+    'application/pdf': '.pdf',
+    'application/rtf': '.rtf',
+    'application/xml': '.xml',
+    'image/bmp': '.bmp',
+    'image/gif': '.gif',
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/png': '.png',
+    'image/svg+xml': '.svg',
+    'image/webp': '.webp',
+    'message/rfc822': '.eml',
+    'text/csv': '.csv',
+    'text/html': '.html',
+    'text/plain': '.txt'
+};
+
+/**
+ * Normalizes a filename extension so it can be appended safely.
+ * @param {string} extension - Raw extension (with or without leading dot)
+ * @returns {string} Sanitized extension with leading dot, or empty string
+ */
+function normalizeAttachmentExtension(extension) {
+    if (!extension) return '';
+
+    const sanitized = sanitizeFilename(extension);
+    if (!sanitized) return '';
+
+    return sanitized.startsWith('.') ? sanitized : `.${sanitized}`;
+}
+
+/**
+ * Appends an extension to a filename when it is missing.
+ * @param {string} filename - Candidate filename
+ * @param {string} extension - Normalized extension with leading dot
+ * @returns {string} Filename with extension when applicable
+ */
+function appendExtensionIfMissing(filename, extension) {
+    if (!filename) return '';
+    if (!extension) return filename;
+
+    return filename.toLowerCase().endsWith(extension.toLowerCase())
+        ? filename
+        : `${filename}${extension}`;
+}
+
+/**
+ * Resolves a usable filename for MSG attachments when Outlook omits PidTagAttachLongFilename.
+ * @param {Object} attachment - MSG attachment metadata from msgreader
+ * @param {string} [attachmentFileName=''] - Filename returned by msgreader.getAttachment()
+ * @returns {string} Sanitized filename
+ */
+function resolveMsgAttachmentFilename(attachment, attachmentFileName = '') {
+    const mimeType = (attachment?.attachMimeTag || '').toLowerCase();
+    const extension = normalizeAttachmentExtension(
+        attachment?.extension || MIME_EXTENSION_FALLBACKS[mimeType] || ''
+    );
+
+    const candidates = [
+        attachmentFileName,
+        attachment?.fileName,
+        appendExtensionIfMissing(attachment?.name, extension),
+        appendExtensionIfMissing(attachment?.fileNameShort, extension)
+    ];
+
+    for (const candidate of candidates) {
+        if (typeof candidate !== 'string' || !candidate.trim()) {
+            continue;
+        }
+
+        const sanitized = sanitizeFilename(candidate);
+        if (sanitized !== 'attachment' || candidate.trim().toLowerCase() === 'attachment') {
+            return sanitized;
+        }
+    }
+
+    return extension ? `attachment${extension}` : 'attachment';
+}
+
 /**
  * Decodes MIME encoded-word format strings (RFC 2047)
  * Handles both Base64 (B) and Quoted-Printable (Q) encodings
@@ -489,13 +570,14 @@ function extractMsgHtmlContent(msgInfo, debugData = null) {
  */
 function processMsgAttachments(msgReader, attachments) {
     return attachments.map(attachment => {
-        const contentUint8Array = msgReader.getAttachment(attachment).content;
+        const attachmentData = msgReader.getAttachment(attachment);
+        const contentUint8Array = attachmentData.content;
         const contentBuffer = Buffer.from(contentUint8Array);
         const contentBase64 = contentBuffer.toString('base64');
 
         return {
             ...attachment,
-            fileName: sanitizeFilename(attachment.fileName),
+            fileName: resolveMsgAttachmentFilename(attachment, attachmentData.fileName),
             contentBase64: `data:${attachment.attachMimeTag};base64,${contentBase64}`
         };
     });
