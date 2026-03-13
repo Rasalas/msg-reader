@@ -4,6 +4,12 @@ import { AttachmentModalManager } from './AttachmentModalManager.js';
 import { ToastManager } from './ToastManager.js';
 import { SearchManager } from '../SearchManager.js';
 import { isTauri, saveFileWithDialog } from '../tauri-bridge.js';
+import {
+    getExportFileName,
+    getOriginalMessageMimeType,
+    messageToEml,
+    messageToHtmlDocument
+} from '../messageExport.js';
 
 // Debounce time for attachment clicks (Windows double-click interval)
 const ATTACHMENT_CLICK_DEBOUNCE_MS = 500;
@@ -70,6 +76,12 @@ class UIManager {
             }
         });
 
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.message-export-menu')) {
+                this.closeExportMenus();
+            }
+        });
+
         // Message viewer actions
         document.getElementById('messageViewer')?.addEventListener('click', (e) => {
             const btn = e.target.closest('[data-action]');
@@ -80,6 +92,17 @@ class UIManager {
 
             if (action === 'pin') window.app.togglePin(index);
             else if (action === 'delete') window.app.deleteMessage(index);
+            else if (action === 'toggle-export-menu') {
+                e.stopPropagation();
+                this.toggleExportMenu(btn);
+            }
+            else if (action === 'export-message') {
+                const message = this.messageHandler.getMessages()[index];
+                if (message) {
+                    this.exportMessage(message, btn.dataset.format);
+                }
+                this.closeExportMenus();
+            }
             else if (action === 'preview' || action === 'download') {
                 // Debounce attachment clicks to prevent double-open from Outlook habits
                 const now = Date.now();
@@ -287,6 +310,131 @@ class UIManager {
 
     showInfo(message, duration = 3000) {
         this.toasts.info(message, duration);
+    }
+
+    /**
+     * Closes all export menus in the message viewer
+     */
+    closeExportMenus() {
+        document.querySelectorAll('.message-export-menu.active').forEach(menu => {
+            menu.classList.remove('active');
+        });
+    }
+
+    /**
+     * Toggles a message export menu
+     * @param {HTMLElement} button - Toggle button inside the export menu
+     */
+    toggleExportMenu(button) {
+        const menu = button.closest('.message-export-menu');
+        if (!menu) return;
+
+        const isActive = menu.classList.contains('active');
+        this.closeExportMenus();
+        if (!isActive) {
+            menu.classList.add('active');
+        }
+    }
+
+    /**
+     * Converts a text string into a Blob
+     * @param {string} text - Text content
+     * @param {string} mimeType - MIME type
+     * @returns {Blob}
+     */
+    createTextBlob(text, mimeType) {
+        return new Blob([text], { type: `${mimeType};charset=utf-8` });
+    }
+
+    /**
+     * Converts a Blob into a data URL for Tauri file saving
+     * @param {Blob} blob - Blob to convert
+     * @returns {Promise<string>}
+     */
+    async blobToDataUrl(blob) {
+        return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error || new Error('Failed to read blob'));
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    /**
+     * Saves or downloads a blob depending on runtime
+     * @param {Blob} blob - Blob to download
+     * @param {string} fileName - File name
+     * @param {string} successMessage - Toast text on successful Tauri save
+     * @param {string} errorMessage - Toast text on failure
+     */
+    async downloadBlob(blob, fileName, successMessage, errorMessage) {
+        if (isTauri()) {
+            try {
+                const dataUrl = await this.blobToDataUrl(blob);
+                const saved = await saveFileWithDialog(dataUrl, fileName);
+                if (saved) {
+                    this.showInfo(successMessage);
+                }
+            } catch (error) {
+                console.error(`Failed to save ${fileName}:`, error);
+                this.showError(errorMessage);
+            }
+            return;
+        }
+
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
+    }
+
+    /**
+     * Exports a message in the requested format
+     * @param {Object} message - Message object
+     * @param {string} format - Export format
+     */
+    async exportMessage(message, format) {
+        if (format === 'original') {
+            if (!message?._rawBuffer || !message?._fileType) {
+                this.showError('Original email file is not available');
+                return;
+            }
+
+            const originalBlob = new Blob([message._rawBuffer], {
+                type: getOriginalMessageMimeType(message)
+            });
+
+            await this.downloadBlob(
+                originalBlob,
+                getExportFileName(message, 'original'),
+                'Email saved successfully',
+                'Failed to save original email'
+            );
+            return;
+        }
+
+        if (format === 'eml') {
+            await this.downloadBlob(
+                this.createTextBlob(messageToEml(message), 'message/rfc822'),
+                getExportFileName(message, 'eml'),
+                'EML exported successfully',
+                'Failed to export EML'
+            );
+            return;
+        }
+
+        if (format === 'html') {
+            await this.downloadBlob(
+                this.createTextBlob(messageToHtmlDocument(message), 'text/html'),
+                getExportFileName(message, 'html'),
+                'HTML exported successfully',
+                'Failed to export HTML'
+            );
+        }
     }
 
     /**

@@ -38,11 +38,24 @@ export class MessageContentRenderer {
         const emailContent = this.processEmailContent(msgInfo);
         const messageIndex = this.messageHandler.getMessages().indexOf(msgInfo);
         const isPinned = this.messageHandler.isPinned(msgInfo);
+        const canDownloadOriginal = Boolean(msgInfo._rawBuffer && msgInfo._fileType);
 
         const messageContent = `
             <div class="message-header">
                 <div class="message-title pl-6">${msgInfo.subject}</div>
                 <div class="message-actions pr-4">
+                    <div class="message-export-menu">
+                        <button data-action="toggle-export-menu" data-index="${messageIndex}" class="action-button rounded-full" title="export message">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                        </button>
+                        <div class="message-export-dropdown">
+                            <button data-action="export-message" data-index="${messageIndex}" data-format="eml" class="message-export-item">Export as EML</button>
+                            <button data-action="export-message" data-index="${messageIndex}" data-format="html" class="message-export-item">Export as HTML</button>
+                            ${canDownloadOriginal ? `<button data-action="export-message" data-index="${messageIndex}" data-format="original" class="message-export-item">Download original ${msgInfo._fileType.toUpperCase()}</button>` : ''}
+                        </div>
+                    </div>
                     <button data-action="pin" data-index="${messageIndex}" class="action-button rounded-full ${isPinned ? 'pinned' : ''}" title="bookmark message">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
