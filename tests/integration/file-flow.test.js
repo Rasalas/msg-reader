@@ -399,6 +399,47 @@ describe('File Opening Flow Integration', () => {
             expect(toggle.getAttribute('aria-expanded')).toBe('true');
             expect(content.hidden).toBe(false);
         });
+
+        it('should navigate from regular attachments into inline images when the inline section is expanded', async () => {
+            const regularImage = 'data:image/png;base64,regular';
+            const inlineImage = 'data:image/png;base64,inline';
+            const mockMessage = createMockParsedMessage({
+                bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image.png"></p>`,
+                attachments: [
+                    {
+                        fileName: 'regular-image.png',
+                        attachMimeTag: 'image/png',
+                        contentLength: 2048,
+                        contentBase64: regularImage
+                    },
+                    {
+                        fileName: 'inline-image.png',
+                        attachMimeTag: 'image/png',
+                        contentLength: 1024,
+                        contentBase64: inlineImage,
+                        pidContentId: 'inline-image-1',
+                        contentId: 'inline-image-1'
+                    }
+                ]
+            });
+            mockParsers.extractMsg.mockReturnValue(mockMessage);
+
+            fileHandler.handleFiles([createMockFile('nav-inline.msg', 'mock')]);
+            await waitForDOMUpdate(100);
+
+            domElements.messageViewer.querySelector('[data-inline-images-toggle]').click();
+            await waitForDOMUpdate(0);
+
+            domElements.messageViewer.querySelector('[data-action="preview"]').click();
+            await waitForDOMUpdate(0);
+            expect(document.getElementById('attachmentModalFilename').textContent).toContain('regular-image.png');
+
+            document.getElementById('attachmentModalNext').click();
+            await waitForDOMUpdate(0);
+
+            expect(document.getElementById('attachmentModalFilename').textContent).toContain('inline-image.png');
+            expect(document.querySelector('#attachmentModalContent img').src).toContain(inlineImage);
+        });
     });
 
     describe('Unsupported file types', () => {

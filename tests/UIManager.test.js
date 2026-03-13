@@ -1113,6 +1113,17 @@ describe('MessageContentRenderer', () => {
             expect(mockModal.setAttachments).toHaveBeenCalledWith(attachments);
         });
 
+        test('keeps inline images out of the modal sequence while the section is collapsed', () => {
+            const attachments = [
+                { fileName: 'doc.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:pdf' },
+                { fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:inline' }
+            ];
+
+            renderer.renderAttachments({ attachments });
+
+            expect(mockModal.setAttachments).toHaveBeenCalledWith([attachments[0]]);
+        });
+
         test('renders attachment count', () => {
             expect(renderer.renderAttachments({ attachments: [{ fileName: 'a.pdf' }] })).toContain('1 Attachment');
         });
@@ -1145,7 +1156,10 @@ describe('MessageContentRenderer', () => {
 
         test('persists inline image section visibility when toggled', () => {
             renderer.render(createMockMessage({
-                attachments: [{ fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:' }]
+                attachments: [
+                    { fileName: 'doc.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:pdf' },
+                    { fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:' }
+                ]
             }));
 
             const toggle = container.querySelector('[data-inline-images-toggle]');
@@ -1159,6 +1173,10 @@ describe('MessageContentRenderer', () => {
             expect(toggle.getAttribute('aria-expanded')).toBe('true');
             expect(content.hidden).toBe(false);
             expect(JSON.parse(window.localStorage.getItem('msgReader_inlineImageAttachments'))).toBe('expanded');
+            expect(mockModal.setAttachments).toHaveBeenLastCalledWith([
+                { fileName: 'doc.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:pdf' },
+                { fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:' }
+            ]);
         });
     });
 });

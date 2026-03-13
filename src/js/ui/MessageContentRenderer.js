@@ -22,6 +22,8 @@ export class MessageContentRenderer {
         this.container = containerElement;
         this.messageHandler = messageHandler;
         this.attachmentModal = attachmentModal;
+        this.realAttachments = [];
+        this.inlineImageAttachments = [];
 
         this.initInlineImageEventListeners();
         this.initInlineAttachmentPreferenceListener();
@@ -242,6 +244,7 @@ export class MessageContentRenderer {
             toggleLabel.textContent = expanded ? 'Hide' : 'Show';
         }
         sectionContent.hidden = !expanded;
+        this.updateAttachmentModalAttachments(expanded);
     }
 
     /**
@@ -367,16 +370,19 @@ export class MessageContentRenderer {
     renderAttachments(msgInfo) {
         if (!msgInfo.attachments?.length) return '';
 
-        // Store attachments in modal manager for access
-        if (this.attachmentModal) {
-            this.attachmentModal.setAttachments(msgInfo.attachments);
-        }
+        this.realAttachments = msgInfo.attachments.filter(attachment => !isInlineImageAttachment(attachment));
+        this.inlineImageAttachments = msgInfo.attachments.filter(attachment => isInlineImageAttachment(attachment));
 
-        const attachmentsWithIndex = msgInfo.attachments.map((attachment, index) => ({ attachment, index }));
-        const visibleAttachments = attachmentsWithIndex.filter(({ attachment }) => !isInlineImageAttachment(attachment));
-        const inlineImageAttachments = attachmentsWithIndex.filter(({ attachment }) => isInlineImageAttachment(attachment));
+        if (this.realAttachments.length === 0 && this.inlineImageAttachments.length === 0) return '';
 
-        if (visibleAttachments.length === 0 && inlineImageAttachments.length === 0) return '';
+        const inlineExpandedByDefault = inlineImageAttachmentsExpandedByDefault();
+        this.updateAttachmentModalAttachments(inlineExpandedByDefault);
+
+        const visibleAttachments = this.realAttachments.map((attachment, index) => ({ attachment, index }));
+        const inlineImageAttachments = this.inlineImageAttachments.map((attachment, index) => ({
+            attachment,
+            index: this.realAttachments.length + index
+        }));
 
         return `
             <div class="mt-6">
@@ -403,6 +409,20 @@ export class MessageContentRenderer {
                 </div>
             </div>
         `;
+    }
+
+    /**
+     * Syncs modal navigation order with the currently visible attachment sections
+     * @param {boolean} includeInlineImages - Whether inline image attachments are part of the modal sequence
+     */
+    updateAttachmentModalAttachments(includeInlineImages) {
+        if (!this.attachmentModal?.setAttachments) return;
+
+        const attachments = includeInlineImages
+            ? [...this.realAttachments, ...this.inlineImageAttachments]
+            : [...this.realAttachments];
+
+        this.attachmentModal.setAttachments(attachments);
     }
 
     /**
