@@ -203,7 +203,10 @@ export class MessageContentRenderer {
      * @returns {boolean}
      */
     shouldCollapseInlineImage(image) {
-        const { width, height } = this.getInlineImageDimensions(image);
+        const displayedDimensions = this.getDisplayedInlineImageDimensions(image);
+        const intrinsicDimensions = this.getInlineImageDimensions(image);
+        const hasDisplayedDimensions = displayedDimensions.width > 0 || displayedDimensions.height > 0;
+        const { width, height } = hasDisplayedDimensions ? displayedDimensions : intrinsicDimensions;
         const hasDimensions = width > 0 || height > 0;
         const decorativeHint = this.hasDecorativeInlineImageHint(image);
 
@@ -219,11 +222,35 @@ export class MessageContentRenderer {
         const minDimension = Math.min(width, height);
         const area = width * height;
 
+        if (Math.min(width, height) <= 24 && Math.max(width, height) <= 180) {
+            return true;
+        }
+
+        if (maxDimension <= 40 && area <= 2500) {
+            return true;
+        }
+
         if (decorativeHint && (maxDimension <= 160 || minDimension <= 48 || area <= 12000)) {
             return true;
         }
 
         return maxDimension <= SMALL_INLINE_IMAGE_MAX_DIMENSION && minDimension <= SMALL_INLINE_IMAGE_MAX_DIMENSION;
+    }
+
+    /**
+     * Extracts the current rendered dimensions for an inline image
+     * @param {HTMLImageElement} image - Image element to inspect
+     * @returns {{width: number, height: number}}
+     */
+    getDisplayedInlineImageDimensions(image) {
+        const rect = image.getBoundingClientRect?.();
+        const widthAttr = Number.parseInt(image.getAttribute('width') || '', 10);
+        const heightAttr = Number.parseInt(image.getAttribute('height') || '', 10);
+
+        const width = Math.round(rect?.width || image.width || widthAttr || 0);
+        const height = Math.round(rect?.height || image.height || heightAttr || 0);
+
+        return { width, height };
     }
 
     /**

@@ -275,21 +275,21 @@ describe('File Opening Flow Integration', () => {
             const mockMessage = createMockParsedMessage({
                 bodyContentHTML: `
                     <p>
-                        <img src="${iconImage}" alt="facebook-icon.png" width="24" height="24">
-                        <img src="${screenshotImage}" alt="screenshot.png" width="640" height="480">
+                        <img src="${iconImage}" alt="image007.png" width="84" height="67">
+                        <img src="${screenshotImage}" alt="image001.jpg" width="640" height="480">
                     </p>
                 `,
                 attachments: [
                     {
-                        fileName: 'facebook-icon.png',
+                        fileName: 'image007.png',
                         attachMimeTag: 'image/png',
-                        contentLength: 256,
+                        contentLength: 1336,
                         contentBase64: iconImage,
-                        pidContentId: 'facebook-icon',
-                        contentId: 'facebook-icon'
+                        pidContentId: 'image007',
+                        contentId: 'image007'
                     },
                     {
-                        fileName: 'screenshot.png',
+                        fileName: 'image001.jpg',
                         attachMimeTag: 'image/png',
                         contentLength: 4096,
                         contentBase64: screenshotImage,

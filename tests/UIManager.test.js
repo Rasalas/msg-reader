@@ -806,13 +806,13 @@ describe('MessageContentRenderer', () => {
         renderer.render(createMockMessage({
             bodyContentHTML: `
                 <p>
-                    <img src="${iconImage}" alt="instagram-icon.png" width="24" height="24">
-                    <img src="${screenshotImage}" alt="screenshot.png" width="640" height="480">
+                    <img src="${iconImage}" alt="image007.png" width="84" height="67">
+                    <img src="${screenshotImage}" alt="image001.jpg" width="640" height="480">
                 </p>
             `,
             attachments: [
-                { fileName: 'instagram-icon.png', attachMimeTag: 'image/png', contentBase64: iconImage },
-                { fileName: 'screenshot.png', attachMimeTag: 'image/png', contentBase64: screenshotImage }
+                { fileName: 'image007.png', attachMimeTag: 'image/png', contentBase64: iconImage },
+                { fileName: 'image001.jpg', attachMimeTag: 'image/png', contentBase64: screenshotImage }
             ]
         }));
 
@@ -829,8 +829,8 @@ describe('MessageContentRenderer', () => {
         const iconImage = 'data:image/png;base64,icon';
 
         renderer.render(createMockMessage({
-            bodyContentHTML: `<p><img src="${iconImage}" alt="facebook-icon.png" width="24" height="24"></p>`,
-            attachments: [{ fileName: 'facebook-icon.png', attachMimeTag: 'image/png', contentBase64: iconImage }]
+            bodyContentHTML: `<p><img src="${iconImage}" alt="image007.png" width="84" height="67"></p>`,
+            attachments: [{ fileName: 'image007.png', attachMimeTag: 'image/png', contentBase64: iconImage }]
         }));
 
         const image = container.querySelector('.email-content img');
