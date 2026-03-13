@@ -6,6 +6,10 @@ import KeyboardManager from './KeyboardManager.js';
 import { extractMsg, extractEml } from './utils.js';
 import { isTauri, getPendingFiles, onFileOpen, onFileDrop, checkForUpdates } from './tauri-bridge.js';
 import { themeManager, THEMES, EMAIL_THEMES } from './ThemeManager.js';
+import {
+    getInlineImageAttachmentVisibility,
+    setInlineImageAttachmentVisibility
+} from './InlineImagePreference.js';
 import { devModeManager } from './DevModeManager.js';
 import { DevPanel } from './ui/DevPanel.js';
 
@@ -243,6 +247,11 @@ function initTheme() {
                 themeManager.setTheme(theme);
             } else if (type === 'email') {
                 themeManager.setEmailTheme(theme);
+            } else if (type === 'inline-images') {
+                setInlineImageAttachmentVisibility(item.dataset.inlineImages);
+                document.dispatchEvent(new CustomEvent('inline-image-attachment-visibility-change', {
+                    detail: { visibility: item.dataset.inlineImages }
+                }));
             }
 
             updateThemeUI();
@@ -252,6 +261,10 @@ function initTheme() {
 
     // Listen for theme changes
     themeManager.addListener(() => {
+        updateThemeUI();
+    });
+
+    document.addEventListener('inline-image-attachment-visibility-change', () => {
         updateThemeUI();
     });
 
@@ -267,6 +280,7 @@ function updateThemeUI() {
     const savedTheme = themeManager.getSavedTheme();
     const activeTheme = themeManager.getActiveTheme();
     const savedEmailTheme = themeManager.getSavedEmailTheme();
+    const inlineImageVisibility = getInlineImageAttachmentVisibility();
 
     // Update toggle button icon
     const sunIcon = document.getElementById('themeIconSun');
@@ -292,6 +306,10 @@ function updateThemeUI() {
 
     document.querySelectorAll('.theme-menu-item[data-type="email"]').forEach(item => {
         item.classList.toggle('active', item.dataset.theme === savedEmailTheme);
+    });
+
+    document.querySelectorAll('.theme-menu-item[data-type="inline-images"]').forEach(item => {
+        item.classList.toggle('active', item.dataset.inlineImages === inlineImageVisibility);
     });
 }
 

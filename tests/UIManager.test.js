@@ -64,6 +64,7 @@ function setupDOM() {
                 <button id="attachmentModalZoomReset"><span id="attachmentModalZoomValue">100%</span></button>
                 <button id="attachmentModalZoomIn"></button>
             </div>
+            <a id="attachmentModalSourceLink" hidden></a>
             <span id="attachmentModalFilename"></span>
             <div id="attachmentModalContent"></div>
             <button id="attachmentModalPrev" style="display: none;"></button>
@@ -410,6 +411,7 @@ describe('AttachmentModalManager', () => {
                     <button id="attachmentModalZoomReset"><span id="attachmentModalZoomValue">100%</span></button>
                     <button id="attachmentModalZoomIn"></button>
                 </div>
+                <a id="attachmentModalSourceLink" hidden></a>
                 <span id="attachmentModalFilename"></span>
                 <div id="attachmentModalContent"></div>
                 <button id="attachmentModalPrev" style="display: none;"></button>
@@ -566,6 +568,24 @@ describe('AttachmentModalManager', () => {
             modal.renderAttachmentPreview(att);
 
             expect(modal.attachmentModalZoomControls.hidden).toBe(true);
+        });
+
+        test('shows the original link action for linked inline images', () => {
+            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            modal.setInlineImageMetadata(att.contentBase64, { linkHref: 'https://example.com/details' });
+            modal.setAttachments([att]);
+            modal.renderAttachmentPreview(att);
+
+            expect(modal.attachmentModalSourceLink.hidden).toBe(false);
+            expect(modal.attachmentModalSourceLink.href).toBe('https://example.com/details');
+        });
+
+        test('hides the original link action when no source link exists', () => {
+            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            modal.setAttachments([att]);
+            modal.renderAttachmentPreview(att);
+
+            expect(modal.attachmentModalSourceLink.hidden).toBe(true);
         });
 
         test('zooms image previews with the toolbar controls', () => {
@@ -871,6 +891,7 @@ describe('MessageContentRenderer', () => {
             isPdf: jest.fn(() => false),
             isText: jest.fn(() => false),
             isPreviewableEml: jest.fn(() => false),
+            setInlineImageMetadata: jest.fn(),
             openInlineImage: jest.fn()
         };
 
@@ -940,7 +961,28 @@ describe('MessageContentRenderer', () => {
 
         expect(mockModal.openInlineImage).toHaveBeenCalledWith({
             source: inlineImage,
-            fileName: 'inline-image.png'
+            fileName: 'inline-image.png',
+            linkHref: ''
+        });
+    });
+
+    test('captures source links for linked inline images', () => {
+        const inlineImage = 'data:image/png;base64,abc';
+        renderer.render(createMockMessage({
+            bodyContentHTML: `<p><a href="https://example.com/details"><img src="${inlineImage}" alt="inline-image"></a></p>`,
+            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage, pidContentId: 'cid-1' }]
+        }));
+
+        const image = container.querySelector('.email-content img');
+        image.click();
+
+        expect(mockModal.setInlineImageMetadata).toHaveBeenCalledWith(inlineImage, {
+            linkHref: 'https://example.com/details'
+        });
+        expect(mockModal.openInlineImage).toHaveBeenCalledWith({
+            source: inlineImage,
+            fileName: 'inline-image.png',
+            linkHref: 'https://example.com/details'
         });
     });
 
@@ -1079,11 +1121,13 @@ describe('MessageContentRenderer', () => {
             expect(renderer.renderAttachments({ attachments: [{ fileName: 'a.pdf' }, { fileName: 'b.pdf' }] })).toContain('2 Attachments');
         });
 
-        test('excludes inline image attachments from attachment section', () => {
+        test('renders inline images in a separate collapsed section', () => {
             const result = renderer.renderAttachments({
                 attachments: [{ fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:' }]
             });
-            expect(result).toBe('');
+            expect(result).toContain('Inline image');
+            expect(result).toContain('data-inline-images-toggle');
+            expect(result).toContain('hidden');
         });
 
         test('renders previewable with preview action', () => {
@@ -1097,6 +1141,24 @@ describe('MessageContentRenderer', () => {
             const result = renderer.renderAttachments({ attachments: [{ fileName: 'archive.zip', attachMimeTag: 'application/zip', contentBase64: 'data:', contentLength: 100 }] });
             expect(result).toContain('data-action="download"');
             expect(result).not.toContain('data-action="preview"');
+        });
+
+        test('persists inline image section visibility when toggled', () => {
+            renderer.render(createMockMessage({
+                attachments: [{ fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:' }]
+            }));
+
+            const toggle = container.querySelector('[data-inline-images-toggle]');
+            const content = container.querySelector('[data-inline-images-content]');
+
+            expect(toggle.getAttribute('aria-expanded')).toBe('false');
+            expect(content.hidden).toBe(true);
+
+            toggle.click();
+
+            expect(toggle.getAttribute('aria-expanded')).toBe('true');
+            expect(content.hidden).toBe(false);
+            expect(JSON.parse(window.localStorage.getItem('msgReader_inlineImageAttachments'))).toBe('expanded');
         });
     });
 });

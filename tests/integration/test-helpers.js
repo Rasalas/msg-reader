@@ -148,6 +148,7 @@ export function setupFullDOM() {
                             </button>
                             <button id="attachmentModalZoomIn" type="button" class="attachment-modal-zoom-button" title="Zoom in"></button>
                         </div>
+                        <a id="attachmentModalSourceLink" href="#" class="attachment-modal-source-link" title="Open linked target" hidden>Open link</a>
                         <a id="attachmentModalDownload" href="#" download="" class="attachment-modal-download" title="Download"></a>
                         <button id="attachmentModalClose" class="attachment-modal-close" title="Close"></button>
                     </div>

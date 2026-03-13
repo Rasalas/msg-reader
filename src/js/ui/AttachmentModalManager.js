@@ -27,6 +27,7 @@ export class AttachmentModalManager {
         this.attachmentModalZoomReset = document.getElementById('attachmentModalZoomReset');
         this.attachmentModalZoomIn = document.getElementById('attachmentModalZoomIn');
         this.attachmentModalZoomValue = document.getElementById('attachmentModalZoomValue');
+        this.attachmentModalSourceLink = document.getElementById('attachmentModalSourceLink');
 
         // Modal state
         this.currentAttachmentIndex = 0;
@@ -39,6 +40,7 @@ export class AttachmentModalManager {
         this.imageZoomStep = 0.25;
         this.imageViewerFallbackWidth = 960;
         this.imageViewerFallbackHeight = 720;
+        this.inlineImageMetadataBySource = new Map();
 
         // Navigation stack for nested content (e.g., attachments within nested emails)
         this.navigationStack = [];
@@ -97,8 +99,12 @@ export class AttachmentModalManager {
      * @param {string} [options.fileName] - Suggested file name for the modal header/download
      * @returns {boolean} True when an image source was provided
      */
-    openInlineImage({ source, fileName = 'inline-image' }) {
+    openInlineImage({ source, fileName = 'inline-image', linkHref = '' }) {
         if (!source) return false;
+
+        if (linkHref) {
+            this.setInlineImageMetadata(source, { linkHref });
+        }
 
         const matchedAttachment = this.findAttachmentBySource(source);
         const attachment = matchedAttachment || this.createInlineImageAttachment(source, fileName);
@@ -109,6 +115,21 @@ export class AttachmentModalManager {
 
         this.open(attachment);
         return true;
+    }
+
+    /**
+     * Stores metadata for inline images so preview entry-points can share context
+     * @param {string} source - Rendered image source URL or data URI
+     * @param {Object} metadata - Metadata associated with the inline image
+     */
+    setInlineImageMetadata(source, metadata = {}) {
+        if (!source) return;
+
+        const existingMetadata = this.inlineImageMetadataBySource.get(source) || {};
+        this.inlineImageMetadataBySource.set(source, {
+            ...existingMetadata,
+            ...metadata
+        });
     }
 
     /**
@@ -387,6 +408,7 @@ export class AttachmentModalManager {
 
         // Set filename with breadcrumb if navigating from nested content
         this.updateFilenameWithBreadcrumb(attachment.fileName);
+        this.updateSourceLink(this.inlineImageMetadataBySource.get(attachment.contentBase64)?.linkHref || '');
 
         // Set download link
         this.attachmentModalDownload.href = attachment.contentBase64;
@@ -584,6 +606,23 @@ export class AttachmentModalManager {
             width: viewer?.clientWidth || this.imageViewerFallbackWidth,
             height: viewer?.clientHeight || this.imageViewerFallbackHeight
         };
+    }
+
+    /**
+     * Updates the optional source-link action for linked inline images
+     * @param {string} linkHref - Original link target wrapping the inline image
+     */
+    updateSourceLink(linkHref) {
+        if (!this.attachmentModalSourceLink) return;
+
+        if (!linkHref) {
+            this.attachmentModalSourceLink.hidden = true;
+            this.attachmentModalSourceLink.removeAttribute('href');
+            return;
+        }
+
+        this.attachmentModalSourceLink.href = linkHref;
+        this.attachmentModalSourceLink.hidden = false;
     }
 
     /**
@@ -1003,6 +1042,7 @@ export class AttachmentModalManager {
         this.attachmentModalContent.classList.remove('attachment-modal-content--image');
         this.clearNavigationStack();
         this.resetImagePreviewState();
+        this.updateSourceLink('');
 
         // Restore body scroll
         document.body.style.overflow = '';

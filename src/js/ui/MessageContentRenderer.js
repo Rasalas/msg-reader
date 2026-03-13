@@ -1,6 +1,11 @@
 import { sanitizeHTML } from '../sanitizer.js';
 import { parseColor, getContrastRatio, adjustColorForContrast } from '../colorUtils.js';
 import { isInlineImageAttachment } from '../helpers.js';
+import {
+    INLINE_IMAGE_ATTACHMENT_VISIBILITY,
+    inlineImageAttachmentsExpandedByDefault,
+    setInlineImageAttachmentVisibility
+} from '../InlineImagePreference.js';
 
 /**
  * Renders message content in the main viewer area
@@ -19,6 +24,7 @@ export class MessageContentRenderer {
         this.attachmentModal = attachmentModal;
 
         this.initInlineImageEventListeners();
+        this.initInlineAttachmentPreferenceListener();
     }
 
     /**
@@ -97,6 +103,13 @@ export class MessageContentRenderer {
         this.container.addEventListener('click', (event) => {
             if (!(event.target instanceof Element)) return;
 
+            const inlineImagesToggle = event.target.closest('[data-inline-images-toggle]');
+            if (inlineImagesToggle && this.container.contains(inlineImagesToggle)) {
+                event.preventDefault();
+                this.toggleInlineImageSection(inlineImagesToggle);
+                return;
+            }
+
             const image = event.target.closest('img[data-inline-image-previewable="true"]');
             if (!image || !this.container.contains(image)) return;
 
@@ -113,6 +126,20 @@ export class MessageContentRenderer {
 
             event.preventDefault();
             this.openInlineImage(image);
+        });
+    }
+
+    /**
+     * Reacts to global inline-image preference changes from the settings menu
+     */
+    initInlineAttachmentPreferenceListener() {
+        document.addEventListener('inline-image-attachment-visibility-change', (event) => {
+            const nextVisibility = event.detail?.visibility;
+            if (!nextVisibility) return;
+
+            this.applyInlineImageSectionState(
+                nextVisibility === INLINE_IMAGE_ATTACHMENT_VISIBILITY.EXPANDED
+            );
         });
     }
 
@@ -135,13 +162,19 @@ export class MessageContentRenderer {
                 attachment.attachMimeTag?.toLowerCase().startsWith('image/') &&
                 attachment.contentBase64 === source
             );
+            const linkHref = image.closest('a[href]')?.getAttribute('href') || '';
             const fileName = matchingAttachment?.fileName || image.getAttribute('alt') || `inline-image-${index + 1}`;
             const contentId = matchingAttachment?.pidContentId || matchingAttachment?.contentId || '';
+
+            if (linkHref && this.attachmentModal?.setInlineImageMetadata) {
+                this.attachmentModal.setInlineImageMetadata(source, { linkHref });
+            }
 
             image.dataset.inlineImagePreviewable = 'true';
             image.dataset.inlineImageSource = source;
             image.dataset.inlineImageFilename = fileName;
             image.dataset.inlineImageContentId = contentId;
+            image.dataset.inlineImageLinkHref = linkHref;
             image.tabIndex = image.tabIndex >= 0 ? image.tabIndex : 0;
             image.style.cursor = 'zoom-in';
             image.setAttribute('role', 'button');
@@ -165,7 +198,50 @@ export class MessageContentRenderer {
         if (!source || !this.attachmentModal?.openInlineImage) return;
 
         const fileName = image.dataset.inlineImageFilename || image.getAttribute('alt') || 'inline-image';
-        this.attachmentModal.openInlineImage({ source, fileName });
+        const linkHref = image.dataset.inlineImageLinkHref || '';
+        this.attachmentModal.openInlineImage({ source, fileName, linkHref });
+    }
+
+    /**
+     * Toggles the inline-image attachment section and persists the new preference
+     * @param {HTMLElement} toggleButton - Toggle button in the section header
+     */
+    toggleInlineImageSection(toggleButton) {
+        const isExpanded = toggleButton.getAttribute('aria-expanded') === 'true';
+        const nextExpanded = !isExpanded;
+
+        setInlineImageAttachmentVisibility(
+            nextExpanded
+                ? INLINE_IMAGE_ATTACHMENT_VISIBILITY.EXPANDED
+                : INLINE_IMAGE_ATTACHMENT_VISIBILITY.COLLAPSED
+        );
+
+        this.applyInlineImageSectionState(nextExpanded);
+        document.dispatchEvent(new CustomEvent('inline-image-attachment-visibility-change', {
+            detail: {
+                visibility: nextExpanded
+                    ? INLINE_IMAGE_ATTACHMENT_VISIBILITY.EXPANDED
+                    : INLINE_IMAGE_ATTACHMENT_VISIBILITY.COLLAPSED
+            }
+        }));
+    }
+
+    /**
+     * Updates the inline-image section UI to match the current expanded state
+     * @param {boolean} expanded - Whether inline images should be shown
+     */
+    applyInlineImageSectionState(expanded) {
+        const toggleButton = this.container?.querySelector('[data-inline-images-toggle]');
+        const toggleLabel = this.container?.querySelector('[data-inline-images-toggle-label]');
+        const sectionContent = this.container?.querySelector('[data-inline-images-content]');
+
+        if (!toggleButton || !sectionContent) return;
+
+        toggleButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (toggleLabel) {
+            toggleLabel.textContent = expanded ? 'Hide' : 'Show';
+        }
+        sectionContent.hidden = !expanded;
     }
 
     /**
@@ -296,107 +372,184 @@ export class MessageContentRenderer {
             this.attachmentModal.setAttachments(msgInfo.attachments);
         }
 
-        const visibleAttachments = msgInfo.attachments
-            .map((attachment, index) => ({ attachment, index }))
-            .filter(({ attachment }) => !isInlineImageAttachment(attachment));
+        const attachmentsWithIndex = msgInfo.attachments.map((attachment, index) => ({ attachment, index }));
+        const visibleAttachments = attachmentsWithIndex.filter(({ attachment }) => !isInlineImageAttachment(attachment));
+        const inlineImageAttachments = attachmentsWithIndex.filter(({ attachment }) => isInlineImageAttachment(attachment));
 
-        if (visibleAttachments.length === 0) return '';
+        if (visibleAttachments.length === 0 && inlineImageAttachments.length === 0) return '';
 
         return `
             <div class="mt-6">
                 <hr class="attachments-divider border-t mb-4">
-                <div class="flex items-center gap-2 mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 attachment-icon">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-                    </svg>
-                    <span class="attachment-label">${visibleAttachments.length} ${visibleAttachments.length === 1 ? 'Attachment' : 'Attachments'}</span>
+                <div class="attachment-sections">
+                    ${visibleAttachments.length > 0
+        ? this.renderAttachmentSection({
+            items: visibleAttachments,
+            label: `${visibleAttachments.length} ${visibleAttachments.length === 1 ? 'Attachment' : 'Attachments'}`,
+            icon: this.getAttachmentSectionIcon(),
+            sectionClassName: 'attachment-section'
+        })
+        : ''}
+                    ${inlineImageAttachments.length > 0
+        ? this.renderAttachmentSection({
+            items: inlineImageAttachments,
+            label: `${inlineImageAttachments.length} ${inlineImageAttachments.length === 1 ? 'Inline image' : 'Inline images'}`,
+            icon: this.getInlineImageSectionIcon(),
+            sectionClassName: 'attachment-section attachment-section-inline',
+            collapsible: true,
+            collapsed: !inlineImageAttachmentsExpandedByDefault()
+        })
+        : ''}
                 </div>
-                <div class="flex flex-wrap gap-4">
-                    ${visibleAttachments.map(({ attachment, index }) => {
-        const isPreviewable = this.attachmentModal?.isPreviewable(attachment.attachMimeTag);
+            </div>
+        `;
+    }
+
+    /**
+     * Renders a single attachment section
+     * @param {Object} options
+     * @param {Array} options.items - Attachment entries with original indices
+     * @param {string} options.label - Section label
+     * @param {string} options.icon - Section icon markup
+     * @param {string} options.sectionClassName - CSS classes for the section
+     * @param {boolean} [options.collapsible=false] - Whether the section can be collapsed
+     * @param {boolean} [options.collapsed=false] - Whether the section starts collapsed
+     * @returns {string} Rendered HTML
+     */
+    renderAttachmentSection({ items, label, icon, sectionClassName, collapsible = false, collapsed = false }) {
+        const expanded = !collapsed;
+
+        return `
+            <section class="${sectionClassName}">
+                <div class="attachment-section-header">
+                    <div class="attachment-section-summary">
+                        ${icon}
+                        <span class="attachment-label">${label}</span>
+                    </div>
+                    ${collapsible
+        ? `<button type="button"
+                               class="attachment-section-toggle"
+                               data-inline-images-toggle
+                               aria-expanded="${expanded ? 'true' : 'false'}">
+                            <span data-inline-images-toggle-label>${expanded ? 'Hide' : 'Show'}</span>
+                        </button>`
+        : ''}
+                </div>
+                <div class="flex flex-wrap gap-4" ${collapsible ? 'data-inline-images-content' : ''} ${collapsed ? 'hidden' : ''}>
+                    ${this.renderAttachmentItems(items)}
+                </div>
+            </section>
+        `;
+    }
+
+    /**
+     * Renders attachment cards for a section
+     * @param {Array} items - Attachment entries with original indices
+     * @returns {string} Card markup
+     */
+    renderAttachmentItems(items) {
+        return items.map(({ attachment, index }) => {
+            const isPreviewable = this.attachmentModal?.isPreviewable(attachment.attachMimeTag);
+
+            if (isPreviewable) {
+                return `
+                    <div class="cursor-pointer min-w-[250px] max-w-fit"
+                         data-action="preview"
+                         data-attachment-index="${index}"
+                         title="Click to preview">
+                        <div class="attachment-item flex items-center space-x-2">
+                            <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center overflow-hidden">
+                                ${this.getAttachmentItemIcon(attachment)}
+                            </div>
+                            <div>
+                                <p class="attachment-filename">${attachment.fileName}</p>
+                                <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                            </div>
+                            <button data-action="download"
+                                    data-attachment-index="${index}"
+                                    class="ml-auto pl-2 attachment-download-btn"
+                                    title="Download">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="cursor-pointer min-w-[250px] max-w-fit"
+                     data-action="download"
+                     data-attachment-index="${index}"
+                     title="Click to download">
+                    <div class="attachment-item flex items-center space-x-2">
+                        <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center overflow-hidden">
+                            ${this.getAttachmentItemIcon(attachment)}
+                        </div>
+                        <div>
+                            <p class="attachment-filename">${attachment.fileName}</p>
+                            <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                        </div>
+                        <div class="ml-auto pl-2 attachment-download-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Returns the appropriate icon markup for an attachment item
+     * @param {Object} attachment - Attachment object
+     * @returns {string} Icon HTML
+     */
+    getAttachmentItemIcon(attachment) {
         const isImage = this.attachmentModal?.isPreviewableImage(attachment.attachMimeTag);
         const isPdf = this.attachmentModal?.isPdf(attachment.attachMimeTag);
         const isText = this.attachmentModal?.isText(attachment.attachMimeTag);
         const isEml = this.attachmentModal?.isPreviewableEml(attachment.attachMimeTag);
 
-        // Icon selection helper
-        const getIcon = () => {
-            if (isImage) {
-                return `<img src="${attachment.contentBase64}" alt="Attachment" class="w-10 h-10 object-cover">`;
-            } else if (isPdf) {
-                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-500">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                </svg>`;
-            } else if (isText) {
-                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                </svg>`;
-            } else if (isEml) {
-                return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-blue-500">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-                                </svg>`;
-            }
-            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                            </svg>`;
-        };
-
-        if (isPreviewable) {
-            // Previewable files: click opens modal
-            return `
-                                <div class="cursor-pointer min-w-[250px] max-w-fit"
-                                     data-action="preview"
-                                     data-attachment-index="${index}"
-                                     title="Click to preview">
-                                    <div class="attachment-item flex items-center space-x-2">
-                                        <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center overflow-hidden">
-                                            ${getIcon()}
-                                        </div>
-                                        <div>
-                                            <p class="attachment-filename">${attachment.fileName}</p>
-                                            <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
-                                        </div>
-                                        <button data-action="download"
-                                                data-attachment-index="${index}"
-                                                class="ml-auto pl-2 attachment-download-btn"
-                                                title="Download">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            `;
-        } else {
-            // Non-previewable files: click to download
-            return `
-                                <div class="cursor-pointer min-w-[250px] max-w-fit"
-                                     data-action="download"
-                                     data-attachment-index="${index}"
-                                     title="Click to download">
-                                    <div class="attachment-item flex items-center space-x-2">
-                                        <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <p class="attachment-filename">${attachment.fileName}</p>
-                                            <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
-                                        </div>
-                                        <div class="ml-auto pl-2 attachment-download-btn">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                                            </svg>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
+        if (isImage) {
+            return `<img src="${attachment.contentBase64}" alt="Attachment" class="w-10 h-10 object-cover">`;
         }
-    }).join('')}
-                </div>
-            </div>
-        `;
+
+        if (isPdf) {
+            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-500">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>`;
+        }
+
+        if (isText) {
+            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                    </svg>`;
+        }
+
+        if (isEml) {
+            return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-blue-500">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                    </svg>`;
+        }
+
+        return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 attachment-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                </svg>`;
+    }
+
+    getAttachmentSectionIcon() {
+        return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 attachment-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                </svg>`;
+    }
+
+    getInlineImageSectionIcon() {
+        return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 attachment-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.159 2.159M3.75 19.5h16.5A1.5 1.5 0 0 0 21.75 18V6A1.5 1.5 0 0 0 20.25 4.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm11.25-10.5h.008v.008H15V9Z" />
+                </svg>`;
     }
 }
 

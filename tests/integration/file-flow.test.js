@@ -271,6 +271,36 @@ describe('File Opening Flow Integration', () => {
             expect(document.getElementById('attachmentModalZoomControls').hidden).toBe(false);
         });
 
+        it('should expose the original link in the modal for linked inline images', async () => {
+            const inlineImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAE';
+            const mockMessage = createMockMessageWithInlineImages({
+                bodyContentHTML: `<p><a href="https://example.com/details"><img src="${inlineImage}" alt="inline-image.png"></a></p>`,
+                attachments: [
+                    {
+                        fileName: 'inline-image.png',
+                        attachMimeTag: 'image/png',
+                        contentLength: 1024,
+                        contentBase64: inlineImage,
+                        pidContentId: 'inline-image-1',
+                        contentId: 'inline-image-1'
+                    }
+                ]
+            });
+            mockParsers.extractMsg.mockReturnValue(mockMessage);
+
+            const msgFile = createMockFile('inline-image-link.msg', 'mock content');
+
+            fileHandler.handleFiles([msgFile]);
+            await waitForDOMUpdate(100);
+
+            domElements.messageViewer.querySelector('.email-content img').click();
+            await waitForDOMUpdate(0);
+
+            const sourceLink = document.getElementById('attachmentModalSourceLink');
+            expect(sourceLink.hidden).toBe(false);
+            expect(sourceLink.href).toBe('https://example.com/details');
+        });
+
         it('should always show inline images in the message body', async () => {
             // Arrange
             const iconImage = 'data:image/png;base64,icon';
@@ -317,7 +347,7 @@ describe('File Opening Flow Integration', () => {
             expect(domElements.messageViewer.querySelector('.inline-image-toggle')).toBeNull();
         });
 
-        it('should not render inline images in the attachment section', async () => {
+        it('should render inline images in a separate collapsed attachment section', async () => {
             // Arrange
             const mockMessage = createMockMessageWithInlineImages();
             mockParsers.extractMsg.mockReturnValue(mockMessage);
@@ -329,8 +359,45 @@ describe('File Opening Flow Integration', () => {
             await waitForDOMUpdate(100);
 
             // Assert
-            expect(domElements.messageViewer.innerHTML).not.toContain('Attachment');
-            expect(domElements.messageViewer.innerHTML).not.toContain('inline-image.png');
+            expect(domElements.messageViewer.innerHTML).toContain('Inline image');
+            expect(domElements.messageViewer.innerHTML).toContain('Show');
+            expect(domElements.messageViewer.querySelector('[data-inline-images-content]').hidden).toBe(true);
+        });
+
+        it('should persist inline image section visibility across messages', async () => {
+            const firstMessage = createMockMessageWithInlineImages();
+            const secondMessage = createMockMessageWithInlineImages({
+                subject: 'Second message',
+                attachments: [
+                    {
+                        fileName: 'inline-image-2.png',
+                        attachMimeTag: 'image/png',
+                        contentLength: 2048,
+                        contentBase64: 'data:image/png;base64,second',
+                        pidContentId: 'inline-image-2',
+                        contentId: 'inline-image-2'
+                    }
+                ],
+                bodyContentHTML: '<p><img src="data:image/png;base64,second" alt="inline-image-2.png"></p>'
+            });
+            mockParsers.extractMsg
+                .mockReturnValueOnce(firstMessage)
+                .mockReturnValueOnce(secondMessage);
+
+            fileHandler.handleFiles([createMockFile('first.msg', 'mock')]);
+            await waitForDOMUpdate(100);
+
+            domElements.messageViewer.querySelector('[data-inline-images-toggle]').click();
+            expect(JSON.parse(window.localStorage.getItem('msgReader_inlineImageAttachments'))).toBe('expanded');
+
+            fileHandler.handleFiles([createMockFile('second.msg', 'mock')]);
+            await waitForDOMUpdate(100);
+
+            const content = domElements.messageViewer.querySelector('[data-inline-images-content]');
+            const toggle = domElements.messageViewer.querySelector('[data-inline-images-toggle]');
+
+            expect(toggle.getAttribute('aria-expanded')).toBe('true');
+            expect(content.hidden).toBe(false);
         });
     });
 
