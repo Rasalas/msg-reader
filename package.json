@@ -44,8 +44,8 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
-    "@babel/preset-env": "^7.29.0",
-    "@tailwindcss/vite": "^4.2.1",
+    "@babel/preset-env": "^7.29.2",
+    "@tailwindcss/vite": "^4.2.2",
     "@tauri-apps/cli": "^2.10.1",
     "autoprefixer": "^10.4.27",
     "babel-jest": "^30.3.0",
