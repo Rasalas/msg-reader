@@ -6,8 +6,7 @@
 // Mock the tauri-bridge module
 jest.mock('../src/js/tauri-bridge.js', () => ({
     isTauri: jest.fn(() => false),
-    saveFileWithDialog: jest.fn(() => Promise.resolve(true)),
-    openWithSystemViewer: jest.fn(() => Promise.resolve())
+    saveFileWithDialog: jest.fn(() => Promise.resolve(true))
 }));
 
 // Mock DOMPurify
@@ -20,7 +19,7 @@ import { ToastManager } from '../src/js/ui/ToastManager.js';
 import { AttachmentModalManager } from '../src/js/ui/AttachmentModalManager.js';
 import { MessageListRenderer } from '../src/js/ui/MessageListRenderer.js';
 import { MessageContentRenderer } from '../src/js/ui/MessageContentRenderer.js';
-import { isTauri, openWithSystemViewer, saveFileWithDialog } from '../src/js/tauri-bridge.js';
+import { isTauri, saveFileWithDialog } from '../src/js/tauri-bridge.js';
 
 /**
  * Creates a mock message object for testing
@@ -80,7 +79,6 @@ describe('UIManager (Facade)', () => {
     beforeEach(() => {
         setupDOM();
         isTauri.mockReturnValue(false);
-        openWithSystemViewer.mockClear();
         saveFileWithDialog.mockClear();
 
         mockMessageHandler = {
@@ -445,6 +443,9 @@ describe('AttachmentModalManager', () => {
             expect(modal.isPdf('APPLICATION/PDF')).toBe(true);
             expect(modal.isPdf('image/png')).toBe(false);
             expect(modal.isPdf(null)).toBe(false);
+            expect(modal.isPdf('application/octet-stream', 'report.pdf')).toBe(true);
+            expect(modal.isPdf('binary/octet-stream', 'Doc.PDF')).toBe(true);
+            expect(modal.isPdf('text/plain', 'notes.pdf')).toBe(false);
         });
 
         test('isText', () => {
@@ -463,6 +464,7 @@ describe('AttachmentModalManager', () => {
             expect(modal.isPreviewable('application/pdf')).toBe(true);
             expect(modal.isPreviewable('text/plain')).toBe(true);
             expect(modal.isPreviewable('application/octet-stream')).toBe(false);
+            expect(modal.isPreviewable('application/octet-stream', 'document.pdf')).toBe(true);
         });
     });
 
@@ -641,11 +643,13 @@ describe('AttachmentModalManager', () => {
             expect(modal.attachmentModalZoomOut.disabled).toBe(true);
         });
 
-        test('creates object for PDFs', () => {
+        test('creates object for PDFs with blob URL', () => {
             const att = { fileName: 'test.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:application/pdf;base64,abc' };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
-            expect(modal.attachmentModalContent.querySelector('object')).toBeTruthy();
+            const pdfObject = modal.attachmentModalContent.querySelector('object');
+            expect(pdfObject).toBeTruthy();
+            expect(pdfObject.data).toMatch(/^blob:/);
         });
 
         test('creates pre for text', () => {
@@ -752,12 +756,15 @@ describe('AttachmentModalManager', () => {
     });
 
     describe('Tauri PDF handling', () => {
-        test('opens PDF with system viewer in Tauri', () => {
+        test('opens PDF in attachment modal in Tauri', () => {
             isTauri.mockReturnValue(true);
             const pdfAtt = { fileName: 'test.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:application/pdf;base64,abc' };
+            modal.setAttachments([pdfAtt]);
             modal.open(pdfAtt);
-            expect(openWithSystemViewer).toHaveBeenCalledWith('data:application/pdf;base64,abc', 'test.pdf');
-            expect(modal.attachmentModal.classList.contains('active')).toBe(false);
+            expect(modal.attachmentModal.classList.contains('active')).toBe(true);
+            const pdfObject = modal.attachmentModalContent.querySelector('object');
+            expect(pdfObject).toBeTruthy();
+            expect(pdfObject.data).toMatch(/^blob:/);
         });
     });
 });

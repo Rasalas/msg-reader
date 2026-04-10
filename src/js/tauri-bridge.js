@@ -90,30 +90,6 @@ export function getFileName(filePath) {
 }
 
 /**
- * Open a file with the system's default application (Tauri only)
- * Saves the file to a temp location and opens it
- * @param {string} base64Data - Base64 data URL (data:mime/type;base64,...)
- * @param {string} fileName - Original filename
- * @returns {Promise<void>}
- */
-export async function openWithSystemViewer(base64Data, fileName) {
-    if (!isTauri()) {
-        throw new Error('openWithSystemViewer is only available in Tauri');
-    }
-
-    const { invoke } = await import('@tauri-apps/api/core');
-
-    // Extract the base64 content (remove data:mime/type;base64, prefix)
-    const base64Content = base64Data.split(',')[1];
-
-    // Call Rust command to save and open the file
-    await invoke('open_file_with_system', {
-        base64Content,
-        fileName,
-    });
-}
-
-/**
  * Save a file with a "Save As" dialog (Tauri only)
  * @param {string} base64Data - Base64 data URL (data:mime/type;base64,...)
  * @param {string} fileName - Suggested filename

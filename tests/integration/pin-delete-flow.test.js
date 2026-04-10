@@ -18,7 +18,6 @@
 // Mock external dependencies
 jest.mock('../../src/js/tauri-bridge.js', () => ({
     isTauri: jest.fn(() => false),
-    openWithSystemViewer: jest.fn(() => Promise.resolve()),
     readFileFromPath: jest.fn(),
     getFileName: jest.fn(),
     getPendingFiles: jest.fn(() => Promise.resolve([])),

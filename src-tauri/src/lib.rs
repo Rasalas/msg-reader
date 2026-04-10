@@ -13,61 +13,6 @@ fn read_file_as_bytes(path: String) -> Result<Vec<u8>, String> {
     std::fs::read(&path).map_err(|e| format!("Failed to read file {}: {}", path, e))
 }
 
-/// Save a base64-encoded file to temp directory and open with system viewer
-#[tauri::command]
-fn open_file_with_system(base64_content: String, file_name: String) -> Result<(), String> {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
-
-    // Decode base64 content
-    let bytes = STANDARD.decode(&base64_content)
-        .map_err(|e| format!("Failed to decode base64: {}", e))?;
-
-    // Create temp file path
-    let temp_dir = std::env::temp_dir();
-    let temp_path = temp_dir.join(&file_name);
-
-    // Write to temp file
-    let mut file = std::fs::File::create(&temp_path)
-        .map_err(|e| format!("Failed to create temp file: {}", e))?;
-    file.write_all(&bytes)
-        .map_err(|e| format!("Failed to write temp file: {}", e))?;
-
-    // Open with system default application
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&temp_path)
-            .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        // Use cmd.exe's start command - more reliable than PowerShell for opening files
-        // The empty "" is required as start interprets the first quoted arg as window title
-        // CREATE_NO_WINDOW prevents the console window from flashing
-        std::process::Command::new("cmd")
-            .args(["/c", "start", ""])
-            .arg(&temp_path)
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&temp_path)
-            .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
-    }
-
-    Ok(())
-}
-
 /// Save a file with a "Save As" dialog
 #[tauri::command]
 async fn save_file_with_dialog(
@@ -182,7 +127,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_files, open_file_with_system, save_file_with_dialog]);
+        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_files, save_file_with_dialog]);
 
     builder
         .build(tauri::generate_context!())

@@ -46,6 +46,10 @@ beforeEach(() => {
     localStorageMock.store = {};
     matchMediaMock.matches = false;
     jest.clearAllMocks();
+
+    let blobUrlSerial = 0;
+    global.URL.createObjectURL = jest.fn(() => `blob:mock-${++blobUrlSerial}`);
+    global.URL.revokeObjectURL = jest.fn();
 });
 
 // Mock window.md5 for tests that need it

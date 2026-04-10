@@ -40,19 +40,19 @@ make tauri-dev        # Tauri development
 - **MessageHandler.js** - Email state management (collection, pinning, sorting, selection)
 - **FileHandler.js** - Drag-drop handling, delegates parsing to injected parsers
 - **utils.js** - MSG/EML parsing logic using `@kenjiuno/msgreader` and custom MIME parser
-- **tauri-bridge.js** - IPC layer for native features (file ops, dialogs, system viewer)
+- **tauri-bridge.js** - IPC layer for native features (file ops, Save As dialog, updates)
 
 ### UI Layer (src/js/ui/)
 
 - **UIManager.js** - Delegates to specialized sub-managers
 - **MessageListRenderer.js** - Sidebar list with virtual scrolling
 - **MessageContentRenderer.js** - Email body with HTML sanitization and inline images
-- **AttachmentModalManager.js** - Attachment preview/download with system viewer support
+- **AttachmentModalManager.js** - Attachment preview modal and download (web + Tauri Save As)
 - **VirtualList.js** - Performance optimization for large email lists
 
 ### Desktop App (src-tauri/)
 
-- **lib.rs** - Tauri commands: file reading, system viewer, Save As dialog
+- **lib.rs** - Tauri commands: file reading, Save As dialog
 - Single-instance enforcement, file associations (.msg, .eml), auto-update
 
 ## Key Patterns

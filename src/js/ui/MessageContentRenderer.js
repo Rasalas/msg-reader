@@ -469,7 +469,7 @@ export class MessageContentRenderer {
      */
     renderAttachmentItems(items) {
         return items.map(({ attachment, index }) => {
-            const isPreviewable = this.attachmentModal?.isPreviewable(attachment.attachMimeTag);
+            const isPreviewable = this.attachmentModal?.isPreviewable(attachment.attachMimeTag, attachment.fileName);
 
             if (isPreviewable) {
                 return `
@@ -529,7 +529,7 @@ export class MessageContentRenderer {
      */
     getAttachmentItemIcon(attachment) {
         const isImage = this.attachmentModal?.isPreviewableImage(attachment.attachMimeTag);
-        const isPdf = this.attachmentModal?.isPdf(attachment.attachMimeTag);
+        const isPdf = this.attachmentModal?.isPdf(attachment.attachMimeTag, attachment.fileName);
         const isText = this.attachmentModal?.isText(attachment.attachMimeTag);
         const isEml = this.attachmentModal?.isPreviewableEml(attachment.attachMimeTag);
 
