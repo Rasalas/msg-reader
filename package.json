@@ -44,20 +44,20 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
-    "@babel/preset-env": "^7.29.0",
-    "@tailwindcss/vite": "^4.2.1",
+    "@babel/preset-env": "^7.29.2",
+    "@tailwindcss/vite": "^4.2.2",
     "@tauri-apps/cli": "^2.10.1",
     "autoprefixer": "^10.4.27",
     "babel-jest": "^30.3.0",
     "eslint": "^9.39.4",
     "gh-pages": "^6.3.0",
-    "globals": "^17.4.0",
+    "globals": "^17.5.0",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
-    "postcss": "^8.5.8",
-    "prettier": "^3.8.1",
+    "postcss": "^8.5.9",
+    "prettier": "^3.8.2",
     "tailwindcss": "^4.2.1",
     "vite": "^7.3.1",
-    "vite-plugin-node-polyfills": "^0.25.0"
+    "vite-plugin-node-polyfills": "^0.26.0"
   }
 }
