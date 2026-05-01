@@ -1,12 +1,27 @@
 import MsgReaderLib from '@kenjiuno/msgreader';
 import { decompressRTF } from '@kenjiuno/decompressrtf';
 import { deEncapsulateSync } from 'rtf-stream-parser';
-import iconvLite from 'iconv-lite';
 import { Buffer } from 'buffer';
 
-import { getCharsetFromCodepage } from './helpers.js';
-import { BASE64_SIZE_FACTOR } from './constants.js';
+import {
+    escapeRegex,
+    extractBaseMimeType,
+    extractBoundary,
+    extractCharset,
+    getCharsetFromCodepage
+} from './helpers.js';
+import { BASE64_SIZE_FACTOR, DEFAULT_CHARSET } from './constants.js';
 import { replaceCidReferences } from './cidReplacer.js';
+import {
+    binaryStringToBase64,
+    decodeBase64Text,
+    decodeBinaryString,
+    decodeBytes,
+    decodeMimeWords,
+    decodePercentEncodedText,
+    decodeQuotedPrintable,
+    textToBase64
+} from './encoding.js';
 
 /**
  * Sanitizes attachment filenames to prevent path traversal attacks
@@ -19,17 +34,17 @@ function sanitizeFilename(filename) {
 
     let sanitized = filename
         // Remove path traversal sequences
-        .replace(/\.\.\//g, '')            // Remove ../
-        .replace(/\.\.\\/g, '')            // Remove ..\
-        .replace(/^\/+/g, '')              // Remove leading forward slashes
-        .replace(/^[A-Za-z]:[\\/]/g, '')  // Remove Windows drive letters (C:\, D:/)
+        .replace(/\.\.\//g, '') // Remove ../
+        .replace(/\.\.\\/g, '') // Remove ..\
+        .replace(/^\/+/g, '') // Remove leading forward slashes
+        .replace(/^[A-Za-z]:[\\/]/g, '') // Remove Windows drive letters (C:\, D:/)
         // Remove control characters
         // eslint-disable-next-line no-control-regex
-        .replace(/[\x00-\x1f\x7f]/g, '')   // Remove control characters (including null)
-        .replace(/\ufeff/g, '')            // Remove UTF-16 BOM
-        .replace(/\ufffd/g, '')            // Remove replacement character
+        .replace(/[\x00-\x1f\x7f]/g, '') // Remove control characters (including null)
+        .replace(/\ufeff/g, '') // Remove UTF-16 BOM
+        .replace(/\ufffd/g, '') // Remove replacement character
         // Replace Windows reserved characters
-        .replace(/[<>:"|?*]/g, '_')        // Replace chars invalid in Windows filenames
+        .replace(/[<>:"|?*]/g, '_') // Replace chars invalid in Windows filenames
         // Remove trailing encoding artifacts from MIME (e.g., _= or trailing =)
         .replace(/[_=]+$/, '')
         .trim();
@@ -129,28 +144,101 @@ function resolveMsgAttachmentFilename(attachment, attachmentFileName = '') {
  * @returns {string} Decoded string
  */
 function decodeMIMEWord(str) {
-    if (!str) return '';
+    return decodeMimeWords(str);
+}
 
-    // Replace all encoded words in the string
-    return str.replace(/=\?([^?]+)\?([BQbq])\?([^?]*)\?=/g, (match, charset, encoding, text) => {
-        try {
-            if (encoding.toUpperCase() === 'B') {
-                // Base64 encoded
-                const bytes = atob(text);
-                return iconvLite.decode(Buffer.from(bytes, 'binary'), charset);
-            } else if (encoding.toUpperCase() === 'Q') {
-                // Quoted-printable encoded
-                text = text.replace(/_/g, ' ');
-                const bytes = text.replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-                    String.fromCharCode(parseInt(hex, 16))
-                );
-                return iconvLite.decode(Buffer.from(bytes, 'binary'), charset);
-            }
-        } catch (error) {
-            console.error('Error decoding MIME word:', error);
+function splitHeaderParameters(headerValue) {
+    const parts = [];
+    let current = '';
+    let inQuotes = false;
+    let escaped = false;
+
+    for (const char of headerValue || '') {
+        if (escaped) {
+            current += char;
+            escaped = false;
+            continue;
         }
-        return match; // Return original string if decoding fails
-    });
+
+        if (char === '\\' && inQuotes) {
+            current += char;
+            escaped = true;
+            continue;
+        }
+
+        if (char === '"') {
+            inQuotes = !inQuotes;
+            current += char;
+            continue;
+        }
+
+        if (char === ';' && !inQuotes) {
+            parts.push(current.trim());
+            current = '';
+            continue;
+        }
+
+        current += char;
+    }
+
+    if (current.trim()) {
+        parts.push(current.trim());
+    }
+
+    return parts;
+}
+
+function unquoteHeaderValue(value) {
+    const trimmed = (value || '').trim();
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+        return trimmed.slice(1, -1).replace(/\\(.)/g, '$1');
+    }
+    return trimmed;
+}
+
+function parseHeaderParameters(headerValue) {
+    return splitHeaderParameters(headerValue)
+        .slice(1)
+        .reduce((params, part) => {
+            const equalsIndex = part.indexOf('=');
+            if (equalsIndex === -1) return params;
+
+            const name = part.slice(0, equalsIndex).trim().toLowerCase();
+            const value = unquoteHeaderValue(part.slice(equalsIndex + 1));
+            if (name) {
+                params[name] = value;
+            }
+
+            return params;
+        }, {});
+}
+
+function decodeRfc2231Value(value) {
+    const match = (value || '').match(/^([^']*)'[^']*'(.*)$/);
+    if (match) {
+        return decodePercentEncodedText(match[2], match[1] || DEFAULT_CHARSET);
+    }
+
+    return decodePercentEncodedText(value, DEFAULT_CHARSET);
+}
+
+function decodeRfc2231Parameter(params, parameterName) {
+    const directValue = params[`${parameterName}*`];
+    if (directValue) {
+        return decodeRfc2231Value(directValue);
+    }
+
+    const segments = Object.keys(params)
+        .map((key) => {
+            const match = key.match(new RegExp(`^${parameterName}\\*(\\d+)(\\*)?$`, 'i'));
+            return match ? { key, index: Number(match[1]) } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.index - b.index);
+
+    if (segments.length === 0) return '';
+
+    return decodeRfc2231Value(segments.map((segment) => params[segment.key] || '').join(''));
 }
 
 /**
@@ -158,32 +246,23 @@ function decodeMIMEWord(str) {
  * Handles RFC 2231 encoding and MIME encoded-words
  * @param {string} contentDisposition - Content-Disposition header value
  * @param {string} [defaultName='attachment'] - Default filename if none found
+ * @param {string} [contentType=''] - Content-Type header value, used for name fallback
  * @returns {string} Extracted filename
  */
-function extractFilename(contentDisposition, defaultName = 'attachment') {
-    if (!contentDisposition) return defaultName;
+function extractFilename(contentDisposition, defaultName = 'attachment', contentType = '') {
+    const dispositionParams = parseHeaderParameters(contentDisposition);
+    const contentTypeParams = parseHeaderParameters(contentType);
 
-    // Try RFC 2231 format first: filename*=UTF-8''encoded_value
-    const rfc2231Match = contentDisposition.match(/filename\*=([^']*)'([^']*)'([^;\s]+)/i);
-    if (rfc2231Match) {
-        const encoded = rfc2231Match[3];
-        try {
-            // Decode percent-encoded characters
-            return decodeURIComponent(encoded);
-        } catch (error) {
-            console.error('Error decoding RFC 2231 filename:', error);
-        }
+    const encodedFilename =
+        decodeRfc2231Parameter(dispositionParams, 'filename') ||
+        decodeRfc2231Parameter(contentTypeParams, 'name');
+    if (encodedFilename) {
+        return encodedFilename.replace(/[_=]+$/, '');
     }
 
-    // Try standard filename with potential MIME encoding
-    const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
-    if (filenameMatch) {
-        let filename = filenameMatch[1];
-        // Decode MIME words if present
-        filename = decodeMIMEWord(filename);
-        // Remove trailing artifacts from incomplete encoding (e.g., _= or trailing =)
-        filename = filename.replace(/[_=]+$/, '');
-        return filename;
+    const plainFilename = dispositionParams.filename || contentTypeParams.name;
+    if (plainFilename) {
+        return decodeMIMEWord(plainFilename).replace(/[_=]+$/, '');
     }
 
     return defaultName;
@@ -199,7 +278,7 @@ export function parseEmailHeaders(headerString) {
     const headers = {};
     let currentHeader = '';
 
-    headerString.split(/\r?\n/).forEach(line => {
+    headerString.split(/\r?\n/).forEach((line) => {
         if (line.match(/^\s+/)) {
             // Continuation of previous header (folded header)
             if (currentHeader) {
@@ -231,8 +310,7 @@ function decodeTransferEncoding(content, encoding, charset, isText = true) {
     if (normalizedEncoding === 'base64') {
         if (isText) {
             try {
-                const decodedBytes = Buffer.from(content.replace(/\s/g, ''), 'base64');
-                return iconvLite.decode(decodedBytes, charset);
+                return decodeBase64Text(content, charset);
             } catch (error) {
                 console.error('Error decoding base64 content:', error);
                 return content;
@@ -240,15 +318,10 @@ function decodeTransferEncoding(content, encoding, charset, isText = true) {
         }
         return content; // Return raw for non-text
     } else if (normalizedEncoding === 'quoted-printable') {
-        // Decode quoted-printable: remove soft line breaks, then decode hex codes
-        const qpContent = content
-            .replace(/=\r?\n/g, '')
-            .replace(/=([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-        const decodedBytes = Buffer.from(qpContent, 'binary');
-        return iconvLite.decode(decodedBytes, charset);
+        return decodeQuotedPrintable(content, charset);
     }
 
-    return content.trim();
+    return decodeBinaryString(content, charset, { trim: true });
 }
 
 /**
@@ -260,7 +333,7 @@ function extractEmailAddresses(str) {
     if (!str) return [];
 
     const matches = str.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/g) || [];
-    return matches.map(match => {
+    return matches.map((match) => {
         const parts = match.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/);
         const email = parts[2] || parts[3];
         const name = parts[1] || email;
@@ -299,17 +372,17 @@ function createAttachment(filename, mimeType, base64Content, contentId = null) {
  * @param {string} [defaultCharset='utf-8'] - Default charset
  * @returns {{bodyHTML: string, bodyText: string, attachments: Array}} Parsed content
  */
-function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'utf-8') {
+function parseMultipartContent(content, boundary, depth = 0, defaultCharset = DEFAULT_CHARSET) {
     const results = {
         bodyHTML: '',
         bodyText: '',
         attachments: []
     };
 
-    const boundaryRegExp = new RegExp(`--${boundary}(?:--)?(?:\r?\n|\r|$)`, 'g');
-    const parts = content.split(boundaryRegExp).filter(part => part.trim());
+    const boundaryRegExp = new RegExp(`--${escapeRegex(boundary)}(?:--)?(?:\r?\n|\r|$)`, 'g');
+    const parts = content.split(boundaryRegExp).filter((part) => part.trim());
 
-    parts.forEach(part => {
+    parts.forEach((part) => {
         const partMatch = part.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
         if (!partMatch) return;
 
@@ -317,20 +390,21 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
         const partHeaders = parseEmailHeaders(partHeadersStr);
 
         const contentType = partHeaders['content-type'] || '';
+        const baseContentType = extractBaseMimeType(contentType);
         const contentTransferEncoding = partHeaders['content-transfer-encoding'] || '';
         const contentDisposition = partHeaders['content-disposition'] || '';
         const contentId = partHeaders['content-id'] || '';
 
-        // Extract charset from part's content-type
-        const partCharsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
-        const partCharset = partCharsetMatch ? partCharsetMatch[1] : defaultCharset;
+        const partCharset = /charset\s*=/i.test(contentType)
+            ? extractCharset(contentType)
+            : defaultCharset;
 
         // Check for nested multipart
-        const nestedBoundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
-        if (nestedBoundaryMatch) {
+        const nestedBoundary = extractBoundary(contentType);
+        if (nestedBoundary) {
             const nestedResults = parseMultipartContent(
                 partContent,
-                nestedBoundaryMatch[1],
+                nestedBoundary,
                 depth + 1,
                 partCharset
             );
@@ -355,8 +429,8 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
         // Decode and handle content based on type
         if (isExplicitAttachment) {
             // Treat as attachment regardless of content-type
-            const filename = extractFilename(contentDisposition);
-            const mimeType = contentType.split(';')[0] || 'application/octet-stream';
+            const filename = extractFilename(contentDisposition, 'attachment', contentType);
+            const mimeType = baseContentType || 'application/octet-stream';
 
             let base64Content;
             if (contentTransferEncoding.toLowerCase() === 'base64') {
@@ -368,12 +442,12 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
                     contentTransferEncoding,
                     partCharset
                 );
-                base64Content = btoa(unescape(encodeURIComponent(decodedContent)));
+                base64Content = textToBase64(decodedContent);
             }
 
             const attachment = createAttachment(filename, mimeType, base64Content, contentId);
             results.attachments.push(attachment);
-        } else if (contentType.startsWith('text/html')) {
+        } else if (baseContentType === 'text/html') {
             const decodedContent = decodeTransferEncoding(
                 partContent.trim(),
                 contentTransferEncoding,
@@ -382,7 +456,7 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
             results.bodyHTML = results.bodyHTML
                 ? results.bodyHTML + '\n' + decodedContent
                 : decodedContent;
-        } else if (contentType.startsWith('text/plain')) {
+        } else if (baseContentType === 'text/plain') {
             const decodedContent = decodeTransferEncoding(
                 partContent.trim(),
                 contentTransferEncoding,
@@ -391,15 +465,18 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
             results.bodyText = results.bodyText
                 ? results.bodyText + '\n' + decodedContent
                 : decodedContent;
-        } else if (contentType.startsWith('image/') || contentType.startsWith('application/')) {
-            const filename = extractFilename(contentDisposition);
-            const mimeType = contentType.split(';')[0];
+        } else if (
+            baseContentType.startsWith('image/') ||
+            baseContentType.startsWith('application/')
+        ) {
+            const filename = extractFilename(contentDisposition, 'attachment', contentType);
+            const mimeType = baseContentType;
 
             let base64Content;
             if (contentTransferEncoding.toLowerCase() === 'base64') {
                 base64Content = partContent.replace(/\s/g, '');
             } else {
-                base64Content = Buffer.from(partContent, 'binary').toString('base64');
+                base64Content = binaryStringToBase64(partContent);
             }
 
             const attachment = createAttachment(filename, mimeType, base64Content, contentId);
@@ -413,33 +490,36 @@ function parseMultipartContent(content, boundary, depth = 0, defaultCharset = 'u
             }
 
             results.attachments.push(attachment);
-        } else if (contentType.startsWith('message/')) {
+        } else if (baseContentType.startsWith('message/')) {
             // Handle nested email attachments (e.g., message/rfc822)
-            const filename = extractFilename(contentDisposition, 'embedded_message.eml');
-            const mimeType = contentType.split(';')[0];
+            const filename = extractFilename(
+                contentDisposition,
+                'embedded_message.eml',
+                contentType
+            );
+            const mimeType = baseContentType;
 
             // Encode the entire part content as base64
             let base64Content;
             if (contentTransferEncoding.toLowerCase() === 'base64') {
                 base64Content = partContent.replace(/\s/g, '');
             } else {
-                // For 7bit/8bit/quoted-printable, encode to base64
-                base64Content = btoa(unescape(encodeURIComponent(partContent)));
+                base64Content = binaryStringToBase64(partContent);
             }
 
             const attachment = createAttachment(filename, mimeType, base64Content, contentId);
             results.attachments.push(attachment);
-        } else if (contentType.startsWith('text/')) {
+        } else if (baseContentType.startsWith('text/')) {
             // Other text types (text/x-diff, text/csv, etc.) - treat as attachment if has filename
-            const filename = extractFilename(contentDisposition);
+            const filename = extractFilename(contentDisposition, 'attachment', contentType);
             if (filename && filename !== 'attachment') {
-                const mimeType = contentType.split(';')[0];
+                const mimeType = baseContentType;
                 const decodedContent = decodeTransferEncoding(
                     partContent.trim(),
                     contentTransferEncoding,
                     partCharset
                 );
-                const base64Content = btoa(unescape(encodeURIComponent(decodedContent)));
+                const base64Content = textToBase64(decodedContent);
                 const attachment = createAttachment(filename, mimeType, base64Content, contentId);
                 results.attachments.push(attachment);
             }
@@ -502,17 +582,7 @@ function extractMsgHtmlContent(msgInfo, debugData = null) {
                 debugData.charset = charset;
             }
 
-            // Try TextDecoder first, fallback to iconv-lite
-            let result;
-            if (typeof TextDecoder !== 'undefined') {
-                try {
-                    result = new TextDecoder(charset).decode(htmlArr);
-                } catch {
-                    result = iconvLite.decode(Buffer.from(htmlArr), charset);
-                }
-            } else {
-                result = iconvLite.decode(Buffer.from(htmlArr), charset);
-            }
+            const result = decodeBytes(htmlArr, charset);
 
             if (debugData) {
                 debugData.htmlBeforeCid = result;
@@ -532,13 +602,15 @@ function extractMsgHtmlContent(msgInfo, debugData = null) {
             if (debugData) {
                 debugData.htmlSource = 'rtf';
                 debugData.compressedRtf = compressedRtfArr;
-                debugData.decompressedRtf = typeof decompressedRtf === 'string'
-                    ? decompressedRtf
-                    : new TextDecoder('latin1').decode(
-                        decompressedRtf instanceof Uint8Array
-                            ? decompressedRtf
-                            : Uint8Array.from(Object.values(decompressedRtf))
-                    );
+                debugData.decompressedRtf =
+                    typeof decompressedRtf === 'string'
+                        ? decompressedRtf
+                        : decodeBytes(
+                              decompressedRtf instanceof Uint8Array
+                                  ? decompressedRtf
+                                  : Uint8Array.from(Object.values(decompressedRtf)),
+                              'latin1'
+                          );
             }
 
             const result = convertRTFToHTML(decompressedRtf);
@@ -569,7 +641,7 @@ function extractMsgHtmlContent(msgInfo, debugData = null) {
  * @returns {Array} Processed attachments with base64 content
  */
 function processMsgAttachments(msgReader, attachments) {
-    return attachments.map(attachment => {
+    return attachments.map((attachment) => {
         const attachmentData = msgReader.getAttachment(attachment);
         const contentUint8Array = attachmentData.content;
         const contentBuffer = Buffer.from(contentUint8Array);
@@ -606,12 +678,14 @@ export function extractMsg(fileBuffer, options = {}) {
     const { collectDebugData = false } = options;
 
     // Initialize debug data object if collecting
-    const debugData = collectDebugData ? {
-        fileType: 'msg',
-        rawSize: fileBuffer.byteLength,
-        rawBuffer: fileBuffer,
-        timestamp: new Date().toISOString()
-    } : null;
+    const debugData = collectDebugData
+        ? {
+              fileType: 'msg',
+              rawSize: fileBuffer.byteLength,
+              rawBuffer: fileBuffer,
+              timestamp: new Date().toISOString()
+          }
+        : null;
 
     const result = initializeMsgReader(fileBuffer);
     if (!result) return null;
@@ -622,16 +696,18 @@ export function extractMsg(fileBuffer, options = {}) {
     // Store raw msgInfo for debug
     if (debugData) {
         // Create a clean copy without circular references
-        debugData.msgInfoRaw = JSON.parse(JSON.stringify(msgInfo, (key, value) => {
-            // Skip large binary data in JSON representation
-            if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
-                return `[Binary: ${value.byteLength || value.length} bytes]`;
-            }
-            if (key === 'content' && typeof value === 'object') {
-                return '[Attachment content]';
-            }
-            return value;
-        }));
+        debugData.msgInfoRaw = JSON.parse(
+            JSON.stringify(msgInfo, (key, value) => {
+                // Skip large binary data in JSON representation
+                if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+                    return `[Binary: ${value.byteLength || value.length} bytes]`;
+                }
+                if (key === 'content' && typeof value === 'object') {
+                    return '[Attachment content]';
+                }
+                return value;
+            })
+        );
         debugData.plainText = emailBodyContent;
     }
 
@@ -651,7 +727,7 @@ export function extractMsg(fileBuffer, options = {}) {
         if (debugData) {
             debugData.htmlAfterCid = emailBodyContentHTML;
             debugData.attachmentCount = msgInfo.attachments.length;
-            debugData.attachments = msgInfo.attachments.map(a => ({
+            debugData.attachments = msgInfo.attachments.map((a) => ({
                 fileName: a.fileName,
                 mimeType: a.attachMimeTag,
                 contentLength: a.contentLength,
@@ -691,13 +767,14 @@ function convertRTFToHTML(rtfContent) {
     // decompressRTF may return an array-like object, convert to string
     let rtfString = rtfContent;
     if (typeof rtfContent !== 'string') {
-        const arr = rtfContent instanceof Uint8Array
-            ? rtfContent
-            : Uint8Array.from(Object.values(rtfContent));
-        rtfString = new TextDecoder('latin1').decode(arr);
+        const arr =
+            rtfContent instanceof Uint8Array
+                ? rtfContent
+                : Uint8Array.from(Object.values(rtfContent));
+        rtfString = decodeBytes(arr, 'latin1');
     }
 
-    const result = deEncapsulateSync(rtfString, { decode: iconvLite.decode });
+    const result = deEncapsulateSync(rtfString, { decode: decodeBytes });
     return result.text;
 }
 
@@ -710,28 +787,40 @@ function convertRTFToHTML(rtfContent) {
  * @param {string} charset - Character set for decoding
  * @returns {{bodyHTML: string, bodyText: string, attachments: Array}} Parsed content
  */
-function handleSinglePartContent(bodyContent, contentType, contentTransferEncoding, contentDisposition, charset) {
+function handleSinglePartContent(
+    bodyContent,
+    contentType,
+    contentTransferEncoding,
+    contentDisposition,
+    charset
+) {
     const results = {
         bodyHTML: '',
         bodyText: '',
         attachments: []
     };
+    const baseContentType = extractBaseMimeType(contentType);
 
-    if (contentType.startsWith('application/') || contentType.startsWith('image/')) {
+    if (baseContentType.startsWith('application/') || baseContentType.startsWith('image/')) {
         // Handle as attachment
-        const filename = extractFilename(contentDisposition);
-        const mimeType = contentType.split(';')[0];
+        const filename = extractFilename(contentDisposition, 'attachment', contentType);
+        const mimeType = baseContentType;
 
-        const base64Content = contentTransferEncoding.toLowerCase() === 'base64'
-            ? bodyContent.replace(/\s/g, '')
-            : Buffer.from(bodyContent).toString('base64');
+        const base64Content =
+            contentTransferEncoding.toLowerCase() === 'base64'
+                ? bodyContent.replace(/\s/g, '')
+                : binaryStringToBase64(bodyContent);
 
         results.attachments.push(createAttachment(filename, mimeType, base64Content));
     } else {
         // Handle as text content
-        const decodedContent = decodeTransferEncoding(bodyContent, contentTransferEncoding, charset);
+        const decodedContent = decodeTransferEncoding(
+            bodyContent,
+            contentTransferEncoding,
+            charset
+        );
 
-        if (contentType.includes('text/html')) {
+        if (baseContentType === 'text/html') {
             results.bodyHTML = decodedContent;
         } else {
             results.bodyText = decodedContent;
@@ -753,12 +842,14 @@ export function extractEml(fileBuffer, options = {}) {
     const { collectDebugData = false } = options;
 
     // Initialize debug data object if collecting
-    const debugData = collectDebugData ? {
-        fileType: 'eml',
-        rawSize: fileBuffer.byteLength,
-        rawBuffer: fileBuffer,
-        timestamp: new Date().toISOString()
-    } : null;
+    const debugData = collectDebugData
+        ? {
+              fileType: 'eml',
+              rawSize: fileBuffer.byteLength,
+              rawBuffer: fileBuffer,
+              timestamp: new Date().toISOString()
+          }
+        : null;
 
     try {
         // Convert ArrayBuffer to String
@@ -790,27 +881,28 @@ export function extractEml(fileBuffer, options = {}) {
 
         // Extract content type info
         const contentType = headers['content-type'] || '';
-        const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
-        const charsetMatch = contentType.match(/charset="?([^";\s]+)"?/i);
-        const detectedCharset = charsetMatch ? charsetMatch[1] : 'utf-8';
+        const boundary = extractBoundary(contentType);
+        const detectedCharset = /charset\s*=/i.test(contentType)
+            ? extractCharset(contentType)
+            : DEFAULT_CHARSET;
 
         if (debugData) {
             debugData.contentType = contentType;
             debugData.charset = detectedCharset;
-            debugData.isMultipart = !!boundaryMatch;
-            debugData.boundary = boundaryMatch ? boundaryMatch[1] : null;
+            debugData.isMultipart = !!boundary;
+            debugData.boundary = boundary || null;
         }
 
         // Parse content based on whether it's multipart or single-part
         let results;
         let htmlBeforeCid = '';
 
-        if (boundaryMatch) {
+        if (boundary) {
             // Multipart email
-            results = parseMultipartContent(bodyContent, boundaryMatch[1], 0, detectedCharset);
+            results = parseMultipartContent(bodyContent, boundary, 0, detectedCharset);
 
             if (debugData) {
-                debugData.mimeStructure = buildMimeStructure(bodyContent, boundaryMatch[1]);
+                debugData.mimeStructure = buildMimeStructure(bodyContent, boundary);
             }
 
             htmlBeforeCid = results.bodyHTML;
@@ -841,7 +933,7 @@ export function extractEml(fileBuffer, options = {}) {
             debugData.plainText = results.bodyText;
             debugData.htmlFinal = results.bodyHTML || results.bodyText;
             debugData.attachmentCount = results.attachments.length;
-            debugData.attachments = results.attachments.map(a => ({
+            debugData.attachments = results.attachments.map((a) => ({
                 fileName: a.fileName,
                 mimeType: a.attachMimeTag,
                 contentLength: a.contentLength,
@@ -863,8 +955,8 @@ export function extractEml(fileBuffer, options = {}) {
             senderName: from.name || from.address,
             senderEmail: from.address,
             recipients: [
-                ...to.map(r => ({ ...r, recipType: 'to' })),
-                ...cc.map(r => ({ ...r, recipType: 'cc' }))
+                ...to.map((r) => ({ ...r, recipType: 'to' })),
+                ...cc.map((r) => ({ ...r, recipType: 'cc' }))
             ],
             messageDeliveryTime: date.toISOString(),
             bodyContent: results.bodyText,
@@ -899,8 +991,8 @@ function buildMimeStructure(content, boundary, depth = 0) {
         parts: []
     };
 
-    const boundaryRegExp = new RegExp(`--${boundary}(?:--)?(?:\r?\n|\r|$)`, 'g');
-    const parts = content.split(boundaryRegExp).filter(part => part.trim());
+    const boundaryRegExp = new RegExp(`--${escapeRegex(boundary)}(?:--)?(?:\r?\n|\r|$)`, 'g');
+    const parts = content.split(boundaryRegExp).filter((part) => part.trim());
 
     parts.forEach((part, index) => {
         const partMatch = part.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
@@ -912,23 +1004,23 @@ function buildMimeStructure(content, boundary, depth = 0) {
 
         const partInfo = {
             index: index,
-            contentType: contentType.split(';')[0].trim(),
+            contentType: extractBaseMimeType(contentType) || 'text/plain',
             headers: partHeaders,
             size: partContent.length
         };
 
         // Check for nested multipart
-        const nestedBoundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
-        if (nestedBoundaryMatch) {
-            partInfo.nested = buildMimeStructure(partContent, nestedBoundaryMatch[1], depth + 1);
+        const nestedBoundary = extractBoundary(contentType);
+        if (nestedBoundary) {
+            partInfo.nested = buildMimeStructure(partContent, nestedBoundary, depth + 1);
         }
 
         // Add disposition info
         if (partHeaders['content-disposition']) {
             partInfo.disposition = partHeaders['content-disposition'].split(';')[0].trim();
-            const filenameMatch = partHeaders['content-disposition'].match(/filename="?([^";\n]+)"?/i);
-            if (filenameMatch) {
-                partInfo.filename = filenameMatch[1];
+            const filename = extractFilename(partHeaders['content-disposition'], '', contentType);
+            if (filename) {
+                partInfo.filename = filename;
             }
         }
 

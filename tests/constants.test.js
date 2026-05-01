@@ -20,6 +20,8 @@ describe('CHARSET_CODES', () => {
         expect(CHARSET_CODES[932]).toBe('shift_jis');
         expect(CHARSET_CODES[949]).toBe('cp949');
         expect(CHARSET_CODES[928]).toBe('gb2312');
+        expect(CHARSET_CODES[1252]).toBe('windows-1252');
+        expect(CHARSET_CODES[65001]).toBe('utf-8');
     });
 
     test('is not empty', () => {

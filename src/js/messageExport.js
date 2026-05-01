@@ -1,4 +1,5 @@
 import { escapeHTML } from './sanitizer.js';
+import { textToBase64 } from './encoding.js';
 
 function stripExtension(fileName) {
     if (!fileName) return '';
@@ -8,7 +9,7 @@ function stripExtension(fileName) {
 function sanitizeFileComponent(value, fallback = 'message') {
     const invalidChars = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*']);
     const cleaned = Array.from(value || fallback)
-        .map(char => {
+        .map((char) => {
             if (invalidChars.has(char)) return '_';
             if (char.charCodeAt(0) < 32) return '_';
             return char;
@@ -45,21 +46,14 @@ function formatAddress(name, email) {
 }
 
 function wrapBase64(base64) {
-    return (base64 || '').replace(/\s+/g, '').replace(/.{1,76}/g, '$&\r\n').trim();
+    return (base64 || '')
+        .replace(/\s+/g, '')
+        .replace(/.{1,76}/g, '$&\r\n')
+        .trim();
 }
 
 function encodeTextAsBase64(text) {
-    if (!text) return '';
-
-    if (typeof btoa === 'function') {
-        return btoa(unescape(encodeURIComponent(text)));
-    }
-
-    if (typeof Buffer !== 'undefined') {
-        return Buffer.from(text, 'utf-8').toString('base64');
-    }
-
-    throw new Error('No base64 encoder available');
+    return textToBase64(text);
 }
 
 function getAttachmentBase64(attachment) {
@@ -71,7 +65,10 @@ function getAttachmentContentId(attachment, index) {
     const normalized = rawContentId.replace(/[<>]/g, '').trim();
     if (normalized) return normalized;
 
-    const fileName = sanitizeFileComponent(stripExtension(attachment?.fileName || `inline_${index}`), `inline_${index}`);
+    const fileName = sanitizeFileComponent(
+        stripExtension(attachment?.fileName || `inline_${index}`),
+        `inline_${index}`
+    );
     return `${fileName}@msgreader.local`;
 }
 
@@ -80,7 +77,9 @@ function partitionAttachments(bodyHtml, attachments = []) {
     const regularAttachments = [];
 
     attachments.forEach((attachment, index) => {
-        const isInline = Boolean(bodyHtml && attachment?.contentBase64 && bodyHtml.includes(attachment.contentBase64));
+        const isInline = Boolean(
+            bodyHtml && attachment?.contentBase64 && bodyHtml.includes(attachment.contentBase64)
+        );
         const withContentId = {
             ...attachment,
             exportContentId: getAttachmentContentId(attachment, index)
@@ -99,9 +98,11 @@ function partitionAttachments(bodyHtml, attachments = []) {
 function replaceInlineDataUrlsWithCid(bodyHtml, inlineAttachments) {
     let rewrittenHtml = bodyHtml;
 
-    inlineAttachments.forEach(attachment => {
+    inlineAttachments.forEach((attachment) => {
         if (!attachment.contentBase64) return;
-        rewrittenHtml = rewrittenHtml.split(attachment.contentBase64).join(`cid:${attachment.exportContentId}`);
+        rewrittenHtml = rewrittenHtml
+            .split(attachment.contentBase64)
+            .join(`cid:${attachment.exportContentId}`);
     });
 
     return rewrittenHtml;
@@ -117,12 +118,8 @@ function createPlainTextFallback(message) {
 
     if (typeof document !== 'undefined') {
         const container = document.createElement('div');
-        container.innerHTML = body
-            .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<\/p>/gi, '\n\n');
-        return (container.textContent || '')
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
+        container.innerHTML = body.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n');
+        return (container.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
     return body
@@ -145,18 +142,26 @@ function getRawHeader(message, name) {
 
 function formatAddressList(recipients = []) {
     return recipients
-        .map(recipient => formatAddress(
-            recipient.name || recipient.smtpAddress || recipient.email || '',
-            recipient.smtpAddress || recipient.email || ''
-        ))
+        .map((recipient) =>
+            formatAddress(
+                recipient.name || recipient.smtpAddress || recipient.email || '',
+                recipient.smtpAddress || recipient.email || ''
+            )
+        )
         .filter(Boolean)
         .join(', ');
 }
 
 function buildTopLevelHeaders(message) {
-    const toRecipients = (message?.recipients || []).filter(recipient => recipient.recipType === 'to');
-    const ccRecipients = (message?.recipients || []).filter(recipient => recipient.recipType === 'cc');
-    const bccRecipients = (message?.recipients || []).filter(recipient => recipient.recipType === 'bcc');
+    const toRecipients = (message?.recipients || []).filter(
+        (recipient) => recipient.recipType === 'to'
+    );
+    const ccRecipients = (message?.recipients || []).filter(
+        (recipient) => recipient.recipType === 'cc'
+    );
+    const bccRecipients = (message?.recipients || []).filter(
+        (recipient) => recipient.recipType === 'bcc'
+    );
     const optionalHeaders = [
         ['Reply-To', getRawHeader(message, 'reply-to')],
         ['Message-ID', getRawHeader(message, 'message-id') || message?.messageId || ''],
@@ -171,11 +176,15 @@ function buildTopLevelHeaders(message) {
     ];
 
     return [
-        ['From', getRawHeader(message, 'from') || formatAddress(message?.senderName || '', message?.senderEmail || '')],
+        [
+            'From',
+            getRawHeader(message, 'from') ||
+                formatAddress(message?.senderName || '', message?.senderEmail || '')
+        ],
         ['To', getRawHeader(message, 'to') || formatAddressList(toRecipients)],
         ['Cc', getRawHeader(message, 'cc') || formatAddressList(ccRecipients)],
         ['Bcc', getRawHeader(message, 'bcc') || formatAddressList(bccRecipients)],
-        ['Subject', getRawHeader(message, 'subject') || (message?.subject || '')],
+        ['Subject', getRawHeader(message, 'subject') || message?.subject || ''],
         ['Date', getRawHeader(message, 'date') || formatTimestamp(message?.messageDeliveryTime)],
         ...optionalHeaders
     ]
@@ -194,9 +203,7 @@ export function getExportFileName(message, format) {
 }
 
 export function getOriginalMessageMimeType(message) {
-    return message?._fileType === 'eml'
-        ? 'message/rfc822'
-        : 'application/vnd.ms-outlook';
+    return message?._fileType === 'eml' ? 'message/rfc822' : 'application/vnd.ms-outlook';
 }
 
 export function messageToEml(message) {
@@ -205,7 +212,10 @@ export function messageToEml(message) {
     const boundaryAlt = `----=_msgReader_alt_${Math.random().toString(16).slice(2)}`;
     const bodyText = createPlainTextFallback(message);
     const originalHtml = message?.bodyContentHTML || `<pre>${escapeHTML(bodyText)}</pre>`;
-    const { inlineAttachments, regularAttachments } = partitionAttachments(originalHtml, message?.attachments || []);
+    const { inlineAttachments, regularAttachments } = partitionAttachments(
+        originalHtml,
+        message?.attachments || []
+    );
     const bodyHtml = replaceInlineDataUrlsWithCid(originalHtml, inlineAttachments);
 
     const headers = [
@@ -214,8 +224,8 @@ export function messageToEml(message) {
         regularAttachments.length > 0
             ? `Content-Type: multipart/mixed; boundary="${boundaryMixed}"`
             : inlineAttachments.length > 0
-                ? `Content-Type: multipart/related; boundary="${boundaryRelated}"`
-            : `Content-Type: multipart/alternative; boundary="${boundaryAlt}"`
+              ? `Content-Type: multipart/related; boundary="${boundaryRelated}"`
+              : `Content-Type: multipart/alternative; boundary="${boundaryAlt}"`
     ].filter(Boolean);
 
     const alternativeParts = [
@@ -235,7 +245,7 @@ export function messageToEml(message) {
         ''
     ];
 
-    const relatedParts = inlineAttachments.map(attachment => {
+    const relatedParts = inlineAttachments.map((attachment) => {
         const fileName = sanitizeFileComponent(attachment.fileName || 'inline');
         const mimeType = attachment.attachMimeTag || 'application/octet-stream';
 
@@ -251,23 +261,24 @@ export function messageToEml(message) {
         ].join('\r\n');
     });
 
-    const alternativeOrRelatedBody = inlineAttachments.length > 0
-        ? [
-            `--${boundaryRelated}`,
-            `Content-Type: multipart/alternative; boundary="${boundaryAlt}"`,
-            '',
-            alternativeParts.join('\r\n'),
-            ...relatedParts,
-            `--${boundaryRelated}--`,
-            ''
-        ].join('\r\n')
-        : alternativeParts.join('\r\n');
+    const alternativeOrRelatedBody =
+        inlineAttachments.length > 0
+            ? [
+                  `--${boundaryRelated}`,
+                  `Content-Type: multipart/alternative; boundary="${boundaryAlt}"`,
+                  '',
+                  alternativeParts.join('\r\n'),
+                  ...relatedParts,
+                  `--${boundaryRelated}--`,
+                  ''
+              ].join('\r\n')
+            : alternativeParts.join('\r\n');
 
     if (regularAttachments.length === 0) {
         return `${headers.join('\r\n')}\r\n\r\n${alternativeOrRelatedBody}`;
     }
 
-    const attachmentParts = regularAttachments.map(attachment => {
+    const attachmentParts = regularAttachments.map((attachment) => {
         const fileName = sanitizeFileComponent(attachment.fileName || 'attachment');
         const mimeType = attachment.attachMimeTag || 'application/octet-stream';
 
@@ -299,34 +310,45 @@ export function messageToEml(message) {
 
 export function messageToHtmlDocument(message) {
     const recipientsTo = (message?.recipients || [])
-        .filter(recipient => recipient.recipType === 'to')
-        .map(recipient => `${recipient.name || recipient.smtpAddress || recipient.email || ''} &lt;${recipient.smtpAddress || recipient.email || ''}&gt;`)
+        .filter((recipient) => recipient.recipType === 'to')
+        .map(
+            (recipient) =>
+                `${recipient.name || recipient.smtpAddress || recipient.email || ''} &lt;${recipient.smtpAddress || recipient.email || ''}&gt;`
+        )
         .join(', ');
     const recipientsCc = (message?.recipients || [])
-        .filter(recipient => recipient.recipType === 'cc')
-        .map(recipient => `${recipient.name || recipient.smtpAddress || recipient.email || ''} &lt;${recipient.smtpAddress || recipient.email || ''}&gt;`)
+        .filter((recipient) => recipient.recipType === 'cc')
+        .map(
+            (recipient) =>
+                `${recipient.name || recipient.smtpAddress || recipient.email || ''} &lt;${recipient.smtpAddress || recipient.email || ''}&gt;`
+        )
         .join(', ');
 
-    const bodyHtml = message?.bodyContentHTML
-        || `<pre>${escapeHTML(message?.bodyContent || '')}</pre>`;
+    const bodyHtml =
+        message?.bodyContentHTML || `<pre>${escapeHTML(message?.bodyContent || '')}</pre>`;
     const { regularAttachments } = partitionAttachments(bodyHtml, message?.attachments || []);
     const headerMap = getHeaderMap(message);
     const replyTo = getRawHeader(message, 'reply-to');
     const messageId = getRawHeader(message, 'message-id') || message?.messageId || '';
 
-    const attachmentsHtml = regularAttachments.length > 0
-        ? `
+    const attachmentsHtml =
+        regularAttachments.length > 0
+            ? `
         <section class="attachments">
             <h2>Attachments</h2>
             <ul>
-                ${regularAttachments.map(attachment => `
+                ${regularAttachments
+                    .map(
+                        (attachment) => `
                 <li>
                     <a href="${attachment.contentBase64}" download="${escapeHTML(attachment.fileName || 'attachment')}">${escapeHTML(attachment.fileName || 'attachment')}</a>
                     <span>${escapeHTML(attachment.attachMimeTag || 'application/octet-stream')}</span>
-                </li>`).join('')}
+                </li>`
+                    )
+                    .join('')}
             </ul>
         </section>`
-        : '';
+            : '';
 
     return `<!DOCTYPE html>
 <html lang="en">
