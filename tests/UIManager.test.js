@@ -21,6 +21,7 @@ import { AttachmentModalManager } from '../src/js/ui/AttachmentModalManager.js';
 import { MessageListRenderer } from '../src/js/ui/MessageListRenderer.js';
 import { MessageContentRenderer } from '../src/js/ui/MessageContentRenderer.js';
 import { isTauri, openWithSystemViewer, saveFileWithDialog } from '../src/js/tauri-bridge.js';
+import { setPdfAttachmentOpenMode } from '../src/js/UserPreferences.js';
 
 /**
  * Creates a mock message object for testing
@@ -456,7 +457,10 @@ describe('AttachmentModalManager', () => {
         test('isPdf', () => {
             expect(modal.isPdf('application/pdf')).toBe(true);
             expect(modal.isPdf('APPLICATION/PDF')).toBe(true);
+            expect(modal.isPdf('application/octet-stream', 'report.pdf')).toBe(true);
+            expect(modal.isPdf('', 'report.pdf')).toBe(true);
             expect(modal.isPdf('image/png')).toBe(false);
+            expect(modal.isPdf('image/png', 'report.pdf')).toBe(false);
             expect(modal.isPdf(null)).toBe(false);
         });
 
@@ -720,7 +724,9 @@ describe('AttachmentModalManager', () => {
             };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
-            expect(modal.attachmentModalContent.querySelector('object')).toBeTruthy();
+            const object = modal.attachmentModalContent.querySelector('object');
+            expect(object).toBeTruthy();
+            expect(object.data).toBe('blob:mock-object-url');
         });
 
         test('creates pre for text', () => {
@@ -872,8 +878,22 @@ describe('AttachmentModalManager', () => {
     });
 
     describe('Tauri PDF handling', () => {
-        test('opens PDF with system viewer in Tauri', () => {
+        test('previews PDF in app by default in Tauri', () => {
             isTauri.mockReturnValue(true);
+            const pdfAtt = {
+                fileName: 'test.pdf',
+                attachMimeTag: 'application/pdf',
+                contentBase64: 'data:application/pdf;base64,abc'
+            };
+            modal.open(pdfAtt);
+            expect(openWithSystemViewer).not.toHaveBeenCalled();
+            expect(modal.attachmentModal.classList.contains('active')).toBe(true);
+            expect(modal.attachmentModalContent.querySelector('object')).toBeTruthy();
+        });
+
+        test('opens PDF with system viewer in Tauri when preference is external', () => {
+            isTauri.mockReturnValue(true);
+            setPdfAttachmentOpenMode('external');
             const pdfAtt = {
                 fileName: 'test.pdf',
                 attachMimeTag: 'application/pdf',
