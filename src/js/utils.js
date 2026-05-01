@@ -12,6 +12,7 @@ import {
 } from './helpers.js';
 import { BASE64_SIZE_FACTOR, DEFAULT_CHARSET } from './constants.js';
 import { replaceCidReferences } from './cidReplacer.js';
+import { parseAddressHeader } from './addressUtils.js';
 import {
     binaryStringToBase64,
     decodeBase64Text,
@@ -330,15 +331,7 @@ function decodeTransferEncoding(content, encoding, charset, isText = true) {
  * @returns {Array<{name: string, address: string}>} Array of email objects
  */
 function extractEmailAddresses(str) {
-    if (!str) return [];
-
-    const matches = str.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/g) || [];
-    return matches.map((match) => {
-        const parts = match.match(/(?:"([^"]*)")?\s*(?:<([^>]+)>|([^\s,]+@[^\s,]+))/);
-        const email = parts[2] || parts[3];
-        const name = parts[1] || email;
-        return { name: decodeMIMEWord(name), address: email };
-    });
+    return parseAddressHeader(str, decodeMIMEWord);
 }
 
 /**
@@ -954,6 +947,7 @@ export function extractEml(fileBuffer, options = {}) {
             subject: decodeMIMEWord(headers.subject) || '',
             senderName: from.name || from.address,
             senderEmail: from.address,
+            senderExchangeLegacyDn: from.exchangeLegacyDn || '',
             recipients: [
                 ...to.map((r) => ({ ...r, recipType: 'to' })),
                 ...cc.map((r) => ({ ...r, recipType: 'cc' }))

@@ -1,5 +1,11 @@
 import { escapeHTML } from './sanitizer.js';
 import { textToBase64 } from './encoding.js';
+import {
+    formatAddressHeader,
+    formatContact,
+    getContactEmail,
+    isUnsafeRawAddressHeader
+} from './addressUtils.js';
 
 function stripExtension(fileName) {
     if (!fileName) return '';
@@ -35,14 +41,6 @@ function formatTimestamp(value) {
         return new Date().toUTCString();
     }
     return parsed.toUTCString();
-}
-
-function formatAddress(name, email) {
-    if (!email) return name || '';
-    if (name && name !== email) {
-        return `"${name.replace(/"/g, '\\"')}" <${email}>`;
-    }
-    return `<${email}>`;
 }
 
 function wrapBase64(base64) {
@@ -140,12 +138,17 @@ function getRawHeader(message, name) {
     return headerMap[name.toLowerCase()] || '';
 }
 
+function getSafeRawAddressHeader(message, name) {
+    const rawHeader = getRawHeader(message, name);
+    return rawHeader && !isUnsafeRawAddressHeader(rawHeader) ? rawHeader : '';
+}
+
 function formatAddressList(recipients = []) {
     return recipients
         .map((recipient) =>
-            formatAddress(
+            formatAddressHeader(
                 recipient.name || recipient.smtpAddress || recipient.email || '',
-                recipient.smtpAddress || recipient.email || ''
+                getContactEmail(recipient)
             )
         )
         .filter(Boolean)
@@ -178,12 +181,12 @@ function buildTopLevelHeaders(message) {
     return [
         [
             'From',
-            getRawHeader(message, 'from') ||
-                formatAddress(message?.senderName || '', message?.senderEmail || '')
+            getSafeRawAddressHeader(message, 'from') ||
+                formatAddressHeader(message?.senderName || '', message?.senderEmail || '')
         ],
-        ['To', getRawHeader(message, 'to') || formatAddressList(toRecipients)],
-        ['Cc', getRawHeader(message, 'cc') || formatAddressList(ccRecipients)],
-        ['Bcc', getRawHeader(message, 'bcc') || formatAddressList(bccRecipients)],
+        ['To', getSafeRawAddressHeader(message, 'to') || formatAddressList(toRecipients)],
+        ['Cc', getSafeRawAddressHeader(message, 'cc') || formatAddressList(ccRecipients)],
+        ['Bcc', getSafeRawAddressHeader(message, 'bcc') || formatAddressList(bccRecipients)],
         ['Subject', getRawHeader(message, 'subject') || message?.subject || ''],
         ['Date', getRawHeader(message, 'date') || formatTimestamp(message?.messageDeliveryTime)],
         ...optionalHeaders
@@ -311,16 +314,14 @@ export function messageToEml(message) {
 export function messageToHtmlDocument(message) {
     const recipientsTo = (message?.recipients || [])
         .filter((recipient) => recipient.recipType === 'to')
-        .map(
-            (recipient) =>
-                `${recipient.name || recipient.smtpAddress || recipient.email || ''} &lt;${recipient.smtpAddress || recipient.email || ''}&gt;`
+        .map((recipient) =>
+            escapeHTML(formatContact(recipient.name || '', getContactEmail(recipient)))
         )
         .join(', ');
     const recipientsCc = (message?.recipients || [])
         .filter((recipient) => recipient.recipType === 'cc')
-        .map(
-            (recipient) =>
-                `${recipient.name || recipient.smtpAddress || recipient.email || ''} &lt;${recipient.smtpAddress || recipient.email || ''}&gt;`
+        .map((recipient) =>
+            escapeHTML(formatContact(recipient.name || '', getContactEmail(recipient)))
         )
         .join(', ');
 
@@ -373,7 +374,7 @@ export function messageToHtmlDocument(message) {
     <main>
         <h1>${escapeHTML(message?.subject || 'Message')}</h1>
         <div class="meta">
-            <div><strong>From:</strong> ${escapeHTML(message?.senderName || '')} &lt;${escapeHTML(message?.senderEmail || '')}&gt;</div>
+            <div><strong>From:</strong> ${escapeHTML(formatContact(message?.senderName || '', message?.senderEmail || ''))}</div>
             ${recipientsTo ? `<div><strong>To:</strong> ${recipientsTo}</div>` : ''}
             ${recipientsCc ? `<div><strong>CC:</strong> ${recipientsCc}</div>` : ''}
             <div><strong>Date:</strong> ${escapeHTML(new Date(message?.messageDeliveryTime || Date.now()).toLocaleString())}</div>
