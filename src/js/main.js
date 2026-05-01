@@ -5,11 +5,15 @@ import FileHandler from './FileHandler.js';
 import KeyboardManager from './KeyboardManager.js';
 import { extractMsg, extractEml } from './utils.js';
 import { isTauri, getPendingFiles, onFileOpen, onFileDrop, checkForUpdates } from './tauri-bridge.js';
-import { themeManager, THEMES, EMAIL_THEMES } from './ThemeManager.js';
+import { themeManager } from './ThemeManager.js';
 import {
     getInlineImageAttachmentVisibility,
     setInlineImageAttachmentVisibility
 } from './InlineImagePreference.js';
+import {
+    getPdfAttachmentOpenMode,
+    setPdfAttachmentOpenMode
+} from './UserPreferences.js';
 import { devModeManager } from './DevModeManager.js';
 import { DevPanel } from './ui/DevPanel.js';
 
@@ -252,6 +256,8 @@ function initTheme() {
                 document.dispatchEvent(new CustomEvent('inline-image-attachment-visibility-change', {
                     detail: { visibility: item.dataset.inlineImages }
                 }));
+            } else if (type === 'pdf-attachments') {
+                setPdfAttachmentOpenMode(item.dataset.pdfOpenMode);
             }
 
             updateThemeUI();
@@ -273,31 +279,14 @@ function initTheme() {
 }
 
 /**
- * Update theme-related UI elements
- * Updates icons, active states in dropdown menu
+ * Update settings UI elements
+ * Updates active states in dropdown menu
  */
 function updateThemeUI() {
     const savedTheme = themeManager.getSavedTheme();
-    const activeTheme = themeManager.getActiveTheme();
     const savedEmailTheme = themeManager.getSavedEmailTheme();
     const inlineImageVisibility = getInlineImageAttachmentVisibility();
-
-    // Update toggle button icon
-    const sunIcon = document.getElementById('themeIconSun');
-    const moonIcon = document.getElementById('themeIconMoon');
-    const systemIcon = document.getElementById('themeIconSystem');
-
-    sunIcon?.classList.remove('active');
-    moonIcon?.classList.remove('active');
-    systemIcon?.classList.remove('active');
-
-    if (savedTheme === THEMES.SYSTEM) {
-        systemIcon?.classList.add('active');
-    } else if (activeTheme === THEMES.DARK) {
-        sunIcon?.classList.add('active'); // Show sun when dark (to switch to light)
-    } else {
-        moonIcon?.classList.add('active'); // Show moon when light (to switch to dark)
-    }
+    const pdfAttachmentOpenMode = getPdfAttachmentOpenMode();
 
     // Update active states in dropdown menu
     document.querySelectorAll('.theme-menu-item[data-type="app"]').forEach(item => {
@@ -310,6 +299,10 @@ function updateThemeUI() {
 
     document.querySelectorAll('.theme-menu-item[data-type="inline-images"]').forEach(item => {
         item.classList.toggle('active', item.dataset.inlineImages === inlineImageVisibility);
+    });
+
+    document.querySelectorAll('.theme-menu-item[data-type="pdf-attachments"]').forEach(item => {
+        item.classList.toggle('active', item.dataset.pdfOpenMode === pdfAttachmentOpenMode);
     });
 }
 

@@ -2,6 +2,7 @@ import { isTauri, openWithSystemViewer, saveFileWithDialog } from '../tauri-brid
 import { extractEml } from '../utils.js';
 import { dataUrlToArrayBuffer, decodeDataUrlText, getDataUrlBase64 } from '../encoding.js';
 import { formatContact, getContactEmail } from '../addressUtils.js';
+import { pdfAttachmentsOpenInApp } from '../UserPreferences.js';
 
 /**
  * Manages the attachment preview modal
@@ -45,6 +46,7 @@ export class AttachmentModalManager {
         this.imageViewerFallbackWidth = 960;
         this.imageViewerFallbackHeight = 720;
         this.inlineImageMetadataBySource = new Map();
+        this._pdfPreviewObjectUrl = null;
 
         // Navigation stack for nested content (e.g., attachments within nested emails)
         this.navigationStack = [];
@@ -299,13 +301,38 @@ export class AttachmentModalManager {
     }
 
     /**
-     * Checks if a MIME type is PDF
-     * @param {string} mimeType - MIME type to check
-     * @returns {boolean} True if the MIME type is PDF
+     * Checks if a filename has a PDF extension
+     * @param {string} fileName - Filename to check
+     * @returns {boolean} True if filename ends in .pdf
      */
-    isPdf(mimeType) {
-        if (!mimeType) return false;
-        return mimeType.toLowerCase() === 'application/pdf';
+    _hasPdfExtension(fileName) {
+        return /\.pdf$/i.test(fileName || '');
+    }
+
+    /**
+     * Checks if a MIME type is a generic binary type that may hide the real type
+     * @param {string} mimeType - MIME type to check
+     * @returns {boolean} True if the MIME type is generic binary
+     */
+    _isGenericBinaryMime(mimeType) {
+        const normalizedMime = (mimeType || '').toLowerCase();
+        return (
+            !normalizedMime ||
+            normalizedMime === 'application/octet-stream' ||
+            normalizedMime === 'binary/octet-stream'
+        );
+    }
+
+    /**
+     * Checks if an attachment is PDF by MIME type or filename fallback
+     * @param {string} mimeType - MIME type to check
+     * @param {string} [fileName=''] - Original filename
+     * @returns {boolean} True if the attachment is PDF
+     */
+    isPdf(mimeType, fileName = '') {
+        const normalizedMime = (mimeType || '').toLowerCase();
+        if (normalizedMime === 'application/pdf') return true;
+        return this._hasPdfExtension(fileName) && this._isGenericBinaryMime(mimeType);
     }
 
     /**
@@ -339,42 +366,62 @@ export class AttachmentModalManager {
     /**
      * Checks if an attachment can be previewed in the modal
      * @param {string} mimeType - MIME type to check
+     * @param {string} [fileName=''] - Original filename
      * @returns {boolean} True if the attachment is previewable
      */
-    isPreviewable(mimeType) {
+    isPreviewable(mimeType, fileName = '') {
         return (
             this.isPreviewableImage(mimeType) ||
-            this.isPdf(mimeType) ||
+            this.isPdf(mimeType, fileName) ||
             this.isText(mimeType) ||
             this.isPreviewableEml(mimeType)
         );
     }
 
     /**
-     * Checks if an attachment should be opened with system viewer (Tauri PDF)
+     * Checks if an attachment should be opened outside the modal
      * @param {Object} attachment - Attachment object
-     * @returns {boolean} True if should use system viewer
+     * @returns {boolean} True if should use the external PDF path
      */
-    _shouldOpenWithSystemViewer(attachment) {
-        return isTauri() && this.isPdf(attachment.attachMimeTag);
+    _shouldOpenPdfExternally(attachment) {
+        return (
+            this.isPdf(attachment.attachMimeTag, attachment.fileName) &&
+            !pdfAttachmentsOpenInApp()
+        );
     }
 
     /**
-     * Opens a PDF with the system viewer (Tauri only)
+     * Opens a PDF outside the modal
      * @param {Object} attachment - Attachment object
      */
-    _openPdfWithSystemViewer(attachment) {
-        openWithSystemViewer(attachment.contentBase64, attachment.fileName).catch((err) => {
-            console.error('Failed to open PDF with system viewer:', err);
+    _openPdfExternally(attachment) {
+        if (isTauri()) {
+            openWithSystemViewer(attachment.contentBase64, attachment.fileName).catch((err) => {
+                console.error('Failed to open PDF with system viewer:', err);
+                if (this.showToast) {
+                    this.showToast('Failed to open PDF', 'error');
+                }
+            });
+            return;
+        }
+
+        try {
+            const objectUrl = this._createPdfObjectUrl(attachment);
+            const openedWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+            if (!openedWindow && this.showToast) {
+                this.showToast('Unable to open PDF', 'error');
+            }
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+        } catch (err) {
+            console.error('Failed to open PDF:', err);
             if (this.showToast) {
                 this.showToast('Failed to open PDF', 'error');
             }
-        });
+        }
     }
 
     /**
      * Opens the attachment preview modal for a specific attachment
-     * In Tauri, PDFs are opened with the system viewer instead of the modal
      * @param {Object} attachment - Attachment object to preview
      */
     open(attachment) {
@@ -383,16 +430,15 @@ export class AttachmentModalManager {
         // Clear navigation stack when opening a new attachment
         this.clearNavigationStack();
 
-        // In Tauri, open PDFs with system viewer (WebKit has issues with data: URLs)
-        if (this._shouldOpenWithSystemViewer(attachment)) {
-            this._openPdfWithSystemViewer(attachment);
+        if (this._shouldOpenPdfExternally(attachment)) {
+            this._openPdfExternally(attachment);
             return;
         }
 
         // Build list of previewable attachments if not already set
         if (this.currentAttachments) {
             this.previewableAttachments = this.currentAttachments.filter((att) =>
-                this.isPreviewable(att.attachMimeTag)
+                this.isPreviewable(att.attachMimeTag, att.fileName)
             );
         }
 
@@ -424,6 +470,7 @@ export class AttachmentModalManager {
      */
     renderAttachmentPreview(attachment) {
         this.resetImagePreviewState();
+        this._revokePdfPreviewObjectUrl();
 
         // Set filename with breadcrumb if navigating from nested content
         this.updateFilenameWithBreadcrumb(attachment.fileName);
@@ -442,13 +489,8 @@ export class AttachmentModalManager {
         // Render appropriate preview
         if (this.isPreviewableImage(attachment.attachMimeTag)) {
             this.renderImagePreview(attachment);
-        } else if (this.isPdf(attachment.attachMimeTag)) {
-            // Use object tag for better PDF compatibility with data: URLs
-            const pdfObject = document.createElement('object');
-            pdfObject.data = attachment.contentBase64;
-            pdfObject.type = 'application/pdf';
-            pdfObject.innerHTML = `<p class="text-center p-4">PDF cannot be displayed. <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-blue-500 underline">Download here</a></p>`;
-            this.attachmentModalContent.appendChild(pdfObject);
+        } else if (this.isPdf(attachment.attachMimeTag, attachment.fileName)) {
+            this.renderPdfPreview(attachment);
         } else if (this.isText(attachment.attachMimeTag)) {
             try {
                 const base64Data = getDataUrlBase64(attachment.contentBase64);
@@ -475,6 +517,60 @@ export class AttachmentModalManager {
 
         // Update navigation buttons
         this.updateNavButtons();
+    }
+
+    /**
+     * Creates an object URL for a PDF attachment
+     * @param {Object} attachment - PDF attachment object
+     * @returns {string} Object URL
+     */
+    _createPdfObjectUrl(attachment) {
+        const blob = new Blob(
+            [dataUrlToArrayBuffer(attachment.contentBase64)],
+            { type: 'application/pdf' }
+        );
+        return URL.createObjectURL(blob);
+    }
+
+    /**
+     * Releases the current in-modal PDF object URL
+     */
+    _revokePdfPreviewObjectUrl() {
+        if (this._pdfPreviewObjectUrl) {
+            URL.revokeObjectURL(this._pdfPreviewObjectUrl);
+            this._pdfPreviewObjectUrl = null;
+        }
+    }
+
+    /**
+     * Renders a PDF attachment in the preview modal
+     * @param {Object} attachment - PDF attachment object
+     */
+    renderPdfPreview(attachment) {
+        const pdfObject = document.createElement('object');
+        pdfObject.className = 'attachment-pdf-preview';
+        pdfObject.type = 'application/pdf';
+
+        try {
+            this._pdfPreviewObjectUrl = this._createPdfObjectUrl(attachment);
+            pdfObject.data = this._pdfPreviewObjectUrl;
+        } catch (err) {
+            console.error('Error building PDF preview:', err);
+        }
+
+        const fallback = document.createElement('p');
+        fallback.className = 'text-center p-4';
+        fallback.textContent = 'PDF cannot be displayed. ';
+
+        const downloadLink = document.createElement('a');
+        downloadLink.href = attachment.contentBase64;
+        downloadLink.download = attachment.fileName;
+        downloadLink.className = 'text-blue-500 underline';
+        downloadLink.textContent = 'Download here';
+
+        fallback.appendChild(downloadLink);
+        pdfObject.appendChild(fallback);
+        this.attachmentModalContent.appendChild(pdfObject);
     }
 
     /**
@@ -909,9 +1005,9 @@ export class AttachmentModalManager {
                 attachmentsList.className = 'nested-email-attachments-list';
 
                 emailData.attachments.forEach((att) => {
-                    const isPreviewable = this.isPreviewable(att.attachMimeTag);
+                    const isPreviewable = this.isPreviewable(att.attachMimeTag, att.fileName);
                     const isImage = this.isPreviewableImage(att.attachMimeTag);
-                    const isPdf = this.isPdf(att.attachMimeTag);
+                    const isPdf = this.isPdf(att.attachMimeTag, att.fileName);
                     const isText = this.isText(att.attachMimeTag);
                     const isEml = this.isPreviewableEml(att.attachMimeTag);
 
@@ -966,9 +1062,8 @@ export class AttachmentModalManager {
                             if (downloadBtn) {
                                 e.stopPropagation();
                                 this.downloadAttachment(att);
-                            } else if (this._shouldOpenWithSystemViewer(att)) {
-                                // PDF in Tauri: open with system viewer instead of modal preview
-                                this._openPdfWithSystemViewer(att);
+                            } else if (this._shouldOpenPdfExternally(att)) {
+                                this._openPdfExternally(att);
                             } else {
                                 this.pushToStack(attachment);
                                 this.renderAttachmentPreview(att);
@@ -1072,6 +1167,7 @@ export class AttachmentModalManager {
     close() {
         if (!this.attachmentModal) return;
 
+        this._revokePdfPreviewObjectUrl();
         this.attachmentModal.classList.remove('active');
         this.attachmentModalContent.innerHTML = '';
         this.attachmentModalContent.classList.remove('attachment-modal-content--image');

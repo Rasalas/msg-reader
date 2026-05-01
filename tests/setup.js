@@ -41,6 +41,16 @@ Object.defineProperty(window, 'matchMedia', {
     }))
 });
 
+Object.defineProperty(URL, 'createObjectURL', {
+    writable: true,
+    value: jest.fn(() => 'blob:mock-object-url')
+});
+
+Object.defineProperty(URL, 'revokeObjectURL', {
+    writable: true,
+    value: jest.fn()
+});
+
 // Reset localStorage before each test
 beforeEach(() => {
     localStorageMock.store = {};
