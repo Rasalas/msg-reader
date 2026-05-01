@@ -1,6 +1,7 @@
 import { isTauri, openWithSystemViewer, saveFileWithDialog } from '../tauri-bridge.js';
 import { extractEml } from '../utils.js';
 import { dataUrlToArrayBuffer, decodeDataUrlText, getDataUrlBase64 } from '../encoding.js';
+import { formatContact, getContactEmail } from '../addressUtils.js';
 
 /**
  * Manages the attachment preview modal
@@ -836,9 +837,7 @@ export class AttachmentModalManager {
             const headerFields = [
                 {
                     label: 'From',
-                    value: emailData.senderName
-                        ? `${emailData.senderName} <${emailData.senderEmail}>`
-                        : emailData.senderEmail
+                    value: formatContact(emailData.senderName || '', emailData.senderEmail || '')
                 },
                 { label: 'To', value: this.formatRecipients(emailData.recipients, 'to') },
                 { label: 'CC', value: this.formatRecipients(emailData.recipients, 'cc') },
@@ -1026,9 +1025,7 @@ export class AttachmentModalManager {
             .filter((recipient) => recipient.recipType === type)
             .map((recipient) => {
                 const name = recipient.name || '';
-                // Prefer smtpAddress over email (email may contain Exchange X.500 DN)
-                const email = recipient.smtpAddress || recipient.email || recipient.address || '';
-                return name && name !== email ? `${name} <${email}>` : email;
+                return formatContact(name, getContactEmail(recipient));
             })
             .join(', ');
     }

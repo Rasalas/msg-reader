@@ -1058,6 +1058,20 @@ describe('MessageContentRenderer', () => {
         expect(container.innerHTML).toContain('john@test.com');
     });
 
+    test('renders Exchange legacy DN sender without empty address brackets', () => {
+        renderer.render(
+            createMockMessage({
+                senderName: 'Kliucininkaite, Lina (ENBW AG)',
+                senderEmail: '',
+                senderExchangeLegacyDn: '/O=ENBW-KK/CN=RECIPIENTS/CN=KLIUCININKAITE'
+            })
+        );
+
+        expect(container.textContent).toContain('Kliucininkaite, Lina (ENBW AG)');
+        expect(container.innerHTML).not.toContain('&lt;&gt;');
+        expect(container.innerHTML).not.toContain('/O=ENBW-KK');
+    });
+
     test('renders To recipients', () => {
         renderer.render(createMockMessage());
         expect(container.innerHTML).toContain('Jane Doe');
@@ -1240,6 +1254,18 @@ describe('MessageContentRenderer', () => {
                 { name: 'B', email: 'b@test.com', recipType: 'to' }
             ];
             expect(renderer.formatRecipients(recipients, 'to')).toContain(', ');
+        });
+
+        test('formats Exchange legacy DN recipients without address brackets', () => {
+            const recipients = [
+                {
+                    name: 'Internal User',
+                    email: '',
+                    exchangeLegacyDn: '/O=ORG/CN=RECIPIENTS/CN=USER',
+                    recipType: 'to'
+                }
+            ];
+            expect(renderer.formatRecipients(recipients, 'to')).toBe('Internal User');
         });
     });
 

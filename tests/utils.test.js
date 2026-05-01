@@ -130,6 +130,9 @@ describe('extractMsg', () => {
 });
 
 describe('extractEml', () => {
+    const legacyDn =
+        '/O=ENBW-KK/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=KLIUCININKAITE, LINA7E2';
+
     test('decodes 8bit body content using declared Windows-1252 charset', () => {
         const eml = [
             'From: Brigitte Korn-Hoffmann <brigitte@example.com>',
@@ -144,6 +147,22 @@ describe('extractEml', () => {
 
         expect(result.subject).toBe('Freundliche Grüße');
         expect(result.bodyContent).toBe('Freundliche Grüße');
+    });
+
+    test('parses Exchange legacy DN senders without treating them as SMTP addresses', () => {
+        const eml = [
+            `From: Kliucininkaite, Lina (ENBW AG) <${legacyDn}>`,
+            'Subject: Exchange legacy DN',
+            'Content-Type: text/plain; charset=utf-8',
+            '',
+            'Body'
+        ].join('\r\n');
+
+        const result = extractEml(binaryArrayBuffer(eml));
+
+        expect(result.senderName).toBe('Kliucininkaite, Lina (ENBW AG)');
+        expect(result.senderEmail).toBe('');
+        expect(result.senderExchangeLegacyDn).toBe(legacyDn);
     });
 
     test('falls back to Windows-1252 when unlabelled 8bit text is invalid UTF-8', () => {

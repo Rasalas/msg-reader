@@ -79,6 +79,44 @@ describe('message export helpers', () => {
         expect(eml).toContain('X-Mailer: Microsoft Outlook 16.0');
     });
 
+    test('does not reuse raw address headers containing Exchange legacy DNs', () => {
+        const legacyDn =
+            '/O=ENBW-KK/OU=EXCHANGE ADMINISTRATIVE GROUP (FYDIBOHF23SPDLT)/CN=RECIPIENTS/CN=KLIUCININKAITE, LINA7E2';
+        const eml = messageToEml({
+            ...message,
+            senderName: 'Kliucininkaite, Lina (ENBW AG)',
+            senderEmail: '',
+            _exportMeta: {
+                headerMap: {
+                    from: `Kliucininkaite, Lina (ENBW AG) <${legacyDn}>`
+                }
+            }
+        });
+
+        expect(eml).toContain('From: Kliucininkaite, Lina (ENBW AG)');
+        expect(eml).not.toContain(legacyDn);
+    });
+
+    test('renders contacts without empty angle brackets in standalone html', () => {
+        const html = messageToHtmlDocument({
+            ...message,
+            senderName: 'Kliucininkaite, Lina (ENBW AG)',
+            senderEmail: '',
+            recipients: [
+                {
+                    name: 'Internal User',
+                    exchangeLegacyDn: '/O=ORG/CN=RECIPIENTS/CN=USER',
+                    recipType: 'to'
+                }
+            ]
+        });
+
+        expect(html).toContain('<strong>From:</strong> Kliucininkaite, Lina (ENBW AG)');
+        expect(html).toContain('<strong>To:</strong> Internal User');
+        expect(html).not.toContain('&lt;/O=ORG');
+        expect(html).not.toContain('&lt;&gt;');
+    });
+
     test('exports inline images as related cid parts instead of duplicate attachments', () => {
         const inlineMessage = {
             ...message,

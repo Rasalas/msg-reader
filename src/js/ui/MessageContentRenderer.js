@@ -1,4 +1,5 @@
-import { sanitizeHTML } from '../sanitizer.js';
+import { escapeHTML, sanitizeHTML } from '../sanitizer.js';
+import { formatContact, getContactEmail } from '../addressUtils.js';
 import { parseColor, getContrastRatio, adjustColorForContrast } from '../colorUtils.js';
 import { isInlineImageAttachment } from '../helpers.js';
 import {
@@ -40,6 +41,7 @@ export class MessageContentRenderer {
 
         const toRecipients = this.formatRecipients(msgInfo.recipients, 'to');
         const ccRecipients = this.formatRecipients(msgInfo.recipients, 'cc');
+        const from = escapeHTML(formatContact(msgInfo.senderName || '', msgInfo.senderEmail || ''));
         const emailContent = this.processEmailContent(msgInfo);
         const messageIndex = this.messageHandler.getMessages().indexOf(msgInfo);
         const isPinned = this.messageHandler.isPinned(msgInfo);
@@ -75,7 +77,7 @@ export class MessageContentRenderer {
             </div>
             <div class="message-card">
                 <div class="mb-4">
-                    <div class="message-meta"><strong>From:</strong> ${msgInfo.senderName} &lt;${msgInfo.senderEmail}&gt;</div>
+                    <div class="message-meta"><strong>From:</strong> ${from}</div>
                     ${toRecipients ? `<div class="message-meta"><strong>To:</strong> ${toRecipients}</div>` : ''}
                     ${ccRecipients ? `<div class="message-meta"><strong>CC:</strong> ${ccRecipients}</div>` : ''}
                     <div class="message-timestamp">${msgInfo.timestamp.toLocaleString()}</div>
@@ -160,13 +162,18 @@ export class MessageContentRenderer {
             const source = image.getAttribute('src');
             if (!source) return;
 
-            const matchingAttachment = attachments.find(attachment =>
-                attachment.attachMimeTag?.toLowerCase().startsWith('image/') &&
-                attachment.contentBase64 === source
+            const matchingAttachment = attachments.find(
+                (attachment) =>
+                    attachment.attachMimeTag?.toLowerCase().startsWith('image/') &&
+                    attachment.contentBase64 === source
             );
             const linkHref = image.closest('a[href]')?.getAttribute('href') || '';
-            const fileName = matchingAttachment?.fileName || image.getAttribute('alt') || `inline-image-${index + 1}`;
-            const contentId = matchingAttachment?.pidContentId || matchingAttachment?.contentId || '';
+            const fileName =
+                matchingAttachment?.fileName ||
+                image.getAttribute('alt') ||
+                `inline-image-${index + 1}`;
+            const contentId =
+                matchingAttachment?.pidContentId || matchingAttachment?.contentId || '';
 
             if (linkHref && this.attachmentModal?.setInlineImageMetadata) {
                 this.attachmentModal.setInlineImageMetadata(source, { linkHref });
@@ -196,10 +203,12 @@ export class MessageContentRenderer {
      * @param {HTMLImageElement} image - Image element to preview
      */
     openInlineImage(image) {
-        const source = image.dataset.inlineImageSource || image.currentSrc || image.getAttribute('src');
+        const source =
+            image.dataset.inlineImageSource || image.currentSrc || image.getAttribute('src');
         if (!source || !this.attachmentModal?.openInlineImage) return;
 
-        const fileName = image.dataset.inlineImageFilename || image.getAttribute('alt') || 'inline-image';
+        const fileName =
+            image.dataset.inlineImageFilename || image.getAttribute('alt') || 'inline-image';
         const linkHref = image.dataset.inlineImageLinkHref || '';
         this.attachmentModal.openInlineImage({ source, fileName, linkHref });
     }
@@ -219,13 +228,15 @@ export class MessageContentRenderer {
         );
 
         this.applyInlineImageSectionState(nextExpanded);
-        document.dispatchEvent(new CustomEvent('inline-image-attachment-visibility-change', {
-            detail: {
-                visibility: nextExpanded
-                    ? INLINE_IMAGE_ATTACHMENT_VISIBILITY.EXPANDED
-                    : INLINE_IMAGE_ATTACHMENT_VISIBILITY.COLLAPSED
-            }
-        }));
+        document.dispatchEvent(
+            new CustomEvent('inline-image-attachment-visibility-change', {
+                detail: {
+                    visibility: nextExpanded
+                        ? INLINE_IMAGE_ATTACHMENT_VISIBILITY.EXPANDED
+                        : INLINE_IMAGE_ATTACHMENT_VISIBILITY.COLLAPSED
+                }
+            })
+        );
     }
 
     /**
@@ -263,13 +274,16 @@ export class MessageContentRenderer {
         if (!isEmailDark) return; // Only fix in dark mode
 
         // Get background color for contrast calculation
-        const bgColor = parseColor(getComputedStyle(emailContent).backgroundColor) ||
-                        { r: 30, g: 41, b: 59 }; // fallback to slate-800
+        const bgColor = parseColor(getComputedStyle(emailContent).backgroundColor) || {
+            r: 30,
+            g: 41,
+            b: 59
+        }; // fallback to slate-800
 
         // Find all elements with inline color styles
         const elements = emailContent.querySelectorAll('[style*="color"]');
 
-        elements.forEach(el => {
+        elements.forEach((el) => {
             const style = el.getAttribute('style');
             if (!style) return;
 
@@ -305,11 +319,9 @@ export class MessageContentRenderer {
      */
     formatRecipients(recipients, type) {
         return recipients
-            .filter(recipient => recipient.recipType === type)
-            .map(recipient => {
-                // Prefer smtpAddress over email (email may contain Exchange X.500 DN)
-                const email = recipient.smtpAddress || recipient.email || '';
-                return `${recipient.name} &lt;${email}&gt;`;
+            .filter((recipient) => recipient.recipType === type)
+            .map((recipient) => {
+                return escapeHTML(formatContact(recipient.name || '', getContactEmail(recipient)));
             })
             .join(', ');
     }
@@ -327,7 +339,7 @@ export class MessageContentRenderer {
 
         // Find all style tags and scope them to .email-content
         const styleTags = tempDiv.getElementsByTagName('style');
-        Array.from(styleTags).forEach(styleTag => {
+        Array.from(styleTags).forEach((styleTag) => {
             const cssText = styleTag.textContent;
             // Scope all CSS rules to .email-content
             const scopedCss = cssText.replace(/([^{}]+){/g, '.email-content $1{');
@@ -350,7 +362,7 @@ export class MessageContentRenderer {
             // Normalize line endings
             const text = emailContent.replace(/\r\n/g, '\n');
             // Split into paragraphs by double line breaks
-            const paragraphs = text.split(/\n{2,}/).map(p => {
+            const paragraphs = text.split(/\n{2,}/).map((p) => {
                 // Replace single line breaks in paragraph with <br>
                 return p.replace(/\n/g, '<br>');
             });
@@ -370,42 +382,54 @@ export class MessageContentRenderer {
     renderAttachments(msgInfo) {
         if (!msgInfo.attachments?.length) return '';
 
-        this.realAttachments = msgInfo.attachments.filter(attachment => !isInlineImageAttachment(attachment));
-        this.inlineImageAttachments = msgInfo.attachments.filter(attachment => isInlineImageAttachment(attachment));
+        this.realAttachments = msgInfo.attachments.filter(
+            (attachment) => !isInlineImageAttachment(attachment)
+        );
+        this.inlineImageAttachments = msgInfo.attachments.filter((attachment) =>
+            isInlineImageAttachment(attachment)
+        );
 
-        if (this.realAttachments.length === 0 && this.inlineImageAttachments.length === 0) return '';
+        if (this.realAttachments.length === 0 && this.inlineImageAttachments.length === 0)
+            return '';
 
         const inlineExpandedByDefault = inlineImageAttachmentsExpandedByDefault();
         this.updateAttachmentModalAttachments(inlineExpandedByDefault);
 
-        const visibleAttachments = this.realAttachments.map((attachment, index) => ({ attachment, index }));
+        const visibleAttachments = this.realAttachments.map((attachment, index) => ({
+            attachment,
+            index
+        }));
         const inlineImageAttachments = this.inlineImageAttachments.map((attachment, index) => ({
             attachment,
             index: this.realAttachments.length + index
         }));
+        const visibleAttachmentsHtml =
+            visibleAttachments.length > 0
+                ? this.renderAttachmentSection({
+                    items: visibleAttachments,
+                    label: `${visibleAttachments.length} ${visibleAttachments.length === 1 ? 'Attachment' : 'Attachments'}`,
+                    icon: this.getAttachmentSectionIcon(),
+                    sectionClassName: 'attachment-section'
+                })
+                : '';
+        const inlineImageAttachmentsHtml =
+            inlineImageAttachments.length > 0
+                ? this.renderAttachmentSection({
+                    items: inlineImageAttachments,
+                    label: `${inlineImageAttachments.length} ${inlineImageAttachments.length === 1 ? 'Inline image' : 'Inline images'}`,
+                    icon: this.getInlineImageSectionIcon(),
+                    sectionClassName: 'attachment-section attachment-section-inline',
+                    collapsible: true,
+                    collapsed: !inlineImageAttachmentsExpandedByDefault()
+                })
+                : '';
 
         return `
             <div class="mt-6">
                 <hr class="attachments-divider border-t mb-4">
                 <div class="attachment-sections">
-                    ${visibleAttachments.length > 0
-        ? this.renderAttachmentSection({
-            items: visibleAttachments,
-            label: `${visibleAttachments.length} ${visibleAttachments.length === 1 ? 'Attachment' : 'Attachments'}`,
-            icon: this.getAttachmentSectionIcon(),
-            sectionClassName: 'attachment-section'
-        })
-        : ''}
-                    ${inlineImageAttachments.length > 0
-        ? this.renderAttachmentSection({
-            items: inlineImageAttachments,
-            label: `${inlineImageAttachments.length} ${inlineImageAttachments.length === 1 ? 'Inline image' : 'Inline images'}`,
-            icon: this.getInlineImageSectionIcon(),
-            sectionClassName: 'attachment-section attachment-section-inline',
-            collapsible: true,
-            collapsed: !inlineImageAttachmentsExpandedByDefault()
-        })
-        : ''}
+                    ${visibleAttachmentsHtml}
+                    ${inlineImageAttachmentsHtml}
                 </div>
             </div>
         `;
@@ -436,8 +460,23 @@ export class MessageContentRenderer {
      * @param {boolean} [options.collapsed=false] - Whether the section starts collapsed
      * @returns {string} Rendered HTML
      */
-    renderAttachmentSection({ items, label, icon, sectionClassName, collapsible = false, collapsed = false }) {
+    renderAttachmentSection({
+        items,
+        label,
+        icon,
+        sectionClassName,
+        collapsible = false,
+        collapsed = false
+    }) {
         const expanded = !collapsed;
+        const toggleButton = collapsible
+            ? `<button type="button"
+                   class="attachment-section-toggle"
+                   data-inline-images-toggle
+                   aria-expanded="${expanded ? 'true' : 'false'}">
+                <span data-inline-images-toggle-label>${expanded ? 'Hide' : 'Show'}</span>
+            </button>`
+            : '';
 
         return `
             <section class="${sectionClassName}">
@@ -446,14 +485,7 @@ export class MessageContentRenderer {
                         ${icon}
                         <span class="attachment-label">${label}</span>
                     </div>
-                    ${collapsible
-        ? `<button type="button"
-                               class="attachment-section-toggle"
-                               data-inline-images-toggle
-                               aria-expanded="${expanded ? 'true' : 'false'}">
-                            <span data-inline-images-toggle-label>${expanded ? 'Hide' : 'Show'}</span>
-                        </button>`
-        : ''}
+                    ${toggleButton}
                 </div>
                 <div class="flex flex-wrap gap-4" ${collapsible ? 'data-inline-images-content' : ''} ${collapsed ? 'hidden' : ''}>
                     ${this.renderAttachmentItems(items)}
@@ -468,11 +500,12 @@ export class MessageContentRenderer {
      * @returns {string} Card markup
      */
     renderAttachmentItems(items) {
-        return items.map(({ attachment, index }) => {
-            const isPreviewable = this.attachmentModal?.isPreviewable(attachment.attachMimeTag);
+        return items
+            .map(({ attachment, index }) => {
+                const isPreviewable = this.attachmentModal?.isPreviewable(attachment.attachMimeTag);
 
-            if (isPreviewable) {
-                return `
+                if (isPreviewable) {
+                    return `
                     <div class="cursor-pointer min-w-[250px] max-w-fit"
                          data-action="preview"
                          data-attachment-index="${index}"
@@ -496,9 +529,9 @@ export class MessageContentRenderer {
                         </div>
                     </div>
                 `;
-            }
+                }
 
-            return `
+                return `
                 <div class="cursor-pointer min-w-[250px] max-w-fit"
                      data-action="download"
                      data-attachment-index="${index}"
@@ -519,7 +552,8 @@ export class MessageContentRenderer {
                     </div>
                 </div>
             `;
-        }).join('');
+            })
+            .join('');
     }
 
     /**
