@@ -1,5 +1,6 @@
 import { isTauri, openWithSystemViewer, saveFileWithDialog } from '../tauri-bridge.js';
 import { extractEml } from '../utils.js';
+import { dataUrlToArrayBuffer, decodeDataUrlText, getDataUrlBase64 } from '../encoding.js';
 
 /**
  * Manages the attachment preview modal
@@ -15,7 +16,9 @@ export class AttachmentModalManager {
 
         // Modal elements
         this.attachmentModal = document.getElementById('attachmentModal');
-        this.attachmentModalBackdrop = this.attachmentModal?.querySelector('.attachment-modal-backdrop');
+        this.attachmentModalBackdrop = this.attachmentModal?.querySelector(
+            '.attachment-modal-backdrop'
+        );
         this.attachmentModalClose = document.getElementById('attachmentModalClose');
         this.attachmentModalDownload = document.getElementById('attachmentModalDownload');
         this.attachmentModalFilename = document.getElementById('attachmentModalFilename');
@@ -85,10 +88,13 @@ export class AttachmentModalManager {
     findAttachmentBySource(source) {
         if (!source) return null;
 
-        return this.currentAttachments.find(attachment =>
-            this.isPreviewableImage(attachment.attachMimeTag) &&
-            attachment.contentBase64 === source
-        ) || null;
+        return (
+            this.currentAttachments.find(
+                (attachment) =>
+                    this.isPreviewableImage(attachment.attachMimeTag) &&
+                    attachment.contentBase64 === source
+            ) || null
+        );
     }
 
     /**
@@ -233,7 +239,11 @@ export class AttachmentModalManager {
         this.attachmentModalZoomOut?.addEventListener('click', () => this.zoomOut());
         this.attachmentModalZoomReset?.addEventListener('click', () => this.resetZoom());
         this.attachmentModalZoomIn?.addEventListener('click', () => this.zoomIn());
-        this.attachmentModalContent?.addEventListener('wheel', (event) => this.handleModalWheel(event), { passive: false });
+        this.attachmentModalContent?.addEventListener(
+            'wheel',
+            (event) => this.handleModalWheel(event),
+            { passive: false }
+        );
     }
 
     /**
@@ -305,12 +315,14 @@ export class AttachmentModalManager {
     isText(mimeType) {
         if (!mimeType) return false;
         const normalizedMime = mimeType.toLowerCase();
-        return normalizedMime.startsWith('text/') ||
-               normalizedMime.startsWith('application/text') ||
-               normalizedMime === 'application/json' ||
-               normalizedMime === 'application/xml' ||
-               normalizedMime === 'application/javascript' ||
-               normalizedMime === 'application/x-diff';
+        return (
+            normalizedMime.startsWith('text/') ||
+            normalizedMime.startsWith('application/text') ||
+            normalizedMime === 'application/json' ||
+            normalizedMime === 'application/xml' ||
+            normalizedMime === 'application/javascript' ||
+            normalizedMime === 'application/x-diff'
+        );
     }
 
     /**
@@ -329,7 +341,12 @@ export class AttachmentModalManager {
      * @returns {boolean} True if the attachment is previewable
      */
     isPreviewable(mimeType) {
-        return this.isPreviewableImage(mimeType) || this.isPdf(mimeType) || this.isText(mimeType) || this.isPreviewableEml(mimeType);
+        return (
+            this.isPreviewableImage(mimeType) ||
+            this.isPdf(mimeType) ||
+            this.isText(mimeType) ||
+            this.isPreviewableEml(mimeType)
+        );
     }
 
     /**
@@ -346,13 +363,12 @@ export class AttachmentModalManager {
      * @param {Object} attachment - Attachment object
      */
     _openPdfWithSystemViewer(attachment) {
-        openWithSystemViewer(attachment.contentBase64, attachment.fileName)
-            .catch(err => {
-                console.error('Failed to open PDF with system viewer:', err);
-                if (this.showToast) {
-                    this.showToast('Failed to open PDF', 'error');
-                }
-            });
+        openWithSystemViewer(attachment.contentBase64, attachment.fileName).catch((err) => {
+            console.error('Failed to open PDF with system viewer:', err);
+            if (this.showToast) {
+                this.showToast('Failed to open PDF', 'error');
+            }
+        });
     }
 
     /**
@@ -374,14 +390,16 @@ export class AttachmentModalManager {
 
         // Build list of previewable attachments if not already set
         if (this.currentAttachments) {
-            this.previewableAttachments = this.currentAttachments.filter(att =>
+            this.previewableAttachments = this.currentAttachments.filter((att) =>
                 this.isPreviewable(att.attachMimeTag)
             );
         }
 
         // Find the index in previewable attachments
-        this.currentAttachmentIndex = this.previewableAttachments.findIndex(att =>
-            att.fileName === attachment.fileName && att.contentBase64 === attachment.contentBase64
+        this.currentAttachmentIndex = this.previewableAttachments.findIndex(
+            (att) =>
+                att.fileName === attachment.fileName &&
+                att.contentBase64 === attachment.contentBase64
         );
         if (this.currentAttachmentIndex === -1) this.currentAttachmentIndex = 0;
 
@@ -408,7 +426,9 @@ export class AttachmentModalManager {
 
         // Set filename with breadcrumb if navigating from nested content
         this.updateFilenameWithBreadcrumb(attachment.fileName);
-        this.updateSourceLink(this.inlineImageMetadataBySource.get(attachment.contentBase64)?.linkHref || '');
+        this.updateSourceLink(
+            this.inlineImageMetadataBySource.get(attachment.contentBase64)?.linkHref || ''
+        );
 
         // Set download link
         this.attachmentModalDownload.href = attachment.contentBase64;
@@ -429,13 +449,12 @@ export class AttachmentModalManager {
             pdfObject.innerHTML = `<p class="text-center p-4">PDF cannot be displayed. <a href="${attachment.contentBase64}" download="${attachment.fileName}" class="text-blue-500 underline">Download here</a></p>`;
             this.attachmentModalContent.appendChild(pdfObject);
         } else if (this.isText(attachment.attachMimeTag)) {
-            // Decode base64 to text
             try {
-                const base64Data = attachment.contentBase64?.split(',')[1];
+                const base64Data = getDataUrlBase64(attachment.contentBase64);
                 if (!base64Data) {
                     throw new Error('Invalid base64 data format');
                 }
-                const textContent = atob(base64Data);
+                const textContent = decodeDataUrlText(attachment.contentBase64);
 
                 const pre = document.createElement('pre');
                 pre.className = 'attachment-text-preview';
@@ -482,9 +501,13 @@ export class AttachmentModalManager {
         this.currentImagePreview = { viewer, stage, image: img };
         this.updateZoomControls();
 
-        img.addEventListener('load', () => {
-            this.applyImageZoom({ preserveViewport: false });
-        }, { once: true });
+        img.addEventListener(
+            'load',
+            () => {
+                this.applyImageZoom({ preserveViewport: false });
+            },
+            { once: true }
+        );
 
         if (img.complete) {
             queueMicrotask(() => this.applyImageZoom({ preserveViewport: false }));
@@ -572,8 +595,12 @@ export class AttachmentModalManager {
 
         const previousStageWidth = stage.scrollWidth || stage.clientWidth || viewerWidth;
         const previousStageHeight = stage.scrollHeight || stage.clientHeight || viewerHeight;
-        const centerRatioX = preserveViewport ? (viewer.scrollLeft + (viewerWidth / 2)) / previousStageWidth : 0.5;
-        const centerRatioY = preserveViewport ? (viewer.scrollTop + (viewerHeight / 2)) / previousStageHeight : 0.5;
+        const centerRatioX = preserveViewport
+            ? (viewer.scrollLeft + viewerWidth / 2) / previousStageWidth
+            : 0.5;
+        const centerRatioY = preserveViewport
+            ? (viewer.scrollTop + viewerHeight / 2) / previousStageHeight
+            : 0.5;
 
         const scaledWidth = Math.max(1, Math.round(baseWidth * this.imageZoomLevel));
         const scaledHeight = Math.max(1, Math.round(baseHeight * this.imageZoomLevel));
@@ -586,8 +613,14 @@ export class AttachmentModalManager {
         stage.style.height = `${stageHeight}px`;
 
         if (preserveViewport) {
-            viewer.scrollLeft = Math.max(0, Math.round((centerRatioX * stageWidth) - (viewerWidth / 2)));
-            viewer.scrollTop = Math.max(0, Math.round((centerRatioY * stageHeight) - (viewerHeight / 2)));
+            viewer.scrollLeft = Math.max(
+                0,
+                Math.round(centerRatioX * stageWidth - viewerWidth / 2)
+            );
+            viewer.scrollTop = Math.max(
+                0,
+                Math.round(centerRatioY * stageHeight - viewerHeight / 2)
+            );
         } else {
             viewer.scrollLeft = Math.max(0, Math.round((stageWidth - viewerWidth) / 2));
             viewer.scrollTop = Math.max(0, Math.round((stageHeight - viewerHeight) / 2));
@@ -649,15 +682,18 @@ export class AttachmentModalManager {
         }
 
         if (this.attachmentModalZoomOut) {
-            this.attachmentModalZoomOut.disabled = !hasImagePreview || this.imageZoomLevel <= this.minImageZoom;
+            this.attachmentModalZoomOut.disabled =
+                !hasImagePreview || this.imageZoomLevel <= this.minImageZoom;
         }
 
         if (this.attachmentModalZoomReset) {
-            this.attachmentModalZoomReset.disabled = !hasImagePreview || this.imageZoomLevel === this.minImageZoom;
+            this.attachmentModalZoomReset.disabled =
+                !hasImagePreview || this.imageZoomLevel === this.minImageZoom;
         }
 
         if (this.attachmentModalZoomIn) {
-            this.attachmentModalZoomIn.disabled = !hasImagePreview || this.imageZoomLevel >= this.maxImageZoom;
+            this.attachmentModalZoomIn.disabled =
+                !hasImagePreview || this.imageZoomLevel >= this.maxImageZoom;
         }
     }
 
@@ -719,7 +755,8 @@ export class AttachmentModalManager {
      */
     updateBackButton() {
         if (this.attachmentModalBack) {
-            this.attachmentModalBack.style.display = this.navigationStack.length > 0 ? 'flex' : 'none';
+            this.attachmentModalBack.style.display =
+                this.navigationStack.length > 0 ? 'flex' : 'none';
         }
     }
 
@@ -781,21 +818,12 @@ export class AttachmentModalManager {
      */
     renderNestedEmailPreview(attachment) {
         try {
-            const base64Data = attachment.contentBase64?.split(',')[1];
+            const base64Data = getDataUrlBase64(attachment.contentBase64);
             if (!base64Data) {
                 throw new Error('Invalid base64 data format');
             }
 
-            // Decode base64 to text
-            const emlContent = decodeURIComponent(escape(atob(base64Data)));
-
-            // Convert string to ArrayBuffer for extractEml
-            const encoder = new TextEncoder();
-            const uint8Array = encoder.encode(emlContent);
-            const arrayBuffer = uint8Array.buffer;
-
-            // Parse the EML content
-            const emailData = extractEml(arrayBuffer);
+            const emailData = extractEml(dataUrlToArrayBuffer(attachment.contentBase64));
 
             // Create structured email preview
             const emailContainer = document.createElement('div');
@@ -806,14 +834,24 @@ export class AttachmentModalManager {
             headerSection.className = 'nested-email-header';
 
             const headerFields = [
-                { label: 'From', value: emailData.senderName ? `${emailData.senderName} <${emailData.senderEmail}>` : emailData.senderEmail },
+                {
+                    label: 'From',
+                    value: emailData.senderName
+                        ? `${emailData.senderName} <${emailData.senderEmail}>`
+                        : emailData.senderEmail
+                },
                 { label: 'To', value: this.formatRecipients(emailData.recipients, 'to') },
                 { label: 'CC', value: this.formatRecipients(emailData.recipients, 'cc') },
                 { label: 'Subject', value: emailData.subject },
-                { label: 'Date', value: emailData.messageDeliveryTime ? new Date(emailData.messageDeliveryTime).toLocaleString() : '' }
+                {
+                    label: 'Date',
+                    value: emailData.messageDeliveryTime
+                        ? new Date(emailData.messageDeliveryTime).toLocaleString()
+                        : ''
+                }
             ];
 
-            headerFields.forEach(field => {
+            headerFields.forEach((field) => {
                 if (field.value) {
                     const row = document.createElement('div');
                     row.className = 'nested-email-header-row';
@@ -871,7 +909,7 @@ export class AttachmentModalManager {
                 const attachmentsList = document.createElement('div');
                 attachmentsList.className = 'nested-email-attachments-list';
 
-                emailData.attachments.forEach(att => {
+                emailData.attachments.forEach((att) => {
                     const isPreviewable = this.isPreviewable(att.attachMimeTag);
                     const isImage = this.isPreviewableImage(att.attachMimeTag);
                     const isPdf = this.isPdf(att.attachMimeTag);
@@ -907,7 +945,8 @@ export class AttachmentModalManager {
                     if (isPreviewable) {
                         // Clickable card for previewable attachments
                         const attItem = document.createElement('div');
-                        attItem.className = 'nested-email-attachment-item nested-email-attachment-previewable cursor-pointer';
+                        attItem.className =
+                            'nested-email-attachment-item nested-email-attachment-previewable cursor-pointer';
                         attItem.title = 'Click to preview';
                         attItem.innerHTML = `
                             <div class="attachment-thumbnail w-10 h-10 shrink-0 flex items-center justify-center overflow-hidden">
@@ -966,7 +1005,6 @@ export class AttachmentModalManager {
             }
 
             this.attachmentModalContent.appendChild(emailContainer);
-
         } catch (error) {
             console.error('Error rendering nested email:', error);
             const errorDiv = document.createElement('div');
@@ -985,8 +1023,8 @@ export class AttachmentModalManager {
     formatRecipients(recipients, type) {
         if (!recipients || !Array.isArray(recipients)) return '';
         return recipients
-            .filter(recipient => recipient.recipType === type)
-            .map(recipient => {
+            .filter((recipient) => recipient.recipType === type)
+            .map((recipient) => {
                 const name = recipient.name || '';
                 // Prefer smtpAddress over email (email may contain Exchange X.500 DN)
                 const email = recipient.smtpAddress || recipient.email || recipient.address || '';

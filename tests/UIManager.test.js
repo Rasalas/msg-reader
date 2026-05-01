@@ -213,7 +213,11 @@ describe('UIManager (Facade)', () => {
     describe('Attachment modal', () => {
         test('openAttachmentModal delegates to modal.open', () => {
             const spy = jest.spyOn(uiManager.modal, 'open');
-            const attachment = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:' };
+            const attachment = {
+                fileName: 'test.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:'
+            };
             uiManager.openAttachmentModal(attachment);
             expect(spy).toHaveBeenCalledWith(attachment);
         });
@@ -276,7 +280,9 @@ describe('UIManager (Facade)', () => {
 
             viewer.querySelector('[data-action="toggle-export-menu"]').click();
 
-            expect(viewer.querySelector('.message-export-menu').classList.contains('active')).toBe(true);
+            expect(viewer.querySelector('.message-export-menu').classList.contains('active')).toBe(
+                true
+            );
         });
 
         test('clicking export-message calls exportMessage with the selected message and format', () => {
@@ -288,7 +294,8 @@ describe('UIManager (Facade)', () => {
 
             const spy = jest.spyOn(uiManager, 'exportMessage').mockResolvedValue();
             const viewer = document.getElementById('messageViewer');
-            viewer.innerHTML = '<button data-action="export-message" data-index="0" data-format="eml">Export</button>';
+            viewer.innerHTML =
+                '<button data-action="export-message" data-index="0" data-format="eml">Export</button>';
 
             viewer.querySelector('[data-action="export-message"]').click();
 
@@ -421,8 +428,14 @@ describe('AttachmentModalManager', () => {
         isTauri.mockReturnValue(false);
         modal = new AttachmentModalManager(jest.fn());
         loadImageDimensions = (image, { naturalWidth = 1200, naturalHeight = 600 } = {}) => {
-            Object.defineProperty(image, 'naturalWidth', { configurable: true, value: naturalWidth });
-            Object.defineProperty(image, 'naturalHeight', { configurable: true, value: naturalHeight });
+            Object.defineProperty(image, 'naturalWidth', {
+                configurable: true,
+                value: naturalWidth
+            });
+            Object.defineProperty(image, 'naturalHeight', {
+                configurable: true,
+                value: naturalHeight
+            });
             image.dispatchEvent(new Event('load'));
         };
     });
@@ -467,7 +480,11 @@ describe('AttachmentModalManager', () => {
     });
 
     describe('open and close', () => {
-        const attachment = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+        const attachment = {
+            fileName: 'test.png',
+            attachMimeTag: 'image/png',
+            contentBase64: 'data:image/png;base64,abc'
+        };
 
         test('open shows modal', () => {
             modal.setAttachments([attachment]);
@@ -517,25 +534,38 @@ describe('AttachmentModalManager', () => {
         });
 
         test('openInlineImage creates synthetic preview attachments when needed', () => {
-            modal.openInlineImage({ source: 'data:image/gif;base64,abc', fileName: 'inline-preview' });
+            modal.openInlineImage({
+                source: 'data:image/gif;base64,abc',
+                fileName: 'inline-preview'
+            });
 
             expect(modal.attachmentModal.classList.contains('active')).toBe(true);
             expect(modal.previewableAttachments).toHaveLength(1);
             expect(modal.previewableAttachments[0].fileName).toBe('inline-preview.gif');
-            expect(modal.attachmentModalContent.querySelector('img').src).toContain('data:image/gif;base64,abc');
+            expect(modal.attachmentModalContent.querySelector('img').src).toContain(
+                'data:image/gif;base64,abc'
+            );
         });
     });
 
     describe('renderAttachmentPreview', () => {
         test('sets filename', () => {
-            const att = { fileName: 'doc.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:' };
+            const att = {
+                fileName: 'doc.pdf',
+                attachMimeTag: 'application/pdf',
+                contentBase64: 'data:'
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
             expect(modal.attachmentModalFilename.textContent).toBe('doc.pdf');
         });
 
         test('sets download link', () => {
-            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            const att = {
+                fileName: 'test.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,abc'
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
             expect(modal.attachmentModalDownload.href).toContain('data:image/png');
@@ -543,14 +573,22 @@ describe('AttachmentModalManager', () => {
         });
 
         test('creates img for images', () => {
-            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            const att = {
+                fileName: 'test.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,abc'
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
             expect(modal.attachmentModalContent.querySelector('img')).toBeTruthy();
         });
 
         test('shows zoom controls for image previews', () => {
-            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            const att = {
+                fileName: 'test.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,abc'
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
 
@@ -563,7 +601,11 @@ describe('AttachmentModalManager', () => {
         });
 
         test('hides zoom controls for non-image previews', () => {
-            const att = { fileName: 'test.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:application/pdf;base64,abc' };
+            const att = {
+                fileName: 'test.pdf',
+                attachMimeTag: 'application/pdf',
+                contentBase64: 'data:application/pdf;base64,abc'
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
 
@@ -571,8 +613,14 @@ describe('AttachmentModalManager', () => {
         });
 
         test('shows the original link action for linked inline images', () => {
-            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
-            modal.setInlineImageMetadata(att.contentBase64, { linkHref: 'https://example.com/details' });
+            const att = {
+                fileName: 'test.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,abc'
+            };
+            modal.setInlineImageMetadata(att.contentBase64, {
+                linkHref: 'https://example.com/details'
+            });
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
 
@@ -581,7 +629,11 @@ describe('AttachmentModalManager', () => {
         });
 
         test('hides the original link action when no source link exists', () => {
-            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            const att = {
+                fileName: 'test.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,abc'
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
 
@@ -589,7 +641,11 @@ describe('AttachmentModalManager', () => {
         });
 
         test('zooms image previews with the toolbar controls', () => {
-            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            const att = {
+                fileName: 'test.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,abc'
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
 
@@ -610,7 +666,11 @@ describe('AttachmentModalManager', () => {
         });
 
         test('supports Ctrl+wheel zoom for image previews', () => {
-            const att = { fileName: 'test.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,abc' };
+            const att = {
+                fileName: 'test.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,abc'
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
 
@@ -625,8 +685,16 @@ describe('AttachmentModalManager', () => {
         });
 
         test('resets image zoom when switching previews', () => {
-            const first = { fileName: 'first.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,first' };
-            const second = { fileName: 'second.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,second' };
+            const first = {
+                fileName: 'first.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,first'
+            };
+            const second = {
+                fileName: 'second.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,second'
+            };
             modal.setAttachments([first, second]);
 
             modal.renderAttachmentPreview(first);
@@ -634,7 +702,10 @@ describe('AttachmentModalManager', () => {
             modal.attachmentModalZoomIn.click();
 
             modal.renderAttachmentPreview(second);
-            loadImageDimensions(modal.attachmentModalContent.querySelector('img'), { naturalWidth: 800, naturalHeight: 800 });
+            loadImageDimensions(modal.attachmentModalContent.querySelector('img'), {
+                naturalWidth: 800,
+                naturalHeight: 800
+            });
 
             expect(modal.imageZoomLevel).toBe(1);
             expect(modal.attachmentModalZoomValue.textContent).toBe('100%');
@@ -642,27 +713,60 @@ describe('AttachmentModalManager', () => {
         });
 
         test('creates object for PDFs', () => {
-            const att = { fileName: 'test.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:application/pdf;base64,abc' };
+            const att = {
+                fileName: 'test.pdf',
+                attachMimeTag: 'application/pdf',
+                contentBase64: 'data:application/pdf;base64,abc'
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
             expect(modal.attachmentModalContent.querySelector('object')).toBeTruthy();
         });
 
         test('creates pre for text', () => {
-            const att = { fileName: 'test.txt', attachMimeTag: 'text/plain', contentBase64: 'data:text/plain;base64,SGVsbG8=' };
+            const att = {
+                fileName: 'test.txt',
+                attachMimeTag: 'text/plain',
+                contentBase64: 'data:text/plain;base64,SGVsbG8='
+            };
             modal.setAttachments([att]);
             modal.renderAttachmentPreview(att);
             const pre = modal.attachmentModalContent.querySelector('pre');
             expect(pre).toBeTruthy();
             expect(pre.textContent).toBe('Hello');
         });
+
+        test('decodes text previews using data URL charset', () => {
+            const base64 = Buffer.from('Freundliche Gr\xFC\xDFe', 'binary').toString('base64');
+            const att = {
+                fileName: 'test.txt',
+                attachMimeTag: 'text/plain',
+                contentBase64: `data:text/plain;charset=windows-1252;base64,${base64}`
+            };
+            modal.setAttachments([att]);
+            modal.renderAttachmentPreview(att);
+            const pre = modal.attachmentModalContent.querySelector('pre');
+            expect(pre.textContent).toBe('Freundliche Grüße');
+        });
     });
 
     describe('navigation', () => {
         const attachments = [
-            { fileName: '1.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,1' },
-            { fileName: '2.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,2' },
-            { fileName: '3.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,3' }
+            {
+                fileName: '1.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,1'
+            },
+            {
+                fileName: '2.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,2'
+            },
+            {
+                fileName: '3.png',
+                attachMimeTag: 'image/png',
+                contentBase64: 'data:image/png;base64,3'
+            }
         ];
 
         test('showNextAttachment advances', () => {
@@ -730,8 +834,16 @@ describe('AttachmentModalManager', () => {
 
         test('prev button navigates', () => {
             const attachments = [
-                { fileName: '1.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,1' },
-                { fileName: '2.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,2' }
+                {
+                    fileName: '1.png',
+                    attachMimeTag: 'image/png',
+                    contentBase64: 'data:image/png;base64,1'
+                },
+                {
+                    fileName: '2.png',
+                    attachMimeTag: 'image/png',
+                    contentBase64: 'data:image/png;base64,2'
+                }
             ];
             modal.setAttachments(attachments);
             modal.open(attachments[1]);
@@ -741,8 +853,16 @@ describe('AttachmentModalManager', () => {
 
         test('next button navigates', () => {
             const attachments = [
-                { fileName: '1.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,1' },
-                { fileName: '2.png', attachMimeTag: 'image/png', contentBase64: 'data:image/png;base64,2' }
+                {
+                    fileName: '1.png',
+                    attachMimeTag: 'image/png',
+                    contentBase64: 'data:image/png;base64,1'
+                },
+                {
+                    fileName: '2.png',
+                    attachMimeTag: 'image/png',
+                    contentBase64: 'data:image/png;base64,2'
+                }
             ];
             modal.setAttachments(attachments);
             modal.open(attachments[0]);
@@ -754,9 +874,16 @@ describe('AttachmentModalManager', () => {
     describe('Tauri PDF handling', () => {
         test('opens PDF with system viewer in Tauri', () => {
             isTauri.mockReturnValue(true);
-            const pdfAtt = { fileName: 'test.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:application/pdf;base64,abc' };
+            const pdfAtt = {
+                fileName: 'test.pdf',
+                attachMimeTag: 'application/pdf',
+                contentBase64: 'data:application/pdf;base64,abc'
+            };
             modal.open(pdfAtt);
-            expect(openWithSystemViewer).toHaveBeenCalledWith('data:application/pdf;base64,abc', 'test.pdf');
+            expect(openWithSystemViewer).toHaveBeenCalledWith(
+                'data:application/pdf;base64,abc',
+                'test.pdf'
+            );
             expect(modal.attachmentModal.classList.contains('active')).toBe(false);
         });
     });
@@ -817,19 +944,30 @@ describe('MessageListRenderer', () => {
     });
 
     test('shows attachment icon for messages with attachments', () => {
-        mockHandler.getMessages.mockReturnValue([createMockMessage({ attachments: [{ fileName: 'att.pdf' }] })]);
+        mockHandler.getMessages.mockReturnValue([
+            createMockMessage({ attachments: [{ fileName: 'att.pdf' }] })
+        ]);
         renderer.render();
         expect(container.querySelector('.attachment-icon')).toBeTruthy();
     });
 
     test('does not show attachment icon for inline attachments only', () => {
-        mockHandler.getMessages.mockReturnValue([createMockMessage({ attachments: [{ fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid123' }] })]);
+        mockHandler.getMessages.mockReturnValue([
+            createMockMessage({
+                attachments: [
+                    { fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid123' }
+                ]
+            })
+        ]);
         renderer.render();
         expect(container.querySelector('.attachment-icon')).toBeFalsy();
     });
 
     test('sets data-message-index attribute', () => {
-        mockHandler.getMessages.mockReturnValue([createMockMessage(), createMockMessage({ subject: 'Second' })]);
+        mockHandler.getMessages.mockReturnValue([
+            createMockMessage(),
+            createMockMessage({ subject: 'Second' })
+        ]);
         renderer.render();
         const items = container.querySelectorAll('[data-message-index]');
         expect(items[0].dataset.messageIndex).toBe('0');
@@ -932,16 +1070,27 @@ describe('MessageContentRenderer', () => {
     });
 
     test('renders HTML body content', () => {
-        renderer.render(createMockMessage({ bodyContentHTML: '<p>This is <strong>HTML</strong></p>' }));
+        renderer.render(
+            createMockMessage({ bodyContentHTML: '<p>This is <strong>HTML</strong></p>' })
+        );
         expect(container.innerHTML).toContain('<strong>HTML</strong>');
     });
 
     test('marks inline images as previewable controls', () => {
         const inlineImage = 'data:image/png;base64,abc';
-        renderer.render(createMockMessage({
-            bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image"></p>`,
-            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage, pidContentId: 'cid-1' }]
-        }));
+        renderer.render(
+            createMockMessage({
+                bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image"></p>`,
+                attachments: [
+                    {
+                        fileName: 'inline-image.png',
+                        attachMimeTag: 'image/png',
+                        contentBase64: inlineImage,
+                        pidContentId: 'cid-1'
+                    }
+                ]
+            })
+        );
 
         const image = container.querySelector('.email-content img');
         expect(image.dataset.inlineImagePreviewable).toBe('true');
@@ -952,10 +1101,19 @@ describe('MessageContentRenderer', () => {
 
     test('clicking inline images opens the modal preview', () => {
         const inlineImage = 'data:image/png;base64,abc';
-        renderer.render(createMockMessage({
-            bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image"></p>`,
-            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage, pidContentId: 'cid-1' }]
-        }));
+        renderer.render(
+            createMockMessage({
+                bodyContentHTML: `<p><img src="${inlineImage}" alt="inline-image"></p>`,
+                attachments: [
+                    {
+                        fileName: 'inline-image.png',
+                        attachMimeTag: 'image/png',
+                        contentBase64: inlineImage,
+                        pidContentId: 'cid-1'
+                    }
+                ]
+            })
+        );
 
         container.querySelector('.email-content img').click();
 
@@ -968,10 +1126,19 @@ describe('MessageContentRenderer', () => {
 
     test('captures source links for linked inline images', () => {
         const inlineImage = 'data:image/png;base64,abc';
-        renderer.render(createMockMessage({
-            bodyContentHTML: `<p><a href="https://example.com/details"><img src="${inlineImage}" alt="inline-image"></a></p>`,
-            attachments: [{ fileName: 'inline-image.png', attachMimeTag: 'image/png', contentBase64: inlineImage, pidContentId: 'cid-1' }]
-        }));
+        renderer.render(
+            createMockMessage({
+                bodyContentHTML: `<p><a href="https://example.com/details"><img src="${inlineImage}" alt="inline-image"></a></p>`,
+                attachments: [
+                    {
+                        fileName: 'inline-image.png',
+                        attachMimeTag: 'image/png',
+                        contentBase64: inlineImage,
+                        pidContentId: 'cid-1'
+                    }
+                ]
+            })
+        );
 
         const image = container.querySelector('.email-content img');
         image.click();
@@ -990,18 +1157,30 @@ describe('MessageContentRenderer', () => {
         const iconImage = 'data:image/png;base64,icon';
         const screenshotImage = 'data:image/png;base64,screen';
 
-        renderer.render(createMockMessage({
-            bodyContentHTML: `
+        renderer.render(
+            createMockMessage({
+                bodyContentHTML: `
                 <p>
                     <img src="${iconImage}" alt="asset-a.png" width="84" height="67">
                     <img src="${screenshotImage}" alt="asset-b.jpg" width="640" height="480">
                 </p>
             `,
-            attachments: [
-                { fileName: 'asset-a.png', attachMimeTag: 'image/png', contentBase64: iconImage, pidContentId: 'cid-a' },
-                { fileName: 'asset-b.jpg', attachMimeTag: 'image/png', contentBase64: screenshotImage, pidContentId: 'cid-b' }
-            ]
-        }));
+                attachments: [
+                    {
+                        fileName: 'asset-a.png',
+                        attachMimeTag: 'image/png',
+                        contentBase64: iconImage,
+                        pidContentId: 'cid-a'
+                    },
+                    {
+                        fileName: 'asset-b.jpg',
+                        attachMimeTag: 'image/png',
+                        contentBase64: screenshotImage,
+                        pidContentId: 'cid-b'
+                    }
+                ]
+            })
+        );
 
         const images = container.querySelectorAll('.email-content img');
         expect(images[0].hidden).toBe(false);
@@ -1032,7 +1211,9 @@ describe('MessageContentRenderer', () => {
         mockHandler.getMessages.mockReturnValue([msg]);
         mockHandler.isPinned.mockReturnValue(true);
         renderer.render(msg);
-        expect(container.querySelector('[data-action="pin"]').classList.contains('pinned')).toBe(true);
+        expect(container.querySelector('[data-action="pin"]').classList.contains('pinned')).toBe(
+            true
+        );
     });
 
     describe('formatRecipients', () => {
@@ -1115,8 +1296,17 @@ describe('MessageContentRenderer', () => {
 
         test('keeps inline images out of the modal sequence while the section is collapsed', () => {
             const attachments = [
-                { fileName: 'doc.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:pdf' },
-                { fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:inline' }
+                {
+                    fileName: 'doc.pdf',
+                    attachMimeTag: 'application/pdf',
+                    contentBase64: 'data:pdf'
+                },
+                {
+                    fileName: 'inline.png',
+                    attachMimeTag: 'image/png',
+                    pidContentId: 'cid-1',
+                    contentBase64: 'data:inline'
+                }
             ];
 
             renderer.renderAttachments({ attachments });
@@ -1125,16 +1315,29 @@ describe('MessageContentRenderer', () => {
         });
 
         test('renders attachment count', () => {
-            expect(renderer.renderAttachments({ attachments: [{ fileName: 'a.pdf' }] })).toContain('1 Attachment');
+            expect(renderer.renderAttachments({ attachments: [{ fileName: 'a.pdf' }] })).toContain(
+                '1 Attachment'
+            );
         });
 
         test('renders plural for multiple', () => {
-            expect(renderer.renderAttachments({ attachments: [{ fileName: 'a.pdf' }, { fileName: 'b.pdf' }] })).toContain('2 Attachments');
+            expect(
+                renderer.renderAttachments({
+                    attachments: [{ fileName: 'a.pdf' }, { fileName: 'b.pdf' }]
+                })
+            ).toContain('2 Attachments');
         });
 
         test('renders inline images in a separate collapsed section', () => {
             const result = renderer.renderAttachments({
-                attachments: [{ fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:' }]
+                attachments: [
+                    {
+                        fileName: 'inline.png',
+                        attachMimeTag: 'image/png',
+                        pidContentId: 'cid-1',
+                        contentBase64: 'data:'
+                    }
+                ]
             });
             expect(result).toContain('Inline image');
             expect(result).toContain('data-inline-images-toggle');
@@ -1143,24 +1346,53 @@ describe('MessageContentRenderer', () => {
 
         test('renders previewable with preview action', () => {
             mockModal.isPreviewable.mockReturnValue(true);
-            const result = renderer.renderAttachments({ attachments: [{ fileName: 'img.png', attachMimeTag: 'image/png', contentBase64: 'data:', contentLength: 100 }] });
+            const result = renderer.renderAttachments({
+                attachments: [
+                    {
+                        fileName: 'img.png',
+                        attachMimeTag: 'image/png',
+                        contentBase64: 'data:',
+                        contentLength: 100
+                    }
+                ]
+            });
             expect(result).toContain('data-action="preview"');
         });
 
         test('renders non-previewable as download', () => {
             mockModal.isPreviewable.mockReturnValue(false);
-            const result = renderer.renderAttachments({ attachments: [{ fileName: 'archive.zip', attachMimeTag: 'application/zip', contentBase64: 'data:', contentLength: 100 }] });
+            const result = renderer.renderAttachments({
+                attachments: [
+                    {
+                        fileName: 'archive.zip',
+                        attachMimeTag: 'application/zip',
+                        contentBase64: 'data:',
+                        contentLength: 100
+                    }
+                ]
+            });
             expect(result).toContain('data-action="download"');
             expect(result).not.toContain('data-action="preview"');
         });
 
         test('persists inline image section visibility when toggled', () => {
-            renderer.render(createMockMessage({
-                attachments: [
-                    { fileName: 'doc.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:pdf' },
-                    { fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:' }
-                ]
-            }));
+            renderer.render(
+                createMockMessage({
+                    attachments: [
+                        {
+                            fileName: 'doc.pdf',
+                            attachMimeTag: 'application/pdf',
+                            contentBase64: 'data:pdf'
+                        },
+                        {
+                            fileName: 'inline.png',
+                            attachMimeTag: 'image/png',
+                            pidContentId: 'cid-1',
+                            contentBase64: 'data:'
+                        }
+                    ]
+                })
+            );
 
             const toggle = container.querySelector('[data-inline-images-toggle]');
             const content = container.querySelector('[data-inline-images-content]');
@@ -1172,10 +1404,21 @@ describe('MessageContentRenderer', () => {
 
             expect(toggle.getAttribute('aria-expanded')).toBe('true');
             expect(content.hidden).toBe(false);
-            expect(JSON.parse(window.localStorage.getItem('msgReader_inlineImageAttachments'))).toBe('expanded');
+            expect(
+                JSON.parse(window.localStorage.getItem('msgReader_inlineImageAttachments'))
+            ).toBe('expanded');
             expect(mockModal.setAttachments).toHaveBeenLastCalledWith([
-                { fileName: 'doc.pdf', attachMimeTag: 'application/pdf', contentBase64: 'data:pdf' },
-                { fileName: 'inline.png', attachMimeTag: 'image/png', pidContentId: 'cid-1', contentBase64: 'data:' }
+                {
+                    fileName: 'doc.pdf',
+                    attachMimeTag: 'application/pdf',
+                    contentBase64: 'data:pdf'
+                },
+                {
+                    fileName: 'inline.png',
+                    attachMimeTag: 'image/png',
+                    pidContentId: 'cid-1',
+                    contentBase64: 'data:'
+                }
             ]);
         });
     });
@@ -1185,16 +1428,26 @@ describe('Edge cases', () => {
     test('AttachmentModalManager handles missing modal element', () => {
         document.body.innerHTML = '';
         const modal = new AttachmentModalManager(jest.fn());
-        expect(() => modal.open({ fileName: 'test.png', attachMimeTag: 'image/png' })).not.toThrow();
+        expect(() =>
+            modal.open({ fileName: 'test.png', attachMimeTag: 'image/png' })
+        ).not.toThrow();
     });
 
     test('MessageListRenderer handles null container', () => {
-        const renderer = new MessageListRenderer(null, { getMessages: () => [], getCurrentMessage: () => null, isPinned: () => false });
+        const renderer = new MessageListRenderer(null, {
+            getMessages: () => [],
+            getCurrentMessage: () => null,
+            isPinned: () => false
+        });
         expect(() => renderer.render()).not.toThrow();
     });
 
     test('MessageContentRenderer handles null container', () => {
-        const renderer = new MessageContentRenderer(null, { setCurrentMessage: jest.fn(), getMessages: () => [], isPinned: () => false }, null);
+        const renderer = new MessageContentRenderer(
+            null,
+            { setCurrentMessage: jest.fn(), getMessages: () => [], isPinned: () => false },
+            null
+        );
         expect(() => renderer.render(createMockMessage())).not.toThrow();
     });
 });

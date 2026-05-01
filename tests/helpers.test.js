@@ -66,10 +66,12 @@ describe('getCharsetFromCodepage', () => {
         expect(getCharsetFromCodepage(932)).toBe('shift_jis');
         expect(getCharsetFromCodepage(949)).toBe('cp949');
         expect(getCharsetFromCodepage(928)).toBe('gb2312');
+        expect(getCharsetFromCodepage(1252)).toBe('windows-1252');
+        expect(getCharsetFromCodepage(65001)).toBe('utf-8');
+        expect(getCharsetFromCodepage(28591)).toBe('iso-8859-1');
     });
 
     test('returns utf-8 for unknown code pages', () => {
-        expect(getCharsetFromCodepage(1252)).toBe('utf-8');
         expect(getCharsetFromCodepage(0)).toBe('utf-8');
         expect(getCharsetFromCodepage(undefined)).toBe('utf-8');
         expect(getCharsetFromCodepage(null)).toBe('utf-8');
@@ -115,27 +117,35 @@ describe('isImageMimeType', () => {
 
 describe('isInlineImageAttachment', () => {
     test('returns true for image attachments with content ids', () => {
-        expect(isInlineImageAttachment({
-            attachMimeTag: 'image/png',
-            pidContentId: 'cid-1'
-        })).toBe(true);
+        expect(
+            isInlineImageAttachment({
+                attachMimeTag: 'image/png',
+                pidContentId: 'cid-1'
+            })
+        ).toBe(true);
 
-        expect(isInlineImageAttachment({
-            attachMimeTag: 'image/jpeg',
-            contentId: 'cid-2'
-        })).toBe(true);
+        expect(
+            isInlineImageAttachment({
+                attachMimeTag: 'image/jpeg',
+                contentId: 'cid-2'
+            })
+        ).toBe(true);
     });
 
     test('returns false for regular attachments', () => {
-        expect(isInlineImageAttachment({
-            attachMimeTag: 'image/png',
-            fileName: 'photo.png'
-        })).toBe(false);
+        expect(
+            isInlineImageAttachment({
+                attachMimeTag: 'image/png',
+                fileName: 'photo.png'
+            })
+        ).toBe(false);
 
-        expect(isInlineImageAttachment({
-            attachMimeTag: 'application/pdf',
-            pidContentId: 'cid-3'
-        })).toBe(false);
+        expect(
+            isInlineImageAttachment({
+                attachMimeTag: 'application/pdf',
+                pidContentId: 'cid-3'
+            })
+        ).toBe(false);
     });
 });
 
@@ -163,7 +173,9 @@ describe('extractBaseMimeType', () => {
     test('extracts base MIME type', () => {
         expect(extractBaseMimeType('text/html; charset=utf-8')).toBe('text/html');
         expect(extractBaseMimeType('application/json')).toBe('application/json');
-        expect(extractBaseMimeType('multipart/mixed; boundary="----=_Part"')).toBe('multipart/mixed');
+        expect(extractBaseMimeType('multipart/mixed; boundary="----=_Part"')).toBe(
+            'multipart/mixed'
+        );
     });
 
     test('handles empty or null input', () => {
@@ -187,8 +199,12 @@ describe('extractCharset', () => {
 
 describe('extractBoundary', () => {
     test('extracts boundary from multipart content-type', () => {
-        expect(extractBoundary('multipart/mixed; boundary="----=_Part_123"')).toBe('----=_Part_123');
-        expect(extractBoundary('multipart/alternative; boundary=simple_boundary')).toBe('simple_boundary');
+        expect(extractBoundary('multipart/mixed; boundary="----=_Part_123"')).toBe(
+            '----=_Part_123'
+        );
+        expect(extractBoundary('multipart/alternative; boundary=simple_boundary')).toBe(
+            'simple_boundary'
+        );
     });
 
     test('returns null for non-multipart', () => {
