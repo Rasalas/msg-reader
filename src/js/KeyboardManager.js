@@ -3,7 +3,12 @@
  * Manages keyboard shortcuts, context-aware handling, and accessibility features
  */
 
-import { SHORTCUTS, KEYBOARD_CONTEXTS, HELP_MODAL_SECTIONS, IGNORED_KEYS } from './KeyboardShortcuts.js';
+import {
+    SHORTCUTS,
+    KEYBOARD_CONTEXTS,
+    HELP_MODAL_SECTIONS,
+    IGNORED_KEYS
+} from './KeyboardShortcuts.js';
 import { themeManager } from './ThemeManager.js';
 
 class KeyboardManager {
@@ -111,6 +116,16 @@ class KeyboardManager {
             return;
         }
 
+        if (
+            this.context === KEYBOARD_CONTEXTS.MAIN &&
+            event.shiftKey &&
+            (event.key === 'ArrowDown' || event.key === 'ArrowUp')
+        ) {
+            event.preventDefault();
+            this.extendSelectionWithKeyboard(event.key === 'ArrowDown' ? 1 : -1);
+            return;
+        }
+
         // Handle hidden dev panel shortcut (not in shortcuts list)
         if (event.key === 'd' || event.key === 'D') {
             if (!event.ctrlKey && !event.metaKey && !event.altKey) {
@@ -186,7 +201,7 @@ class KeyboardManager {
             }
 
             // Check if key matches
-            const matchesKey = shortcut.keys.some(key => {
+            const matchesKey = shortcut.keys.some((key) => {
                 // Handle modifier keys
                 if (key.includes('+')) {
                     return key === keyId;
@@ -243,6 +258,29 @@ class KeyboardManager {
             this.scrollMessageIntoView(targetIndexInVisible);
             this.announce(`Message ${targetIndexInVisible + 1} of ${visibleMessages.length}`);
         }
+    }
+
+    /**
+     * Extends multi-selection with Shift+Arrow navigation
+     * @param {number} delta - Number of messages to move
+     */
+    extendSelectionWithKeyboard(delta) {
+        const visibleMessages = this.getVisibleMessages();
+        if (visibleMessages.length === 0) return;
+
+        const currentIndex = this.getCurrentMessageIndex();
+        const fromIndex = currentIndex === -1 ? 0 : currentIndex;
+        const targetIndex = Math.max(0, Math.min(visibleMessages.length - 1, fromIndex + delta));
+        const targetMessage = visibleMessages[targetIndex];
+        const allMessages = this.app.messageHandler.getMessages();
+        const targetIndexInAll = allMessages.indexOf(targetMessage);
+
+        this.app.uiManager.extendSelectionToMessage(targetMessage);
+        this.app.showMessage(targetIndexInAll);
+        this.scrollMessageIntoView(targetIndex);
+
+        const selectedCount = this.app.messageHandler.getSelectedMessages().length;
+        this.announce(`${selectedCount} ${selectedCount === 1 ? 'message' : 'messages'} selected`);
     }
 
     /**
@@ -330,7 +368,8 @@ class KeyboardManager {
      * Open the file picker
      */
     openFilePicker() {
-        const fileInput = document.getElementById('fileInputInApp') || document.getElementById('fileInput');
+        const fileInput =
+            document.getElementById('fileInputInApp') || document.getElementById('fileInput');
         if (fileInput) {
             fileInput.click();
         }
@@ -486,19 +525,25 @@ class KeyboardManager {
      * @returns {string}
      */
     buildHelpContent() {
-        const sections = HELP_MODAL_SECTIONS.map(section => `
+        const sections = HELP_MODAL_SECTIONS.map(
+            (section) => `
             <div class="help-section">
                 <h3>${section.title}</h3>
                 <dl class="shortcut-list">
-                    ${section.shortcuts.map(shortcut => `
+                    ${section.shortcuts
+                        .map(
+                            (shortcut) => `
                         <div class="shortcut-item">
-                            <dt>${shortcut.keys.map(k => `<kbd>${k}</kbd>`).join(' / ')}</dt>
+                            <dt>${shortcut.keys.map((k) => `<kbd>${k}</kbd>`).join(' / ')}</dt>
                             <dd>${shortcut.description}</dd>
                         </div>
-                    `).join('')}
+                    `
+                        )
+                        .join('')}
                 </dl>
             </div>
-        `).join('');
+        `
+        ).join('');
 
         return `
             <h2 id="helpModalTitle">Keyboard Shortcuts</h2>

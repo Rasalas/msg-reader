@@ -15,6 +15,7 @@ class MessageHandler {
         this.messages = [];
         this.currentMessage = null;
         this.pinnedMessages = new Set(this.storage.get('pinnedMessages', []));
+        this.selectedMessageHashes = new Set();
     }
 
     /**
@@ -75,6 +76,7 @@ class MessageHandler {
         const msgInfo = this.messages[index];
         this.messages.splice(index, 1);
         this.pinnedMessages.delete(msgInfo.messageHash);
+        this.selectedMessageHashes.delete(msgInfo.messageHash);
         this.savePinnedMessages();
 
         if (this.messages.length === 0) {
@@ -110,6 +112,63 @@ class MessageHandler {
      */
     isPinned(msgInfo) {
         return this.pinnedMessages.has(msgInfo.messageHash);
+    }
+
+    /**
+     * Toggles the selected state of a message
+     * @param {Object} msgInfo - Message object to toggle
+     * @returns {boolean} True when the message is selected after toggling
+     */
+    toggleSelection(msgInfo) {
+        const hash = msgInfo?.messageHash;
+        if (!hash) return false;
+
+        if (this.selectedMessageHashes.has(hash)) {
+            this.selectedMessageHashes.delete(hash);
+            return false;
+        }
+
+        this.selectedMessageHashes.add(hash);
+        return true;
+    }
+
+    /**
+     * Selects a set of messages
+     * @param {Array} messages - Messages to select
+     * @returns {Array} The selected messages that are still loaded
+     */
+    selectMessages(messages = []) {
+        messages.forEach((message) => {
+            if (message?.messageHash) {
+                this.selectedMessageHashes.add(message.messageHash);
+            }
+        });
+
+        return this.getSelectedMessages();
+    }
+
+    /**
+     * Clears all selected messages
+     */
+    clearSelection() {
+        this.selectedMessageHashes.clear();
+    }
+
+    /**
+     * Checks if a message is selected
+     * @param {Object} msgInfo - Message object to check
+     * @returns {boolean} True if the message is selected
+     */
+    isSelected(msgInfo) {
+        return Boolean(msgInfo?.messageHash && this.selectedMessageHashes.has(msgInfo.messageHash));
+    }
+
+    /**
+     * Gets loaded messages that are currently selected
+     * @returns {Array} Selected message objects
+     */
+    getSelectedMessages() {
+        return this.messages.filter((message) => this.isSelected(message));
     }
 
     /**

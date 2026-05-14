@@ -68,7 +68,8 @@ describe('KeyboardManager', () => {
             messageHandler: {
                 getMessages: jest.fn(() => mockMessages),
                 getCurrentMessage: jest.fn(() => mockMessages[0]),
-                isPinned: jest.fn(() => false)
+                isPinned: jest.fn(() => false),
+                getSelectedMessages: jest.fn(() => [])
             },
             uiManager: {
                 closeAttachmentModal: jest.fn(),
@@ -81,9 +82,12 @@ describe('KeyboardManager', () => {
                 },
                 messageList: {
                     scrollToMessage: jest.fn(),
-                    getMessageElement: jest.fn((index) => document.querySelector(`[data-message-index="${index}"]`)),
+                    getMessageElement: jest.fn((index) =>
+                        document.querySelector(`[data-message-index="${index}"]`)
+                    ),
                     getFilteredMessages: jest.fn(() => mockMessages)
-                }
+                },
+                extendSelectionToMessage: jest.fn()
             },
             showMessage: jest.fn(),
             togglePin: jest.fn(),
@@ -117,7 +121,9 @@ describe('KeyboardManager', () => {
         });
 
         test('gets DOM element references', () => {
-            expect(keyboardManager.srAnnouncements).toBe(document.getElementById('srAnnouncements'));
+            expect(keyboardManager.srAnnouncements).toBe(
+                document.getElementById('srAnnouncements')
+            );
             expect(keyboardManager.helpModal).toBe(document.getElementById('helpModal'));
         });
 
@@ -259,6 +265,22 @@ describe('KeyboardManager', () => {
             const event = createKeyEvent('ArrowDown');
             keyboardManager.handleKeyDown(event);
             expect(mockApp.showMessage).toHaveBeenCalledWith(0);
+        });
+
+        test('Shift+ArrowDown extends message selection', () => {
+            mockApp.messageHandler.getCurrentMessage.mockReturnValue(mockMessages[0]);
+            mockApp.messageHandler.getSelectedMessages.mockReturnValue([
+                mockMessages[0],
+                mockMessages[1]
+            ]);
+            const event = createKeyEvent('ArrowDown', { shiftKey: true });
+
+            keyboardManager.handleKeyDown(event);
+
+            expect(mockApp.uiManager.extendSelectionToMessage).toHaveBeenCalledWith(
+                mockMessages[1]
+            );
+            expect(mockApp.showMessage).toHaveBeenCalledWith(1);
         });
     });
 
@@ -642,7 +664,7 @@ describe('KeyboardManager', () => {
         });
 
         test('all IGNORED_KEYS are actually ignored', () => {
-            IGNORED_KEYS.forEach(key => {
+            IGNORED_KEYS.forEach((key) => {
                 const event = createKeyEvent(key);
                 const preventDefaultSpy = jest.spyOn(event, 'preventDefault');
                 keyboardManager.handleKeyDown(event);
@@ -836,25 +858,25 @@ describe('KeyboardManager', () => {
 
     describe('integration - shortcut definitions', () => {
         test('all navigation shortcuts have handlers', () => {
-            SHORTCUTS.navigation.forEach(shortcut => {
+            SHORTCUTS.navigation.forEach((shortcut) => {
                 expect(keyboardManager.actionMap.has(shortcut.action)).toBe(true);
             });
         });
 
         test('all action shortcuts have handlers', () => {
-            SHORTCUTS.actions.forEach(shortcut => {
+            SHORTCUTS.actions.forEach((shortcut) => {
                 expect(keyboardManager.actionMap.has(shortcut.action)).toBe(true);
             });
         });
 
         test('all modal shortcuts have handlers', () => {
-            SHORTCUTS.modal.forEach(shortcut => {
+            SHORTCUTS.modal.forEach((shortcut) => {
                 expect(keyboardManager.actionMap.has(shortcut.action)).toBe(true);
             });
         });
 
         test('all help shortcuts have handlers', () => {
-            SHORTCUTS.help.forEach(shortcut => {
+            SHORTCUTS.help.forEach((shortcut) => {
                 expect(keyboardManager.actionMap.has(shortcut.action)).toBe(true);
             });
         });

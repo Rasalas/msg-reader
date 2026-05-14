@@ -39,6 +39,7 @@
     "buffer": "^6.0.3",
     "dompurify": "^3.4.2",
     "iconv-lite": "^0.7.2",
+    "jszip": "^3.10.1",
     "md5": "^2.3.0",
     "rtf-stream-parser": "^3.8.1"
   },

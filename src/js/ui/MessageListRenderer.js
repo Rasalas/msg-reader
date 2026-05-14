@@ -8,6 +8,14 @@ import { VirtualList } from './VirtualList.js';
  */
 const MESSAGE_ITEM_HEIGHT = 72;
 
+function escapeAttribute(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
 /**
  * Renders the message list sidebar using virtual scrolling
  * Only renders visible items for better performance with large lists
@@ -21,6 +29,7 @@ export class MessageListRenderer {
     constructor(containerElement, messageHandler) {
         this.container = containerElement;
         this.messageHandler = messageHandler;
+        this.selectionMode = false;
 
         // Initialize virtual list
         this.virtualList = new VirtualList(containerElement, {
@@ -28,6 +37,15 @@ export class MessageListRenderer {
             buffer: 5,
             renderItem: (message, index) => this.renderMessageItem(message, index)
         });
+    }
+
+    /**
+     * Enables or disables multi-selection rendering.
+     * @param {boolean} selectionMode - Whether selection controls should be visible
+     */
+    setSelectionMode(selectionMode) {
+        this.selectionMode = selectionMode;
+        this.container?.classList.toggle('selection-mode', selectionMode);
     }
 
     /**
@@ -51,7 +69,9 @@ export class MessageListRenderer {
 
         // Store filtered messages for index lookup
         this.filteredMessages = messages;
-        this.isSearchResult = isSearchResult || (messages.length < this.messageHandler.getMessages().length);
+        this.isSearchResult =
+            isSearchResult || messages.length < this.messageHandler.getMessages().length;
+        this.container.classList.toggle('selection-mode', this.selectionMode);
 
         // Update ARIA label with count
         this.container.setAttribute('aria-label', `Email messages, ${messages.length} items`);
@@ -123,7 +143,8 @@ export class MessageListRenderer {
         // Get the original index in the full message list for data-message-index
         const originalIndex = allMessages.indexOf(msg);
 
-        const hasRealAttachments = msg.attachments?.some(att => !isInlineImageAttachment(att)) || false;
+        const hasRealAttachments =
+            msg.attachments?.some((att) => !isInlineImageAttachment(att)) || false;
         const date = msg.timestamp;
         const dateStr = this.formatMessageDate(date);
         const cleanBody = (msg.body || msg.bodyContent || '')
@@ -132,8 +153,10 @@ export class MessageListRenderer {
             .trim();
         const isActive = msg === currentMessage;
         const isPinned = this.messageHandler.isPinned(msg);
+        const isSelected = this.messageHandler.isSelected?.(msg) || false;
 
-        return `
+        if (!this.selectionMode) {
+            return `
             <div class="message-item ${isActive ? 'active' : ''} ${isPinned ? 'pinned' : ''}"
                  id="message-${index}"
                  role="option"
@@ -142,7 +165,7 @@ export class MessageListRenderer {
                  aria-posinset="${index + 1}"
                  data-message-index="${originalIndex}"
                  tabindex="${isActive ? '0' : '-1'}"
-                 title="${msg.fileName}">
+                 title="${escapeAttribute(msg.fileName)}">
                 <div class="message-sender">${msg.senderName}</div>
                 <div class="message-subject-line">
                     <span class="message-subject grow">${msg.subject}</span>
@@ -156,6 +179,46 @@ export class MessageListRenderer {
                 </div>
             </div>
         `;
+        }
+
+        return `
+            <div class="message-item ${isActive ? 'active' : ''} ${isPinned ? 'pinned' : ''} ${isSelected ? 'selected' : ''}"
+                 id="message-${index}"
+                 role="option"
+                 aria-selected="${isActive}"
+                 aria-setsize="${filteredMessages.length}"
+                 aria-posinset="${index + 1}"
+                 data-message-index="${originalIndex}"
+                 tabindex="${isActive ? '0' : '-1'}"
+                 title="${escapeAttribute(msg.fileName)}">
+                <label class="message-select-control"
+                       data-selection-toggle
+                       title="${isSelected ? 'Deselect email' : 'Select email'}">
+                    <input type="checkbox"
+                           class="message-select-input"
+                           ${isSelected ? 'checked' : ''}
+                           aria-label="${isSelected ? 'Deselect' : 'Select'} ${escapeAttribute(msg.subject || msg.fileName || 'email')}">
+                    <span class="message-select-box" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                        </svg>
+                    </span>
+                </label>
+                <div class="message-item-main">
+                    <div class="message-sender">${msg.senderName}</div>
+                    <div class="message-subject-line">
+                        <span class="message-subject grow">${msg.subject}</span>
+                        <div class="shrink-0">
+                            ${hasRealAttachments ? '<span class="attachment-icon" aria-label="Has attachments"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg></span>' : ''}
+                        </div>
+                    </div>
+                    <div class="message-preview-container">
+                        <div class="message-preview">${cleanBody}</div>
+                        <div class="message-date">${dateStr}</div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     /**
@@ -166,7 +229,11 @@ export class MessageListRenderer {
      */
     formatMessageDate(date) {
         // Defensive: handle undefined/null/invalid dates
-        if (!date || Object.prototype.toString.call(date) !== '[object Date]' || isNaN(date.getTime())) {
+        if (
+            !date ||
+            Object.prototype.toString.call(date) !== '[object Date]' ||
+            isNaN(date.getTime())
+        ) {
             return 'Unknown date';
         }
         const now = new Date();

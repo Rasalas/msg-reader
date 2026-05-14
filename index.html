@@ -125,6 +125,15 @@
                     </svg>
                     msgReader
                 </div>
+                <div class="app-actions">
+                    <div id="bulkMenu" class="bulk-menu">
+                        <button id="bulkActionsToggle" class="theme-toggle bulk-toggle" aria-label="Download emails" aria-haspopup="dialog" aria-expanded="false" title="Download emails">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                        </button>
+                        <div id="bulkActions" class="bulk-actions-menu" aria-live="polite"></div>
+                    </div>
                 <!-- Theme Menu -->
                 <div id="themeMenu" class="theme-menu">
                     <button id="themeToggle" class="theme-toggle" aria-label="Settings" title="Settings">
@@ -238,6 +247,7 @@
                         </div>
                     </div>
                 </div>
+                </div>
             </div>
             <div class="upload-area rounded-2xl border-2 border-dashed border-slate-300">
                 <label>
@@ -264,6 +274,10 @@
                     </button>
                 </div>
                 <div id="search-results-count" class="search-results-count hidden" aria-live="polite"></div>
+            </div>
+            <div id="selectionToolbar" class="selection-toolbar" role="toolbar" aria-label="Selection actions" aria-hidden="true">
+                <span class="selection-toolbar-label"><span id="selectionToolbarCount">0</span> selected</span>
+                <button type="button" id="selectionToolbarClear" class="selection-toolbar-link">Clear</button>
             </div>
             <div id="messageItems" class="message-items" role="listbox" aria-label="Email messages" tabindex="0">
                 <!-- Message items will be inserted here -->

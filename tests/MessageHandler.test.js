@@ -42,6 +42,10 @@ describe('MessageHandler', () => {
             expect(handler.pinnedMessages.has('hash2')).toBe(true);
         });
 
+        test('initializes with empty selected messages', () => {
+            expect(messageHandler.selectedMessageHashes.size).toBe(0);
+        });
+
         test('uses provided storage instance', () => {
             expect(messageHandler.storage).toBe(mockStorage);
         });
@@ -115,7 +119,9 @@ describe('MessageHandler', () => {
             messageHandler.addMessage(older, 'older.msg');
             messageHandler.addMessage(newer, 'newer.msg');
 
-            expect(messageHandler.messages[0].timestamp > messageHandler.messages[1].timestamp).toBe(true);
+            expect(
+                messageHandler.messages[0].timestamp > messageHandler.messages[1].timestamp
+            ).toBe(true);
         });
     });
 
@@ -148,7 +154,7 @@ describe('MessageHandler', () => {
             messageHandler.deleteMessage(1);
 
             expect(messageHandler.messages.length).toBe(2);
-            expect(messageHandler.messages.find(m => m.messageHash === 'hash2')).toBeUndefined();
+            expect(messageHandler.messages.find((m) => m.messageHash === 'hash2')).toBeUndefined();
         });
 
         test('removes from pinned messages', () => {
@@ -157,6 +163,14 @@ describe('MessageHandler', () => {
             messageHandler.deleteMessage(1);
 
             expect(messageHandler.pinnedMessages.has('hash2')).toBe(false);
+        });
+
+        test('removes from selected messages', () => {
+            messageHandler.selectedMessageHashes.add('hash2');
+
+            messageHandler.deleteMessage(1);
+
+            expect(messageHandler.selectedMessageHashes.has('hash2')).toBe(false);
         });
 
         test('saves pinned messages after deletion', () => {
@@ -190,9 +204,7 @@ describe('MessageHandler', () => {
 
     describe('togglePin', () => {
         beforeEach(() => {
-            messageHandler.messages = [
-                { messageHash: 'hash1', subject: 'First' }
-            ];
+            messageHandler.messages = [{ messageHash: 'hash1', subject: 'First' }];
         });
 
         test('pins unpinned message', () => {
@@ -234,6 +246,53 @@ describe('MessageHandler', () => {
             const msgInfo = { messageHash: 'unpinned' };
 
             expect(messageHandler.isPinned(msgInfo)).toBe(false);
+        });
+    });
+
+    describe('selection', () => {
+        beforeEach(() => {
+            messageHandler.messages = [
+                { messageHash: 'hash1', subject: 'First' },
+                { messageHash: 'hash2', subject: 'Second' },
+                { messageHash: 'hash3', subject: 'Third' }
+            ];
+        });
+
+        test('toggles a message selection on and off', () => {
+            expect(messageHandler.toggleSelection(messageHandler.messages[0])).toBe(true);
+            expect(messageHandler.isSelected(messageHandler.messages[0])).toBe(true);
+
+            expect(messageHandler.toggleSelection(messageHandler.messages[0])).toBe(false);
+            expect(messageHandler.isSelected(messageHandler.messages[0])).toBe(false);
+        });
+
+        test('selects multiple messages', () => {
+            const selected = messageHandler.selectMessages([
+                messageHandler.messages[0],
+                messageHandler.messages[2]
+            ]);
+
+            expect(selected.map((message) => message.messageHash)).toEqual(['hash1', 'hash3']);
+        });
+
+        test('clears selection', () => {
+            messageHandler.selectMessages(messageHandler.messages);
+
+            messageHandler.clearSelection();
+
+            expect(messageHandler.getSelectedMessages()).toEqual([]);
+        });
+
+        test('returns only selected messages that are still loaded', () => {
+            messageHandler.selectedMessageHashes.add('hash1');
+            messageHandler.selectedMessageHashes.add('missing');
+
+            expect(messageHandler.getSelectedMessages()).toEqual([messageHandler.messages[0]]);
+        });
+
+        test('ignores messages without a hash', () => {
+            expect(messageHandler.toggleSelection({ subject: 'No hash' })).toBe(false);
+            expect(messageHandler.getSelectedMessages()).toEqual([]);
         });
     });
 

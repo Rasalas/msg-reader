@@ -52,6 +52,22 @@ function setupDOM() {
     document.body.innerHTML = `
         <div id="welcomeScreen" style="display: flex;"></div>
         <div id="appContainer" style="display: none;"></div>
+        <div class="app-logo">
+            <div class="app-actions">
+                <div id="bulkMenu" class="bulk-menu">
+                    <button id="bulkActionsToggle" class="theme-toggle bulk-toggle" aria-label="Download emails" aria-haspopup="dialog" aria-expanded="false" title="Download emails"></button>
+                    <div id="bulkActions" class="bulk-actions-menu" aria-live="polite"></div>
+                </div>
+                <div id="themeMenu" class="theme-menu">
+                    <button id="themeToggle" class="theme-toggle" aria-label="Settings" title="Settings"></button>
+                    <div id="themeMenuDropdown" class="theme-menu-dropdown"></div>
+                </div>
+            </div>
+        </div>
+        <div id="selectionToolbar" class="selection-toolbar" aria-hidden="true">
+            <span class="selection-toolbar-label"><span id="selectionToolbarCount">0</span> selected</span>
+            <button type="button" id="selectionToolbarClear" class="selection-toolbar-link">Clear</button>
+        </div>
         <div id="messageItems" role="listbox"></div>
         <div id="messageViewer"></div>
         <div class="drop-overlay"></div>
@@ -88,7 +104,12 @@ describe('UIManager (Facade)', () => {
             getMessages: jest.fn(() => []),
             getCurrentMessage: jest.fn(() => null),
             setCurrentMessage: jest.fn(),
-            isPinned: jest.fn(() => false)
+            isPinned: jest.fn(() => false),
+            isSelected: jest.fn(() => false),
+            getSelectedMessages: jest.fn(() => []),
+            toggleSelection: jest.fn(),
+            selectMessages: jest.fn(),
+            clearSelection: jest.fn()
         };
 
         window.app = {
@@ -121,6 +142,12 @@ describe('UIManager (Facade)', () => {
         test('gets screen element references', () => {
             expect(uiManager.welcomeScreen).toBe(document.getElementById('welcomeScreen'));
             expect(uiManager.appContainer).toBe(document.getElementById('appContainer'));
+        });
+
+        test('renders the empty bulk state when nothing is loaded', () => {
+            expect(document.getElementById('bulkActions').textContent).toContain(
+                'No emails loaded'
+            );
         });
     });
 
@@ -252,6 +279,81 @@ describe('UIManager (Facade)', () => {
             expect(window.app.showMessage).toHaveBeenCalledWith(0);
         });
 
+        test('default message list renders without selection checkboxes', () => {
+            mockMessageHandler.getMessages.mockReturnValue([createMockMessage()]);
+            uiManager.updateMessageList();
+
+            expect(document.querySelector('.message-select-input')).toBeNull();
+        });
+
+        test('modified message click toggles selection without opening the message', () => {
+            const message = createMockMessage();
+            let selectedMessages = [];
+            mockMessageHandler.getMessages.mockReturnValue([message]);
+            mockMessageHandler.getSelectedMessages.mockImplementation(() => selectedMessages);
+            mockMessageHandler.toggleSelection.mockImplementation((selectedMessage) => {
+                selectedMessages = [selectedMessage];
+            });
+            uiManager.updateMessageList();
+
+            document.querySelector('[data-message-index]').dispatchEvent(
+                new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    ctrlKey: true
+                })
+            );
+
+            expect(mockMessageHandler.toggleSelection).toHaveBeenCalledWith(message);
+            expect(window.app.showMessage).not.toHaveBeenCalled();
+            expect(uiManager.messageList.selectionMode).toBe(true);
+            expect(document.querySelector('.message-select-input')).not.toBeNull();
+        });
+
+        test('first modified click includes the active message in selection', () => {
+            const activeMessage = createMockMessage({
+                subject: 'Active Subject',
+                messageHash: 'active-hash'
+            });
+            const clickedMessage = createMockMessage({
+                subject: 'Clicked Subject',
+                messageHash: 'clicked-hash'
+            });
+            let selectedMessages = [];
+            mockMessageHandler.getMessages.mockReturnValue([activeMessage, clickedMessage]);
+            mockMessageHandler.getCurrentMessage.mockReturnValue(activeMessage);
+            mockMessageHandler.getSelectedMessages.mockImplementation(() => selectedMessages);
+            mockMessageHandler.selectMessages.mockImplementation((messages) => {
+                selectedMessages = messages;
+            });
+            uiManager.updateMessageList();
+
+            document.querySelector('[data-message-index="1"]').dispatchEvent(
+                new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    metaKey: true
+                })
+            );
+
+            expect(mockMessageHandler.selectMessages).toHaveBeenCalledWith([
+                activeMessage,
+                clickedMessage
+            ]);
+            expect(mockMessageHandler.toggleSelection).not.toHaveBeenCalled();
+            expect(window.app.showMessage).not.toHaveBeenCalled();
+            expect(uiManager.messageList.selectionMode).toBe(true);
+        });
+
+        test('bulk menu toggle opens the popup', () => {
+            document.getElementById('bulkActionsToggle').click();
+
+            expect(document.getElementById('bulkMenu').classList.contains('active')).toBe(true);
+            expect(document.getElementById('bulkActionsToggle').getAttribute('aria-expanded')).toBe(
+                'true'
+            );
+        });
+
         test('clicking pin button calls app.togglePin', () => {
             const viewer = document.getElementById('messageViewer');
             viewer.innerHTML = '<button data-action="pin" data-index="0">Pin</button>';
@@ -302,6 +404,18 @@ describe('UIManager (Facade)', () => {
 
             expect(spy).toHaveBeenCalledWith(message, 'eml');
         });
+
+        test('bulk toolbar can select visible search results', () => {
+            const message = createMockMessage();
+            mockMessageHandler.getMessages.mockReturnValue([message]);
+            uiManager.searchManager.currentQuery = 'test';
+            uiManager.messageList.renderFiltered([message]);
+            uiManager.updateBulkActions();
+
+            document.querySelector('[data-bulk-action="select-visible"]').click();
+
+            expect(mockMessageHandler.selectMessages).toHaveBeenCalledWith([message]);
+        });
     });
 
     describe('Message exports', () => {
@@ -320,6 +434,79 @@ describe('UIManager (Facade)', () => {
                 'test.eml'
             );
             expect(showInfoSpy).toHaveBeenCalledWith('EML exported successfully');
+        });
+
+        test('shows selected bulk scope only when messages are selected', () => {
+            const message = createMockMessage();
+            mockMessageHandler.getSelectedMessages.mockReturnValue([message]);
+
+            uiManager.updateBulkActions();
+
+            expect(document.getElementById('bulkActions').textContent).toContain('1 selected');
+            expect(document.getElementById('bulkActions').textContent).not.toContain('visible');
+        });
+
+        test('shows visible bulk scope when search is active and nothing is selected', () => {
+            const message = createMockMessage();
+            mockMessageHandler.getMessages.mockReturnValue([message]);
+            uiManager.searchManager.currentQuery = 'test';
+            uiManager.messageList.renderFiltered([message]);
+
+            uiManager.updateBulkActions();
+
+            const text = document.getElementById('bulkActions').textContent;
+            expect(text).toContain('1 visible');
+            expect(text).toContain('Export as EML');
+            expect(text).toContain('Select all 1');
+        });
+
+        test('shows all loaded messages as the default bulk scope', () => {
+            const message = createMockMessage();
+            mockMessageHandler.getMessages.mockReturnValue([message]);
+            uiManager.messageList.renderFiltered([message]);
+
+            uiManager.updateBulkActions();
+
+            const text = document.getElementById('bulkActions').textContent;
+            expect(text).toContain('All 1 email');
+            expect(text).toContain('Export as EML');
+            expect(text).toContain('Export as HTML');
+        });
+
+        test('downloads selected messages as a ZIP', async () => {
+            const message = createMockMessage({
+                _rawBuffer: new Uint8Array([0x41, 0x42, 0x43]).buffer,
+                _fileType: 'msg'
+            });
+            mockMessageHandler.getSelectedMessages.mockReturnValue([message]);
+            const downloadSpy = jest.spyOn(uiManager, 'downloadBlob').mockResolvedValue();
+
+            await uiManager.downloadBulkZip();
+
+            expect(downloadSpy).toHaveBeenCalledWith(
+                expect.any(Blob),
+                expect.stringMatching(/^msgReader-selected-eml-\d{4}-\d{2}-\d{2}\.zip$/),
+                'ZIP exported successfully',
+                'Failed to export ZIP'
+            );
+        });
+
+        test('downloads all messages as the default bulk ZIP', async () => {
+            const message = createMockMessage({
+                _rawBuffer: new Uint8Array([0x41, 0x42, 0x43]).buffer,
+                _fileType: 'msg'
+            });
+            mockMessageHandler.getMessages.mockReturnValue([message]);
+            const downloadSpy = jest.spyOn(uiManager, 'downloadBlob').mockResolvedValue();
+
+            await uiManager.downloadBulkZip();
+
+            expect(downloadSpy).toHaveBeenCalledWith(
+                expect.any(Blob),
+                expect.stringMatching(/^msgReader-all-eml-\d{4}-\d{2}-\d{2}\.zip$/),
+                'ZIP exported successfully',
+                'Failed to export ZIP'
+            );
         });
     });
 

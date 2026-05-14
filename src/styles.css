@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
     --color-primary: #3b82f6; /* blue-500 */
@@ -223,12 +223,92 @@
     .message-item:hover {
         border-color: var(--border-color);
         background-color: var(--hover-bg);
-        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        box-shadow:
+            0 4px 6px -1px rgb(0 0 0 / 0.1),
+            0 2px 4px -2px rgb(0 0 0 / 0.1);
     }
 
     .message-item.active {
         background-color: var(--active-bg);
         border-color: var(--active-border);
+    }
+
+    .message-items.selection-mode .message-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.625rem;
+    }
+
+    .message-items.selection-mode .message-item.selected {
+        border-color: var(--primary-color);
+        background-color: var(--active-bg);
+    }
+
+    .message-items.selection-mode .message-item-main {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .message-items.selection-mode .message-select-control {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 1.25rem;
+        height: 1.25rem;
+        margin-top: 0.125rem;
+        cursor: pointer;
+    }
+
+    .message-items.selection-mode .message-select-input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .message-items.selection-mode .message-select-box {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.125rem;
+        height: 1.125rem;
+        color: white;
+        background-color: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 0.25rem;
+        transition:
+            border-color 0.2s,
+            background-color 0.2s,
+            box-shadow 0.2s;
+    }
+
+    .message-items.selection-mode .message-select-box svg {
+        width: 0.75rem;
+        height: 0.75rem;
+        opacity: 0;
+        transform: scale(0.75);
+        transition:
+            opacity 0.15s,
+            transform 0.15s;
+    }
+
+    .message-items.selection-mode .message-select-control:hover .message-select-box,
+    .message-items.selection-mode .message-select-input:focus-visible + .message-select-box {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+    }
+
+    .message-items.selection-mode .message-select-input:checked + .message-select-box {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
+    .message-items.selection-mode .message-select-input:checked + .message-select-box svg {
+        opacity: 1;
+        transform: scale(1);
     }
 
     .message-sender {
@@ -407,7 +487,9 @@
         color: var(--text-secondary);
         padding: 4px;
         border-radius: 4px;
-        transition: color 0.2s, background-color 0.2s;
+        transition:
+            color 0.2s,
+            background-color 0.2s;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -479,7 +561,9 @@
         color: var(--text-primary);
         cursor: pointer;
         font-size: 0.875rem;
-        transition: background-color 0.2s, color 0.2s;
+        transition:
+            background-color 0.2s,
+            color 0.2s;
     }
 
     .message-export-item:hover {
@@ -819,8 +903,16 @@
         justify-content: stretch;
         padding: 0;
         background:
-            radial-gradient(circle at top left, color-mix(in srgb, var(--surface-tertiary) 82%, transparent), transparent 45%),
-            linear-gradient(180deg, color-mix(in srgb, var(--surface-tertiary) 72%, transparent), var(--surface-color));
+            radial-gradient(
+                circle at top left,
+                color-mix(in srgb, var(--surface-tertiary) 82%, transparent),
+                transparent 45%
+            ),
+            linear-gradient(
+                180deg,
+                color-mix(in srgb, var(--surface-tertiary) 72%, transparent),
+                var(--surface-color)
+            );
     }
 
     .attachment-image-viewer {
@@ -940,7 +1032,8 @@
     }
 
     .attachment-text-preview {
-        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+        font-family:
+            ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
         font-size: 0.875rem;
         line-height: 1.5;
         background-color: var(--surface-tertiary);
@@ -997,7 +1090,7 @@
     }
 
     .nested-email-text {
-        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
         font-size: 0.875rem;
         line-height: 1.5;
         white-space: pre-wrap;
@@ -1075,6 +1168,75 @@
 
     .search-container {
         padding: 0 1rem 0.75rem 2rem;
+    }
+
+    .selection-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin: 0 1rem 0 2rem;
+        padding: 0 0.75rem;
+        max-height: 0;
+        background-color: color-mix(in srgb, var(--primary-color) 8%, transparent);
+        border-radius: 0.5rem;
+        font-size: 0.8125rem;
+        line-height: 1;
+        opacity: 0;
+        overflow: hidden;
+        pointer-events: none;
+        transition:
+            max-height 0.22s ease,
+            margin-bottom 0.22s ease,
+            padding-top 0.22s ease,
+            padding-bottom 0.22s ease,
+            opacity 0.18s ease;
+    }
+
+    .selection-toolbar.visible {
+        max-height: 3rem;
+        margin-bottom: 0.75rem;
+        padding-top: 0.4375rem;
+        padding-bottom: 0.4375rem;
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .selection-toolbar {
+            transition: none;
+        }
+    }
+
+    .selection-toolbar-label {
+        color: var(--text-primary);
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .selection-toolbar-label #selectionToolbarCount {
+        font-weight: 600;
+    }
+
+    .selection-toolbar-link {
+        background: none;
+        border: none;
+        padding: 0;
+        color: var(--primary-color);
+        font-size: 0.75rem;
+        font-weight: 500;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .selection-toolbar-link:hover {
+        text-decoration: underline;
+    }
+
+    .selection-toolbar-link:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        border-radius: 0.125rem;
     }
 
     .search-input-wrapper {
@@ -1255,6 +1417,12 @@
         outline-offset: 2px;
     }
 
+    .bulk-export-item:focus-visible,
+    .bulk-actions-link:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+
     .message-viewer:focus {
         outline: none;
     }
@@ -1407,7 +1575,8 @@
         min-width: 1.75rem;
         height: 1.75rem;
         padding: 0 0.5rem;
-        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+        font-family:
+            ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
         font-size: 0.75rem;
         font-weight: 500;
         color: var(--text-secondary);
@@ -1481,6 +1650,114 @@
     .theme-toggle svg {
         width: 1.25rem;
         height: 1.25rem;
+    }
+
+    .app-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .bulk-menu {
+        position: relative;
+    }
+
+    .bulk-actions-menu {
+        display: none;
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        min-width: 14rem;
+        max-width: calc(100vw - 2rem);
+        flex-direction: column;
+        padding: 0.375rem;
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+        z-index: 110;
+    }
+
+    .bulk-menu.active .bulk-actions-menu {
+        display: flex;
+    }
+
+    .bulk-actions-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.375rem 0.75rem 0.5rem;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        line-height: 1;
+    }
+
+    .bulk-actions-link {
+        background: none;
+        border: none;
+        padding: 0;
+        color: var(--primary-color);
+        font-size: 0.75rem;
+        font-weight: 500;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .bulk-actions-link:hover {
+        text-decoration: underline;
+    }
+
+    .bulk-actions-empty,
+    .bulk-actions-status {
+        padding: 0.625rem 0.75rem;
+        color: var(--text-muted);
+        font-size: 0.8125rem;
+        text-align: center;
+    }
+
+    .bulk-export-item {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.625rem 0.75rem;
+        text-align: left;
+        border: none;
+        border-radius: 0.5rem;
+        background: transparent;
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 0.875rem;
+        transition:
+            background-color 0.2s,
+            color 0.2s;
+    }
+
+    .bulk-export-item-ext {
+        flex-shrink: 0;
+        color: var(--text-muted);
+        font-size: 0.6875rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+    }
+
+    .bulk-export-item:hover:not(:disabled) {
+        background: var(--hover-bg);
+        color: var(--primary-color);
+    }
+
+    .bulk-export-item:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
+    .bulk-actions-tip {
+        padding: 0.5rem 0.75rem 0.375rem;
+        color: var(--text-muted);
+        font-size: 0.6875rem;
+        line-height: 1.4;
+        text-align: center;
     }
 
     /* Theme dropdown menu */
@@ -1610,7 +1887,9 @@
         cursor: pointer;
         font-size: 0.8125rem;
         font-weight: 600;
-        transition: background-color 0.2s, color 0.2s;
+        transition:
+            background-color 0.2s,
+            color 0.2s;
         flex-shrink: 0;
     }
 
@@ -1637,14 +1916,14 @@
     }
 
     /* Force light background for email when email theme is light but app is dark */
-    :root.dark[data-email-theme="light"] .email-content {
+    :root.dark[data-email-theme='light'] .email-content {
         background-color: #ffffff;
         color: #1f2937;
         padding: 1rem;
         border-radius: 0.5rem;
     }
 
-    :root.dark[data-email-theme="light"] .email-content a {
+    :root.dark[data-email-theme='light'] .email-content a {
         color: #3b82f6;
     }
 
@@ -1806,7 +2085,7 @@
         border: 1px solid var(--border-color);
         border-radius: 0.5rem;
         padding: 1rem;
-        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
         font-size: 0.75rem;
         line-height: 1.5;
         white-space: pre-wrap;
@@ -1833,7 +2112,7 @@
 
     /* MIME Tree Styles */
     .dev-panel-tree {
-        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
         font-size: 0.8125rem;
     }
 
@@ -1899,4 +2178,4 @@
     .dev-panel-json {
         color: var(--text-secondary);
     }
-} 
+}
