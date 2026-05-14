@@ -123,7 +123,7 @@ export class VirtualList {
         this.items = items;
         // Use actual height or minimum for headless/test environments
         this.viewportHeight = Math.max(this.container.clientHeight, MIN_VIEWPORT_HEIGHT);
-        this.render();
+        this.render(true);
     }
 
     /**
@@ -144,10 +144,12 @@ export class VirtualList {
     /**
      * Renders only the visible items
      */
-    render() {
+    render(force = false) {
         if (!this.container || this.items.length === 0) {
             this.scrollContent.style.height = '0px';
             this.visibleContainer.innerHTML = '';
+            this.visibleStartIndex = undefined;
+            this.visibleEndIndex = undefined;
             return;
         }
 
@@ -157,6 +159,23 @@ export class VirtualList {
 
         // Calculate visible range
         const { startIndex, endIndex } = this.calculateVisibleRange();
+
+        // Skip the innerHTML reset when no item state actually changed and the
+        // visible window did not move. Without this guard, ResizeObserver-triggered
+        // re-renders (e.g. when the selection toolbar expands above this list)
+        // destroy and recreate every .message-item node, which kills CSS transitions
+        // that depend on existing DOM continuity. Callers that mutate per-item state
+        // (setItems) pass force=true to bypass the guard.
+        const rangeUnchanged =
+            !force &&
+            startIndex === this.visibleStartIndex &&
+            endIndex === this.visibleEndIndex &&
+            this.visibleContainer.children.length > 0;
+
+        if (rangeUnchanged) {
+            return;
+        }
+
         this.visibleStartIndex = startIndex;
         this.visibleEndIndex = endIndex;
 

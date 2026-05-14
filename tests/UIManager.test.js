@@ -279,11 +279,18 @@ describe('UIManager (Facade)', () => {
             expect(window.app.showMessage).toHaveBeenCalledWith(0);
         });
 
-        test('default message list renders without selection checkboxes', () => {
+        test('default message list keeps checkboxes inert outside selection mode', () => {
             mockMessageHandler.getMessages.mockReturnValue([createMockMessage()]);
             uiManager.updateMessageList();
 
-            expect(document.querySelector('.message-select-input')).toBeNull();
+            const messageItems = document.getElementById('messageItems');
+            const checkbox = document.querySelector('.message-select-input');
+            const control = document.querySelector('.message-select-control');
+
+            expect(messageItems.classList.contains('selection-mode')).toBe(false);
+            expect(checkbox).not.toBeNull();
+            expect(checkbox.getAttribute('tabindex')).toBe('-1');
+            expect(control.getAttribute('aria-hidden')).toBe('true');
         });
 
         test('modified message click toggles selection without opening the message', () => {

@@ -40,12 +40,25 @@ export class MessageListRenderer {
     }
 
     /**
-     * Enables or disables multi-selection rendering.
+     * Enables or disables multi-selection rendering. Updates the container class
+     * (which drives the CSS reveal animation for the checkbox column) and refreshes
+     * the per-item aria-hidden/tabindex attributes in place so the animation runs
+     * on existing DOM nodes rather than being lost to a re-render.
      * @param {boolean} selectionMode - Whether selection controls should be visible
      */
     setSelectionMode(selectionMode) {
         this.selectionMode = selectionMode;
-        this.container?.classList.toggle('selection-mode', selectionMode);
+        if (!this.container) return;
+        this.container.classList.toggle('selection-mode', selectionMode);
+
+        const controls = this.container.querySelectorAll('.message-select-control');
+        controls.forEach((control) => {
+            control.setAttribute('aria-hidden', selectionMode ? 'false' : 'true');
+            const input = control.querySelector('.message-select-input');
+            if (input) {
+                input.setAttribute('tabindex', selectionMode ? '0' : '-1');
+            }
+        });
     }
 
     /**
@@ -155,31 +168,8 @@ export class MessageListRenderer {
         const isPinned = this.messageHandler.isPinned(msg);
         const isSelected = this.messageHandler.isSelected?.(msg) || false;
 
-        if (!this.selectionMode) {
-            return `
-            <div class="message-item ${isActive ? 'active' : ''} ${isPinned ? 'pinned' : ''}"
-                 id="message-${index}"
-                 role="option"
-                 aria-selected="${isActive}"
-                 aria-setsize="${filteredMessages.length}"
-                 aria-posinset="${index + 1}"
-                 data-message-index="${originalIndex}"
-                 tabindex="${isActive ? '0' : '-1'}"
-                 title="${escapeAttribute(msg.fileName)}">
-                <div class="message-sender">${msg.senderName}</div>
-                <div class="message-subject-line">
-                    <span class="message-subject grow">${msg.subject}</span>
-                    <div class="shrink-0">
-                        ${hasRealAttachments ? '<span class="attachment-icon" aria-label="Has attachments"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg></span>' : ''}
-                    </div>
-                </div>
-                <div class="message-preview-container">
-                    <div class="message-preview">${cleanBody}</div>
-                    <div class="message-date">${dateStr}</div>
-                </div>
-            </div>
-        `;
-        }
+        const hiddenFromAT = this.selectionMode ? 'false' : 'true';
+        const checkboxTabIndex = this.selectionMode ? '0' : '-1';
 
         return `
             <div class="message-item ${isActive ? 'active' : ''} ${isPinned ? 'pinned' : ''} ${isSelected ? 'selected' : ''}"
@@ -193,9 +183,11 @@ export class MessageListRenderer {
                  title="${escapeAttribute(msg.fileName)}">
                 <label class="message-select-control"
                        data-selection-toggle
+                       aria-hidden="${hiddenFromAT}"
                        title="${isSelected ? 'Deselect email' : 'Select email'}">
                     <input type="checkbox"
                            class="message-select-input"
+                           tabindex="${checkboxTabIndex}"
                            ${isSelected ? 'checked' : ''}
                            aria-label="${isSelected ? 'Deselect' : 'Select'} ${escapeAttribute(msg.subject || msg.fileName || 'email')}">
                     <span class="message-select-box" aria-hidden="true">

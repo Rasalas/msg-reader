@@ -176,7 +176,8 @@ class UIManager {
         this.selectionToolbarClear?.addEventListener('click', () => {
             this.messageHandler.clearSelection();
             this.setSelectionMode(false);
-            this.updateMessageList();
+            this.refreshSelectionDom();
+            this.updateBulkActions();
         });
 
         this.bulkActions?.addEventListener('click', (e) => {
@@ -189,11 +190,13 @@ class UIManager {
                 this.messageHandler.selectMessages(visibleMessages);
                 this.selectionAnchorMessage = visibleMessages[0] || null;
                 this.setSelectionMode(visibleMessages.length > 0);
-                this.updateMessageList();
+                this.refreshSelectionDom();
+                this.updateBulkActions();
             } else if (action === 'clear-selection') {
                 this.messageHandler.clearSelection();
                 this.setSelectionMode(false);
-                this.updateMessageList();
+                this.refreshSelectionDom();
+                this.updateBulkActions();
             } else if (action === 'download-zip') {
                 this.downloadBulkZip(button.dataset.format);
             }
@@ -297,6 +300,30 @@ class UIManager {
     }
 
     /**
+     * Updates the `.selected` class and checkbox `checked` state on rendered message
+     * items in place. Used instead of a full re-render so CSS transitions on the
+     * selection-mode reveal can run on existing DOM nodes.
+     */
+    refreshSelectionDom() {
+        const messages = this.messageHandler.getMessages();
+        const container = this.messageList.container;
+        if (!container) return;
+
+        container.querySelectorAll('[data-message-index]').forEach((itemEl) => {
+            const index = parseInt(itemEl.dataset.messageIndex, 10);
+            const msg = messages[index];
+            if (!msg) return;
+
+            const isSelected = this.messageHandler.isSelected?.(msg) || false;
+            itemEl.classList.toggle('selected', isSelected);
+            const input = itemEl.querySelector('.message-select-input');
+            if (input) {
+                input.checked = isSelected;
+            }
+        });
+    }
+
+    /**
      * Handles row selection gestures.
      * @param {Object} message - Message to select or toggle
      * @param {Object} options - Selection options
@@ -305,7 +332,6 @@ class UIManager {
     handleMessageSelection(message, { range = false } = {}) {
         const selectedMessages = this.messageHandler.getSelectedMessages?.() || [];
         const isEnteringSelectionMode = selectedMessages.length === 0 && !this.isSelectionMode;
-        this.setSelectionMode(true);
 
         if (range) {
             const anchor =
@@ -327,11 +353,10 @@ class UIManager {
             this.selectionAnchorMessage = message;
         }
 
-        if ((this.messageHandler.getSelectedMessages?.() || []).length === 0) {
-            this.setSelectionMode(false);
-        }
-
-        this.updateMessageList();
+        const hasSelection = (this.messageHandler.getSelectedMessages?.() || []).length > 0;
+        this.setSelectionMode(hasSelection);
+        this.refreshSelectionDom();
+        this.updateBulkActions();
     }
 
     /**
@@ -367,7 +392,8 @@ class UIManager {
         const anchor =
             this.selectionAnchorMessage || this.messageHandler.getCurrentMessage() || targetMessage;
         this.selectMessageRange(anchor, targetMessage);
-        this.updateMessageList();
+        this.refreshSelectionDom();
+        this.updateBulkActions();
     }
 
     /**

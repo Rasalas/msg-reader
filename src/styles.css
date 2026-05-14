@@ -216,8 +216,17 @@
         position: relative;
         border: 1px solid transparent;
         border-radius: 1rem;
-        transition: all 0.2s;
+        transition: all 0.22s ease;
         margin-bottom: 0.125rem;
+    }
+
+    .message-item-main {
+        margin-left: 0;
+        transition: margin-left 0.22s ease;
+    }
+
+    .message-items.selection-mode .message-item-main {
+        margin-left: 1.625rem;
     }
 
     .message-item:hover {
@@ -233,35 +242,37 @@
         border-color: var(--active-border);
     }
 
-    .message-items.selection-mode .message-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.625rem;
-    }
-
     .message-items.selection-mode .message-item.selected {
         border-color: var(--primary-color);
         background-color: var(--active-bg);
     }
 
-    .message-items.selection-mode .message-item-main {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .message-items.selection-mode .message-select-control {
-        position: relative;
+    .message-select-control {
+        position: absolute;
+        left: 0.9em;
+        top: calc(0.6em + 0.1875rem);
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        flex: 0 0 auto;
-        width: 1.25rem;
-        height: 1.25rem;
-        margin-top: 0.125rem;
+        width: 1.125rem;
+        height: 1.125rem;
         cursor: pointer;
+        opacity: 0;
+        transform: scale(0.55);
+        transform-origin: center;
+        pointer-events: none;
+        transition:
+            opacity 0.18s ease,
+            transform 0.22s ease;
     }
 
-    .message-items.selection-mode .message-select-input {
+    .message-items.selection-mode .message-select-control {
+        opacity: 1;
+        transform: scale(1);
+        pointer-events: auto;
+    }
+
+    .message-select-input {
         position: absolute;
         width: 1px;
         height: 1px;
@@ -269,7 +280,7 @@
         pointer-events: none;
     }
 
-    .message-items.selection-mode .message-select-box {
+    .message-select-box {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -285,7 +296,7 @@
             box-shadow 0.2s;
     }
 
-    .message-items.selection-mode .message-select-box svg {
+    .message-select-box svg {
         width: 0.75rem;
         height: 0.75rem;
         opacity: 0;
@@ -301,14 +312,21 @@
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
     }
 
-    .message-items.selection-mode .message-select-input:checked + .message-select-box {
+    .message-select-input:checked + .message-select-box {
         background-color: var(--primary-color);
         border-color: var(--primary-color);
     }
 
-    .message-items.selection-mode .message-select-input:checked + .message-select-box svg {
+    .message-select-input:checked + .message-select-box svg {
         opacity: 1;
         transform: scale(1);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .message-select-control,
+        .message-select-box {
+            transition: none;
+        }
     }
 
     .message-sender {
