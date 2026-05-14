@@ -132,6 +132,11 @@ function buildManifest({ messages, exportedEntries, skippedMessages, format, sco
     };
 }
 
+async function loadJSZip() {
+    const { default: JSZip } = await import('./jszipLoader.js');
+    return JSZip;
+}
+
 /**
  * Creates a ZIP blob containing exported messages.
  * @param {Array} messages - Messages to export
@@ -150,7 +155,7 @@ export async function createBulkExportZipBlob(messages, format, options = {}) {
     const requestedNow = options.now instanceof Date ? options.now : new Date();
     const now = Number.isNaN(requestedNow.getTime()) ? new Date() : requestedNow;
     const scope = options.scope || 'messages';
-    const { default: JSZip } = await import('jszip');
+    const JSZip = await loadJSZip();
     const zip = new JSZip();
     const emailsFolder = zip.folder('emails');
     const usedNames = new Set();
