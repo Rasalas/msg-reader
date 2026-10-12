@@ -85,6 +85,12 @@ export const SHORTCUTS = {
             description: 'Open file picker'
         },
         {
+            keys: ['Ctrl+p', 'Meta+p'],
+            action: 'printMessage',
+            contexts: [KEYBOARD_CONTEXTS.MAIN],
+            description: 'Print message'
+        },
+        {
             keys: ['/'],
             action: 'focusSearch',
             contexts: [KEYBOARD_CONTEXTS.MAIN],
@@ -156,6 +162,7 @@ export const HELP_MODAL_SECTIONS = [
             { keys: ['s'], description: 'Pin/unpin message' },
             { keys: ['Delete'], description: 'Delete message' },
             { keys: ['Ctrl/\u2318+O'], description: 'Open file picker' },
+            { keys: ['Ctrl/\u2318+P'], description: 'Print message' },
             { keys: ['/'], description: 'Focus search' },
             { keys: ['t'], description: 'Toggle theme' }
         ]

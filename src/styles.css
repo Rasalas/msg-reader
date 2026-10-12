@@ -1945,6 +1945,13 @@
         color: #3b82f6;
     }
 
+    /* Dark-mode contrast fixes from MessageContentRenderer; print keeps original colors */
+    @media screen {
+        .email-content [data-contrast-adjusted] {
+            color: var(--contrast-adjusted-color) !important;
+        }
+    }
+
     /* ========================================
        Message Viewer Wrapper (for DevPanel)
        ======================================== */
@@ -2195,5 +2202,97 @@
     /* JSON Syntax in Debug tab */
     .dev-panel-json {
         color: var(--text-secondary);
+    }
+}
+
+/* ========================================
+   Print: only the displayed message, always light
+   ======================================== */
+@media print {
+    @page {
+        margin: 15mm;
+    }
+
+    :root,
+    :root.dark {
+        color-scheme: light;
+        --primary-color: #1d4ed8;
+        --background-color: #ffffff;
+        --text-color: #0f172a;
+        --surface-color: #ffffff;
+        --surface-secondary: #f1f5f9;
+        --border-color: #cbd5e1;
+        --text-primary: #0f172a;
+        --text-secondary: #334155;
+        --text-tertiary: #475569;
+        --text-muted: #64748b;
+    }
+
+    html,
+    body {
+        height: auto;
+        overflow: visible;
+        background: #ffffff;
+    }
+
+    body > :not(#appContainer),
+    #appContainer > :not(.message-viewer-wrapper),
+    .message-viewer-wrapper > :not(#messageViewer),
+    .message-actions,
+    .attachment-section-inline,
+    .attachment-download-btn {
+        display: none !important;
+    }
+
+    #appContainer,
+    .message-viewer-wrapper,
+    .message-viewer {
+        display: block !important;
+        position: static;
+        width: auto;
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+        padding: 0;
+        background: none;
+    }
+
+    .message-header {
+        margin-bottom: 0.75rem;
+    }
+
+    .message-title {
+        padding-left: 0;
+        font-size: 1.125rem;
+    }
+
+    .message-card {
+        padding: 0;
+        border: none;
+        border-radius: 0;
+    }
+
+    .message-card > .mb-4 {
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .email-content,
+    :root.dark[data-email-theme='light'] .email-content {
+        overflow: visible;
+        padding: 0;
+        background: none;
+        color: var(--text-primary);
+        /* Print what the sender designed, including colored banners and table cells */
+        print-color-adjust: exact;
+    }
+
+    .email-content table {
+        overflow: visible;
+    }
+
+    .email-content img,
+    .message-card .attachment-item {
+        break-inside: avoid;
     }
 }

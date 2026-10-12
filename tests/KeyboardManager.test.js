@@ -77,6 +77,7 @@ describe('KeyboardManager', () => {
                 showNextAttachment: jest.fn(),
                 focusSearch: jest.fn(),
                 clearSearch: jest.fn(),
+                printMessage: jest.fn(),
                 searchManager: {
                     isSearchActive: jest.fn(() => false)
                 },
@@ -338,6 +339,19 @@ describe('KeyboardManager', () => {
             const event = createKeyEvent('o', { metaKey: true });
             keyboardManager.handleKeyDown(event);
             expect(clickSpy).toHaveBeenCalled();
+        });
+
+        test('Ctrl+p prints the current message', () => {
+            const event = createKeyEvent('p', { ctrlKey: true });
+            keyboardManager.handleKeyDown(event);
+            expect(mockApp.uiManager.printMessage).toHaveBeenCalled();
+            expect(event.defaultPrevented).toBe(true);
+        });
+
+        test('Meta+p (Cmd+p) prints the current message', () => {
+            const event = createKeyEvent('p', { metaKey: true });
+            keyboardManager.handleKeyDown(event);
+            expect(mockApp.uiManager.printMessage).toHaveBeenCalled();
         });
 
         test('? key shows help modal', () => {
