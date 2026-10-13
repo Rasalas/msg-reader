@@ -4,6 +4,8 @@ use tauri::{AppHandle, Emitter, Manager};
 use std::io::Write;
 use tauri_plugin_dialog::DialogExt;
 
+mod printing;
+
 /// Store pending file paths for when app is launched via file association
 pub struct PendingFiles(pub Mutex<Vec<PathBuf>>);
 
@@ -182,7 +184,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_files, open_file_with_system, save_file_with_dialog]);
+        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_files, open_file_with_system, save_file_with_dialog, printing::print_message]);
 
     builder
         .build(tauri::generate_context!())

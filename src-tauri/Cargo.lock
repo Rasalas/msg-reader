@@ -2011,6 +2011,7 @@ name = "msg-reader"
 version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
+ "objc2 0.6.4",
  "serde",
  "serde_json",
  "tauri",

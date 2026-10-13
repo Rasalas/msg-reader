@@ -3,7 +3,7 @@ import { MessageContentRenderer } from './MessageContentRenderer.js';
 import { AttachmentModalManager } from './AttachmentModalManager.js';
 import { ToastManager } from './ToastManager.js';
 import { SearchManager } from '../SearchManager.js';
-import { isTauri, saveFileWithDialog } from '../tauri-bridge.js';
+import { isTauri, printWebview, saveFileWithDialog } from '../tauri-bridge.js';
 import {
     getExportFileName,
     getOriginalMessageMimeType,
@@ -892,9 +892,8 @@ class UIManager {
             return;
         }
 
-        // Tauri on macOS replaces window.print with an IPC call that returns a promise
         Promise.resolve()
-            .then(() => window.print())
+            .then(() => printWebview())
             .catch((error) => {
                 console.error('Failed to print message:', error);
                 this.showError('Failed to open print dialog');

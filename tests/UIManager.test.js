@@ -6,6 +6,8 @@
 // Mock the tauri-bridge module
 jest.mock('../src/js/tauri-bridge.js', () => ({
     isTauri: jest.fn(() => false),
+    printWebview: (...args) =>
+        jest.requireActual('../src/js/tauri-bridge.js').printWebview(...args),
     saveFileWithDialog: jest.fn(() => Promise.resolve(true)),
     openWithSystemViewer: jest.fn(() => Promise.resolve())
 }));

@@ -141,6 +141,29 @@ make mocks-bulk COUNT=100   # Generate bulk emails for performance testing
 
 ---
 
+## macOS print regression
+
+The native WebKit print panel can calculate the page count before applying CSS
+`@page` margins. This can truncate long messages even though the dialog offers
+multiple pages. macOS printing therefore sets 15 mm margins on `NSPrintInfo`
+before pagination and disables CSS page margins for that webview. Other platforms
+continue to use `window.print()` and the print stylesheet.
+
+To verify the native path:
+
+1. Run `npm run tauri:dev` and open `tests/fixtures/print-long.eml`.
+2. Use the message header's print button, then select PDF > Open in Preview.
+3. Check that the final page contains section 60 and `ENDE DER NACHRICHT`.
+4. Repeat with Cmd+P, in both light and dark app themes.
+5. Check that the printed pages have a light background, margins, message
+   metadata and body, with no app sidebar or action buttons.
+
+Jest covers print routing and error handling. This regression also needs the
+native dialog check: directly saving a PDF from an offscreen `WKWebView` does not
+reproduce the print panel's pagination behavior.
+
+---
+
 ## Project Structure
 
 ```

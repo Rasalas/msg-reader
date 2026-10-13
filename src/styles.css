@@ -2209,10 +2209,6 @@
    Print: only the displayed message, always light
    ======================================== */
 @media print {
-    @page {
-        margin: 15mm;
-    }
-
     :root,
     :root.dark {
         color-scheme: light;
