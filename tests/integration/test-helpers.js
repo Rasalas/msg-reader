@@ -239,6 +239,22 @@ export function waitForDOMUpdate(ms = 0) {
 }
 
 /**
+ * Waits for asynchronous file reads to add the expected messages.
+ * @param {MessageHandler} messageHandler - Handler receiving parsed messages
+ * @param {number} count - Expected message count
+ * @returns {Promise} Resolves when all messages have arrived
+ */
+export async function waitForMessages(messageHandler, count) {
+    const deadline = Date.now() + 2000;
+    while (messageHandler.getMessages().length !== count) {
+        if (Date.now() >= deadline) {
+            throw new Error(`Expected ${count} messages, received ${messageHandler.getMessages().length}`);
+        }
+        await waitForDOMUpdate(10);
+    }
+}
+
+/**
  * Creates mock parsers that return predefined data
  * @param {Array} messages - Array of mock messages to return in sequence
  * @returns {Object} Object with extractMsg and extractEml mock functions
