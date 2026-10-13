@@ -68,6 +68,7 @@ class KeyboardManager {
             ['togglePin', () => this.toggleCurrentPin()],
             ['deleteMessage', () => this.deleteCurrentMessage()],
             ['openFilePicker', () => this.openFilePicker()],
+            ['printMessage', () => this.app.uiManager.printMessage()],
             ['focusSearch', () => this.focusSearch()],
             ['clearSearch', () => this.clearSearch()],
             ['closeModal', () => this.closeCurrentModal()],

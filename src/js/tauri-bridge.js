@@ -9,9 +9,7 @@
  * @returns {boolean} True if running in Tauri
  */
 export function isTauri() {
-    return (
-        typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined
-    );
+    return typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined;
 }
 
 // Lazy-loaded Tauri APIs to avoid errors in browser context
@@ -27,11 +25,35 @@ async function getTauriApis() {
 
     const [{ invoke }, { listen }] = await Promise.all([
         import('@tauri-apps/api/core'),
-        import('@tauri-apps/api/event'),
+        import('@tauri-apps/api/event')
     ]);
 
     tauriApis = { invoke, listen };
     return tauriApis;
+}
+
+/**
+ * Prints the current webview with native page margins on macOS.
+ * WebKit's print panel can paginate before applying CSS @page margins,
+ * so those margins must be set on NSPrintInfo instead.
+ * @returns {Promise<void>}
+ */
+export async function printWebview() {
+    if (!isTauri() || !navigator.platform.startsWith('Mac')) {
+        return window.print();
+    }
+
+    const apis = await getTauriApis();
+    const pageMargins = document.getElementById('printPageMargins')?.sheet;
+    const marginsWereDisabled = pageMargins?.disabled;
+    if (pageMargins) pageMargins.disabled = true;
+
+    try {
+        await apis.invoke('print_message');
+    } catch (error) {
+        if (pageMargins) pageMargins.disabled = marginsWereDisabled;
+        throw error;
+    }
 }
 
 /**
@@ -109,7 +131,7 @@ export async function openWithSystemViewer(base64Data, fileName) {
     // Call Rust command to save and open the file
     await invoke('open_file_with_system', {
         base64Content,
-        fileName,
+        fileName
     });
 }
 
@@ -132,7 +154,7 @@ export async function saveFileWithDialog(base64Data, fileName) {
     // Call Rust command to show save dialog and save file
     return await invoke('save_file_with_dialog', {
         base64Content,
-        fileName,
+        fileName
     });
 }
 
@@ -151,7 +173,7 @@ export function parseReleaseVersion(version) {
     return {
         major: Number(match[1]),
         minor: Number(match[2]),
-        patch: Number(match[3]),
+        patch: Number(match[3])
     };
 }
 
@@ -207,7 +229,7 @@ export async function checkForUpdates() {
                     title: 'Update available',
                     kind: 'info',
                     okLabel: 'Update',
-                    cancelLabel: 'Later',
+                    cancelLabel: 'Later'
                 }
             );
 

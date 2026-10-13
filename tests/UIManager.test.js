@@ -6,6 +6,8 @@
 // Mock the tauri-bridge module
 jest.mock('../src/js/tauri-bridge.js', () => ({
     isTauri: jest.fn(() => false),
+    printWebview: (...args) =>
+        jest.requireActual('../src/js/tauri-bridge.js').printWebview(...args),
     saveFileWithDialog: jest.fn(() => Promise.resolve(true)),
     openWithSystemViewer: jest.fn(() => Promise.resolve())
 }));
@@ -422,6 +424,91 @@ describe('UIManager (Facade)', () => {
             document.querySelector('[data-bulk-action="select-visible"]').click();
 
             expect(mockMessageHandler.selectMessages).toHaveBeenCalledWith([message]);
+        });
+    });
+
+    describe('Printing', () => {
+        let printSpy;
+
+        beforeEach(() => {
+            printSpy = jest.fn();
+            window.print = printSpy;
+        });
+
+        afterEach(() => {
+            delete window.print;
+        });
+
+        test('clicking print-message calls printMessage', () => {
+            const spy = jest.spyOn(uiManager, 'printMessage').mockImplementation(() => {});
+            const viewer = document.getElementById('messageViewer');
+            viewer.innerHTML = '<button data-action="print-message" data-index="0">Print</button>';
+
+            viewer.querySelector('[data-action="print-message"]').click();
+
+            expect(spy).toHaveBeenCalled();
+        });
+
+        test('rendered message header contains a print button', () => {
+            const message = createMockMessage();
+            mockMessageHandler.getMessages.mockReturnValue([message]);
+
+            uiManager.showMessage(message);
+
+            expect(document.querySelector('[data-action="print-message"]')).not.toBeNull();
+        });
+
+        test('printMessage opens the print dialog for the current message', async () => {
+            mockMessageHandler.getCurrentMessage.mockReturnValue(createMockMessage());
+
+            uiManager.printMessage();
+            await Promise.resolve();
+
+            expect(printSpy).toHaveBeenCalledTimes(1);
+        });
+
+        test('printMessage shows a hint when no message is displayed', async () => {
+            const showInfoSpy = jest.spyOn(uiManager, 'showInfo').mockImplementation(() => {});
+
+            uiManager.printMessage();
+            await Promise.resolve();
+
+            expect(printSpy).not.toHaveBeenCalled();
+            expect(showInfoSpy).toHaveBeenCalledWith('Select a message to print');
+        });
+
+        test('printMessage reports a rejected native print call', async () => {
+            mockMessageHandler.getCurrentMessage.mockReturnValue(createMockMessage());
+            window.print = jest.fn(() => Promise.reject(new Error('not allowed')));
+            const showErrorSpy = jest.spyOn(uiManager, 'showError').mockImplementation(() => {});
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+            uiManager.printMessage();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            expect(showErrorSpy).toHaveBeenCalledWith('Failed to open print dialog');
+            consoleSpy.mockRestore();
+        });
+
+        test('uses the message subject as document title while printing', () => {
+            const listeners = {};
+            const addListenerSpy = jest
+                .spyOn(window, 'addEventListener')
+                .mockImplementation((type, listener) => {
+                    listeners[type] = listener;
+                });
+            new UIManager(mockMessageHandler);
+            addListenerSpy.mockRestore();
+            mockMessageHandler.getCurrentMessage.mockReturnValue(
+                createMockMessage({ subject: 'Quarterly report' })
+            );
+            document.title = 'msgReader';
+
+            listeners.beforeprint();
+            expect(document.title).toBe('Quarterly report');
+
+            listeners.afterprint();
+            expect(document.title).toBe('msgReader');
         });
     });
 

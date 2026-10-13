@@ -3,7 +3,7 @@ import { MessageContentRenderer } from './MessageContentRenderer.js';
 import { AttachmentModalManager } from './AttachmentModalManager.js';
 import { ToastManager } from './ToastManager.js';
 import { SearchManager } from '../SearchManager.js';
-import { isTauri, saveFileWithDialog } from '../tauri-bridge.js';
+import { isTauri, printWebview, saveFileWithDialog } from '../tauri-bridge.js';
 import {
     getExportFileName,
     getOriginalMessageMimeType,
@@ -62,6 +62,7 @@ class UIManager {
         this.devPanel = null;
         this.initEventDelegation();
         this.initSearchListeners();
+        this.initPrintTitle();
         this.updateBulkActions();
     }
 
@@ -224,6 +225,8 @@ class UIManager {
             else if (action === 'toggle-export-menu') {
                 e.stopPropagation();
                 this.toggleExportMenu(btn);
+            } else if (action === 'print-message') {
+                this.printMessage();
             } else if (action === 'export-message') {
                 const message = this.messageHandler.getMessages()[index];
                 if (message) {
@@ -856,6 +859,45 @@ class UIManager {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(objectUrl);
+    }
+
+    /**
+     * Uses the subject as document title while printing, so the print header
+     * and the suggested PDF file name match the message
+     */
+    initPrintTitle() {
+        let titleBeforePrint = null;
+
+        window.addEventListener('beforeprint', () => {
+            const subject = this.messageHandler.getCurrentMessage()?.subject;
+            if (!subject) return;
+            titleBeforePrint = document.title;
+            document.title = subject;
+        });
+
+        window.addEventListener('afterprint', () => {
+            if (titleBeforePrint === null) return;
+            document.title = titleBeforePrint;
+            titleBeforePrint = null;
+        });
+    }
+
+    /**
+     * Opens the print dialog for the currently displayed message.
+     * Print styles in styles.css reduce the page to the message itself.
+     */
+    printMessage() {
+        if (!this.messageHandler.getCurrentMessage()) {
+            this.showInfo('Select a message to print');
+            return;
+        }
+
+        Promise.resolve()
+            .then(() => printWebview())
+            .catch((error) => {
+                console.error('Failed to print message:', error);
+                this.showError('Failed to open print dialog');
+            });
     }
 
     /**
