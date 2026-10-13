@@ -35,7 +35,8 @@ import {
     createMockParsers,
     createMockFile,
     createKeyboardEvent,
-    waitForDOMUpdate
+    waitForDOMUpdate,
+    waitForMessages
 } from './test-helpers.js';
 
 describe('Keyboard Navigation Flow Integration', () => {
@@ -72,7 +73,7 @@ describe('Keyboard Navigation Flow Integration', () => {
         // Add files
         const files = messages.map((_, i) => createMockFile(`message${i + 1}.msg`, 'content'));
         fileHandler.handleFiles(files);
-        await waitForDOMUpdate(100);
+        await waitForMessages(messageHandler, count);
 
         return messages;
     }
@@ -130,9 +131,17 @@ describe('Keyboard Navigation Flow Integration', () => {
     });
 
     describe('Arrow key navigation', () => {
-        it('should navigate to next message with ArrowDown', async () => {
+        it.each([0, 150])('should navigate to next message with ArrowDown after %i ms file reads', async (delay) => {
             // Arrange - Add 3 messages
-            await addMessages(3);
+            const readAsArrayBuffer = FileReader.prototype.readAsArrayBuffer;
+            const readSpy = jest.spyOn(FileReader.prototype, 'readAsArrayBuffer').mockImplementation(function(file) {
+                setTimeout(() => readAsArrayBuffer.call(this, file), delay);
+            });
+            try {
+                await addMessages(3);
+            } finally {
+                readSpy.mockRestore();
+            }
             expect(messageHandler.getMessages()).toHaveLength(3);
 
             // Show first message

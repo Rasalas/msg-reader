@@ -1,41 +1,27 @@
 version: 2
+
+# One weekly PR for version updates across the web app, desktop app and CI.
+# Security updates remain independent so fixes do not wait for this schedule.
+multi-ecosystem-groups:
+  dependencies:
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"
+
 updates:
-  # npm dependencies
   - package-ecosystem: "npm"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 10
-    groups:
-      dev-dependencies:
-        dependency-type: "development"
-        update-types:
-          - "minor"
-          - "patch"
-      production-dependencies:
-        dependency-type: "production"
-        update-types:
-          - "minor"
-          - "patch"
-    commit-message:
-      prefix: "chore(deps)"
+    patterns: ["*"]
+    multi-ecosystem-group: "dependencies"
 
-  # Rust/Cargo dependencies for Tauri
   - package-ecosystem: "cargo"
     directory: "/src-tauri"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
+    patterns: ["*"]
+    multi-ecosystem-group: "dependencies"
 
-  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "chore(deps)"
+    patterns: ["*"]
+    multi-ecosystem-group: "dependencies"
