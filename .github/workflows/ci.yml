@@ -56,6 +56,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -69,8 +78,8 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      - name: Check desktop app
-        run: cargo check --locked --manifest-path src-tauri/Cargo.toml
+      - name: Build desktop app
+        run: npx tauri build --debug --no-bundle -- --locked
 
   security:
     runs-on: ubuntu-latest
