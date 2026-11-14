@@ -20,11 +20,27 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "dragDropEnabled": true
+        "dragDropEnabled": true,
+        "label": "main",
+        "create": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: https: http:",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost",
+        "media-src": "'self' data: blob:",
+        "object-src": "'self' blob:",
+        "frame-src": "'self' blob:",
+        "worker-src": "'self' blob:",
+        "base-uri": "'none'",
+        "form-action": "'none'"
+      },
+      "dangerousDisableAssetCspModification": ["style-src"]
     }
   },
   "bundle": {
@@ -79,9 +95,7 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": [
-        "https://github.com/Rasalas/msg-reader/releases/latest/download/latest.json"
-      ],
+      "endpoints": ["https://github.com/Rasalas/msg-reader/releases/latest/download/latest.json"],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBNEFGMkEyODRDM0E4MDEKUldRQnFNT0VvdkpLNnVmK3FScU85VGxWTFRsMWh5MHNMTUFTUFI4Mmt3UjhocDVUUTFxRmZiQkcK"
     }
   }

@@ -1,4 +1,4 @@
-import { escapeHTML, sanitizeHTML } from '../sanitizer.js';
+import { escapeHTML, sanitizeEmailHTML } from '../sanitizer.js';
 import { formatContact, getContactEmail } from '../addressUtils.js';
 import { parseColor, getContrastRatio, adjustColorForContrast } from '../colorUtils.js';
 import { isInlineImageAttachment } from '../helpers.js';
@@ -49,7 +49,7 @@ export class MessageContentRenderer {
 
         const messageContent = `
             <div class="message-header">
-                <div class="message-title pl-6">${msgInfo.subject}</div>
+                <div class="message-title pl-6">${escapeHTML(msgInfo.subject)}</div>
                 <div class="message-actions pr-4">
                     <div class="message-export-menu">
                         <button data-action="toggle-export-menu" data-index="${messageIndex}" class="action-button rounded-full" title="export message">
@@ -330,29 +330,6 @@ export class MessageContentRenderer {
     }
 
     /**
-     * Scopes CSS styles within email content to prevent style leakage
-     * @param {string} htmlContent - HTML content with potential style tags
-     * @returns {string} HTML content with scoped styles
-     */
-    scopeEmailStyles(htmlContent) {
-        if (!htmlContent) return '';
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-
-        // Find all style tags and scope them to .email-content
-        const styleTags = tempDiv.getElementsByTagName('style');
-        Array.from(styleTags).forEach((styleTag) => {
-            const cssText = styleTag.textContent;
-            // Scope all CSS rules to .email-content
-            const scopedCss = cssText.replace(/([^{}]+){/g, '.email-content $1{');
-            styleTag.textContent = scopedCss;
-        });
-
-        return tempDiv.innerHTML;
-    }
-
-    /**
      * Processes email content: converts plain text to HTML if needed and scopes styles
      * @param {Object} msgInfo - Message object
      * @returns {string} Processed and sanitized email content
@@ -363,7 +340,7 @@ export class MessageContentRenderer {
         // If no HTML, convert plain text to HTML with paragraphs and line breaks
         if (!msgInfo.bodyContentHTML && emailContent) {
             // Normalize line endings
-            const text = emailContent.replace(/\r\n/g, '\n');
+            const text = escapeHTML(emailContent).replace(/\r\n/g, '\n');
             // Split into paragraphs by double line breaks
             const paragraphs = text.split(/\n{2,}/).map((p) => {
                 // Replace single line breaks in paragraph with <br>
@@ -372,9 +349,7 @@ export class MessageContentRenderer {
             emailContent = '<p>' + paragraphs.join('</p><p>') + '</p>';
         }
 
-        // Scope styles and sanitize
-        emailContent = this.scopeEmailStyles(emailContent);
-        return sanitizeHTML(emailContent);
+        return sanitizeEmailHTML(emailContent);
     }
 
     /**
@@ -521,8 +496,8 @@ export class MessageContentRenderer {
                                 ${this.getAttachmentItemIcon(attachment)}
                             </div>
                             <div>
-                                <p class="attachment-filename">${attachment.fileName}</p>
-                                <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                                <p class="attachment-filename">${escapeHTML(attachment.fileName)}</p>
+                                <p class="attachment-meta">${escapeHTML(attachment.attachMimeTag)} - ${escapeHTML(attachment.contentLength)} bytes</p>
                             </div>
                             <button data-action="download"
                                     data-attachment-index="${index}"
@@ -547,8 +522,8 @@ export class MessageContentRenderer {
                             ${this.getAttachmentItemIcon(attachment)}
                         </div>
                         <div>
-                            <p class="attachment-filename">${attachment.fileName}</p>
-                            <p class="attachment-meta">${attachment.attachMimeTag} - ${attachment.contentLength} bytes</p>
+                            <p class="attachment-filename">${escapeHTML(attachment.fileName)}</p>
+                            <p class="attachment-meta">${escapeHTML(attachment.attachMimeTag)} - ${escapeHTML(attachment.contentLength)} bytes</p>
                         </div>
                         <div class="ml-auto pl-2 attachment-download-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -574,7 +549,7 @@ export class MessageContentRenderer {
         const isEml = this.attachmentModal?.isPreviewableEml(attachment.attachMimeTag);
 
         if (isImage) {
-            return `<img src="${attachment.contentBase64}" alt="Attachment" class="w-10 h-10 object-cover">`;
+            return `<img src="${escapeHTML(attachment.contentBase64)}" alt="Attachment" class="w-10 h-10 object-cover">`;
         }
 
         if (isPdf) {

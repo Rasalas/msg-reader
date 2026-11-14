@@ -1,4 +1,5 @@
 import { isTauri, openWithSystemViewer, saveFileWithDialog } from '../tauri-bridge.js';
+import { escapeHTML, sanitizeHTML, sanitizeURL } from '../sanitizer.js';
 import { extractEml } from '../utils.js';
 import { dataUrlToArrayBuffer, decodeDataUrlText, getDataUrlBase64 } from '../encoding.js';
 import { formatContact, getContactEmail } from '../addressUtils.js';
@@ -751,7 +752,14 @@ export class AttachmentModalManager {
             return;
         }
 
-        this.attachmentModalSourceLink.href = linkHref;
+        const safeHref = sanitizeURL(linkHref);
+        if (!safeHref) {
+            this.attachmentModalSourceLink.hidden = true;
+            this.attachmentModalSourceLink.removeAttribute('href');
+            return;
+        }
+
+        this.attachmentModalSourceLink.href = safeHref;
         this.attachmentModalSourceLink.hidden = false;
     }
 
@@ -981,7 +989,7 @@ export class AttachmentModalManager {
                                 img { max-width: 100%; height: auto; }
                             </style>
                         </head>
-                        <body>${emailData.bodyContentHTML}</body>
+                        <body>${sanitizeHTML(emailData.bodyContentHTML)}</body>
                         </html>
                     `);
                     doc.close();
@@ -1014,7 +1022,7 @@ export class AttachmentModalManager {
                     // Icon selection helper
                     const getIcon = () => {
                         if (isImage) {
-                            return `<img src="${att.contentBase64}" alt="Attachment" class="w-10 h-10 object-cover">`;
+                            return `<img src="${escapeHTML(att.contentBase64)}" alt="Attachment" class="w-10 h-10 object-cover">`;
                         } else if (isPdf) {
                             return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-red-500">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -1049,7 +1057,7 @@ export class AttachmentModalManager {
                             </div>
                             <div class="flex-1 min-w-0">
                                 <p class="attachment-filename">${this.escapeHtml(att.fileName)}</p>
-                                <p class="attachment-meta">${att.attachMimeTag} - ${this.formatFileSize(att.contentLength)}</p>
+                                <p class="attachment-meta">${this.escapeHtml(att.attachMimeTag)} - ${this.formatFileSize(att.contentLength)}</p>
                             </div>
                             <button class="ml-auto pl-2 attachment-download-btn nested-download-btn"
                                     title="Download">
@@ -1081,7 +1089,7 @@ export class AttachmentModalManager {
                             </div>
                             <div class="flex-1 min-w-0">
                                 <p class="attachment-filename">${this.escapeHtml(att.fileName)}</p>
-                                <p class="attachment-meta">${att.attachMimeTag} - ${this.formatFileSize(att.contentLength)}</p>
+                                <p class="attachment-meta">${this.escapeHtml(att.attachMimeTag)} - ${this.formatFileSize(att.contentLength)}</p>
                             </div>
                             <div class="ml-auto pl-2 attachment-download-btn">
                                 ${downloadIcon}
@@ -1131,10 +1139,7 @@ export class AttachmentModalManager {
      * @returns {string} Escaped text
      */
     escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return escapeHTML(text);
     }
 
     /**

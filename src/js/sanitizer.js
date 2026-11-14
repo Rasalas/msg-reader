@@ -45,7 +45,6 @@ export const SANITIZE_CONFIG = {
     // Allow data: URLs only for images (base64 embedded images are common in emails)
     ALLOW_UNKNOWN_PROTOCOLS: false,
     ADD_ATTR: ['target'],
-    // Force all links to open in new tab for security
     WHOLE_DOCUMENT: false,
     RETURN_DOM: false,
     RETURN_DOM_FRAGMENT: false
@@ -75,40 +74,112 @@ function cleanMsoStyles(html) {
     });
 }
 
-/**
- * Sanitizes HTML content to prevent XSS attacks
- * @param {string} html - The untrusted HTML content
- * @returns {string} Sanitized HTML safe for innerHTML
- */
-export function sanitizeHTML(html) {
-    if (!html) return '';
+const EMAIL_STYLE_SCOPE = '.email-content';
+const KEYFRAME_SELECTOR = /^(?:from|to|\d+(?:\.\d+)?%)$/i;
+const DOCUMENT_ROOT_SELECTOR = /^(?:(?:html|body|:root)(?=\s|>|$)\s*>?\s*)+/i;
 
-    // Clean problematic MSO styles before sanitizing
-    const cleanedHtml = cleanMsoStyles(html);
-
-    // Create a DOMPurify instance (for browser environment)
-    let cleanHTML;
-    try {
-        cleanHTML = DOMPurify.sanitize(cleanedHtml, SANITIZE_CONFIG);
-    } catch (error) {
-        console.error('Error sanitizing HTML:', error);
-        // Return escaped text as fallback
-        return escapeHTML(html);
-    }
-
-    return cleanHTML;
+function scopeSelector(selector, scope) {
+    const rest = selector.replace(DOCUMENT_ROOT_SELECTOR, '').trim();
+    return rest ? `${scope} ${rest}` : scope;
 }
 
 /**
- * Escapes HTML special characters
+ * Prefixes every selector in a stylesheet so email CSS cannot restyle the app
+ * @param {string} cssText - Stylesheet text from an email
+ * @param {string} [scope] - Selector of the email container
+ * @returns {string} Scoped stylesheet text
+ */
+export function scopeCss(cssText, scope = EMAIL_STYLE_SCOPE) {
+    if (!cssText) return '';
+
+    return cssText.replace(/([^{}]+)\{/g, (match, prelude) => {
+        const selectors = prelude.split(',').map((selector) => selector.trim());
+        if (
+            selectors[0].startsWith('@') ||
+            selectors.every((selector) => !selector || KEYFRAME_SELECTOR.test(selector))
+        ) {
+            return match;
+        }
+
+        const leadingWhitespace = prelude.match(/^\s*/)[0];
+        const scoped = selectors
+            .filter(Boolean)
+            .map((selector) => scopeSelector(selector, scope))
+            .join(', ');
+        return `${leadingWhitespace}${scoped} {`;
+    });
+}
+
+let emailPurifier = null;
+
+// Separate instance so the email hooks don't affect other sanitizeHTML callers.
+function getEmailPurifier() {
+    if (emailPurifier) return emailPurifier;
+
+    emailPurifier = DOMPurify(window);
+    emailPurifier.addHook('afterSanitizeElements', (node) => {
+        if (node.nodeName === 'STYLE') {
+            node.textContent = scopeCss(node.textContent);
+        }
+    });
+    emailPurifier.addHook('afterSanitizeAttributes', (node) => {
+        const href = node.nodeName === 'A' ? node.getAttribute('href') : null;
+        if (href && !href.startsWith('#')) {
+            node.setAttribute('target', '_blank');
+            node.setAttribute('rel', 'noopener noreferrer');
+        }
+    });
+    return emailPurifier;
+}
+
+function purify(purifier, html, configOverrides) {
+    if (!html) return '';
+
+    try {
+        return purifier.sanitize(cleanMsoStyles(html), { ...SANITIZE_CONFIG, ...configOverrides });
+    } catch (error) {
+        console.error('Error sanitizing HTML:', error);
+        return escapeHTML(html);
+    }
+}
+
+/**
+ * Sanitizes HTML content to prevent XSS attacks
+ * @param {string} html - The untrusted HTML content
+ * @param {Object} [configOverrides] - Extra DOMPurify options
+ * @returns {string} Sanitized HTML safe for innerHTML
+ */
+export function sanitizeHTML(html, configOverrides = {}) {
+    return purify(DOMPurify, html, configOverrides);
+}
+
+/**
+ * Sanitizes an email body for the message viewer.
+ * Style sheets are scoped to the email container and links open outside the app.
+ * Sanitizing happens before any DOM sees the markup, so no handler can fire.
+ * @param {string} html - The untrusted email HTML
+ * @returns {string} Sanitized HTML safe for innerHTML
+ */
+export function sanitizeEmailHTML(html) {
+    return purify(getEmailPurifier(), html);
+}
+
+const HTML_ESCAPES = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+};
+
+/**
+ * Escapes HTML special characters; the result is safe in text and quoted attributes
  * @param {string} text - Plain text to escape
  * @returns {string} HTML-escaped text
  */
 export function escapeHTML(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    if (text === null || text === undefined || text === '') return '';
+    return String(text).replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
 }
 
 /**

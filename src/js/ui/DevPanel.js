@@ -1,3 +1,5 @@
+import { escapeHTML } from '../sanitizer.js';
+
 /**
  * DevPanel UI Component
  * Displays debug information about parsed email content
@@ -136,7 +138,7 @@ export class DevPanel {
         this.container.innerHTML = `
             <div class="dev-panel-header">
                 <div class="dev-panel-title">
-                    <span class="dev-panel-badge">${this.debugData.fileType?.toUpperCase()}</span>
+                    <span class="dev-panel-badge">${this.escapeHtml(this.debugData.fileType?.toUpperCase())}</span>
                     <span>Debug Panel</span>
                     <span class="dev-panel-size">${this.formatSize(this.debugData.rawSize)}</span>
                 </div>
@@ -204,7 +206,7 @@ export class DevPanel {
         return `
             <div class="dev-panel-info">
                 <span>Size: ${this.formatSize(data.rawSize)}</span>
-                <span>Type: ${data.fileType?.toUpperCase()}</span>
+                <span>Type: ${this.escapeHtml(data.fileType?.toUpperCase())}</span>
                 ${truncated ? '<span class="dev-panel-truncated">Truncated (showing first 5000 chars)</span>' : ''}
             </div>
             <pre class="dev-panel-code">${preview}</pre>
@@ -228,7 +230,7 @@ export class DevPanel {
                 `<span class="dev-header-key">Subject:</span> ${this.escapeHtml(info.subject || '')}`,
                 `<span class="dev-header-key">From:</span> ${this.escapeHtml(info.senderName || '')} &lt;${this.escapeHtml(info.senderEmail || '')}&gt;`,
                 `<span class="dev-header-key">Date:</span> ${this.escapeHtml(info.messageDeliveryTime || '')}`,
-                `<span class="dev-header-key">Internet Codepage:</span> ${info.internetCodepage || 'N/A'}`,
+                `<span class="dev-header-key">Internet Codepage:</span> ${this.escapeHtml(info.internetCodepage || 'N/A')}`,
                 `<span class="dev-header-key">Message Class:</span> ${this.escapeHtml(info.messageClass || 'N/A')}`,
             ].join('\n');
             return `<pre class="dev-panel-code dev-panel-headers">${headers}</pre>`;
@@ -271,9 +273,9 @@ export class DevPanel {
 
         return `
             <div class="dev-panel-info">
-                <span>Source: ${data.htmlSource || 'unknown'}</span>
+                <span>Source: ${this.escapeHtml(data.htmlSource || 'unknown')}</span>
                 <span>Size: ${this.formatSize(html.length)}</span>
-                ${data.charset ? `<span>Charset: ${data.charset}</span>` : ''}
+                ${data.charset ? `<span>Charset: ${this.escapeHtml(data.charset)}</span>` : ''}
                 ${truncated ? '<span class="dev-panel-truncated">Truncated</span>' : ''}
             </div>
             <pre class="dev-panel-code dev-panel-html">${escaped}</pre>
@@ -492,10 +494,7 @@ export class DevPanel {
      * Escape HTML special characters
      */
     escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return escapeHTML(text);
     }
 }
 

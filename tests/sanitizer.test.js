@@ -133,11 +133,13 @@ describe('escapeHTML', () => {
         expect(result).toContain('&amp;');
     });
 
-    test('preserves quotes in text', () => {
-        const input = 'Say "Hello"';
-        const result = escapeHTML(input);
-        // textContent preserves quotes as-is (they don't need escaping in text nodes)
-        expect(result).toContain('"Hello"');
+    test('escapes quotes so the result is safe inside attributes', () => {
+        expect(escapeHTML(`Say "Hello" it's`)).toBe('Say &quot;Hello&quot; it&#39;s');
+    });
+
+    test('stringifies non-string values', () => {
+        expect(escapeHTML(42)).toBe('42');
+        expect(escapeHTML(0)).toBe('0');
     });
 
     test('handles empty input', () => {

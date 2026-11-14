@@ -1,4 +1,4 @@
-import { escapeHTML } from './sanitizer.js';
+import { escapeHTML, sanitizeHTML } from './sanitizer.js';
 import { textToBase64 } from './encoding.js';
 import {
     formatAddressHeader,
@@ -114,10 +114,14 @@ function createPlainTextFallback(message) {
     const body = message?.bodyContentHTML || '';
     if (!body) return '';
 
-    if (typeof document !== 'undefined') {
-        const container = document.createElement('div');
-        container.innerHTML = body.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n');
-        return (container.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+    if (typeof DOMParser !== 'undefined') {
+        // DOMParser documents are inert: no scripts, handlers or image loads
+        const parsed = new DOMParser().parseFromString(
+            body.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n'),
+            'text/html'
+        );
+        parsed.querySelectorAll('style, script').forEach((node) => node.remove());
+        return (parsed.body?.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
     return body
@@ -311,6 +315,10 @@ export function messageToEml(message) {
     return `${headers.join('\r\n')}\r\n\r\n${mixedBody.join('\r\n')}`;
 }
 
+// Exported pages are opened from disk later, so they must not run anything either.
+const EXPORT_CSP =
+    "default-src 'none'; img-src data: cid: https: http:; style-src 'unsafe-inline'; font-src data:";
+
 export function messageToHtmlDocument(message) {
     const recipientsTo = (message?.recipients || [])
         .filter((recipient) => recipient.recipType === 'to')
@@ -325,8 +333,9 @@ export function messageToHtmlDocument(message) {
         )
         .join(', ');
 
-    const bodyHtml =
-        message?.bodyContentHTML || `<pre>${escapeHTML(message?.bodyContent || '')}</pre>`;
+    const bodyHtml = message?.bodyContentHTML
+        ? sanitizeHTML(message.bodyContentHTML, { FORCE_BODY: true })
+        : `<pre>${escapeHTML(message?.bodyContent || '')}</pre>`;
     const { regularAttachments } = partitionAttachments(bodyHtml, message?.attachments || []);
     const headerMap = getHeaderMap(message);
     const replyTo = getRawHeader(message, 'reply-to');
@@ -342,7 +351,7 @@ export function messageToHtmlDocument(message) {
                     .map(
                         (attachment) => `
                 <li>
-                    <a href="${attachment.contentBase64}" download="${escapeHTML(attachment.fileName || 'attachment')}">${escapeHTML(attachment.fileName || 'attachment')}</a>
+                    <a href="${escapeHTML(attachment.contentBase64)}" download="${escapeHTML(attachment.fileName || 'attachment')}">${escapeHTML(attachment.fileName || 'attachment')}</a>
                     <span>${escapeHTML(attachment.attachMimeTag || 'application/octet-stream')}</span>
                 </li>`
                     )
@@ -356,6 +365,7 @@ export function messageToHtmlDocument(message) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="${EXPORT_CSP}">
     <title>${escapeHTML(message?.subject || 'Message')}</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 2rem; background: #f8fafc; color: #0f172a; }

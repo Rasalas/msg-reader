@@ -112,8 +112,8 @@ export function getFileName(filePath) {
 }
 
 /**
- * Open a file with the system's default application (Tauri only)
- * Saves the file to a temp location and opens it
+ * Open a PDF attachment with the system's default PDF viewer (Tauri only)
+ * The backend always stores it with a .pdf extension in a private temp directory
  * @param {string} base64Data - Base64 data URL (data:mime/type;base64,...)
  * @param {string} fileName - Original filename
  * @returns {Promise<void>}
@@ -128,8 +128,7 @@ export async function openWithSystemViewer(base64Data, fileName) {
     // Extract the base64 content (remove data:mime/type;base64, prefix)
     const base64Content = base64Data.split(',')[1];
 
-    // Call Rust command to save and open the file
-    await invoke('open_file_with_system', {
+    await invoke('open_pdf_with_system', {
         base64Content,
         fileName
     });

@@ -88,6 +88,18 @@ export function isTextMimeType(mimeType) {
 }
 
 /**
+ * Returns a MIME type that is safe to embed in a data: URL or HTML attribute
+ * @param {string} mimeType - MIME type taken from an email
+ * @returns {string} The lower-cased type, or application/octet-stream if malformed
+ */
+export function toSafeMimeType(mimeType) {
+    const normalized = String(mimeType || '').trim().toLowerCase();
+    return /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/.test(normalized)
+        ? normalized
+        : 'application/octet-stream';
+}
+
+/**
  * Extracts the base MIME type without parameters
  * @param {string} contentType - Full Content-Type header value
  * @returns {string} Base MIME type (e.g., "text/html")

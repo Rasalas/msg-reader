@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-file-with-dialog"
+description = "Enables the save_file_with_dialog command without any pre-configured scope."
+commands.allow = ["save_file_with_dialog"]
+
+[[permission]]
+identifier = "deny-save-file-with-dialog"
+description = "Denies the save_file_with_dialog command without any pre-configured scope."
+commands.deny = ["save_file_with_dialog"]

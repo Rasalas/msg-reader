@@ -1,73 +1,74 @@
-use std::path::PathBuf;
-use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager};
+use std::collections::HashSet;
 use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use tauri::webview::NewWindowResponse;
+use tauri::{AppHandle, DragDropEvent, Emitter, Manager, Url, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
 
 mod printing;
+mod security;
 
 /// Store pending file paths for when app is launched via file association
 pub struct PendingFiles(pub Mutex<Vec<PathBuf>>);
 
-/// Read a file from the filesystem and return its bytes
-#[tauri::command]
-fn read_file_as_bytes(path: String) -> Result<Vec<u8>, String> {
-    std::fs::read(&path).map_err(|e| format!("Failed to read file {}: {}", path, e))
+/// Email files the user handed to the app (file association, CLI, drag & drop).
+/// `read_file_as_bytes` only serves paths from this set.
+#[derive(Default)]
+pub struct OpenedFiles(Mutex<HashSet<PathBuf>>);
+
+impl OpenedFiles {
+    fn grant(&self, path: &Path) {
+        if !security::is_email_file(path) {
+            return;
+        }
+        if let Ok(canonical) = path.canonicalize() {
+            self.0.lock().unwrap().insert(canonical);
+        }
+    }
+
+    fn is_granted(&self, path: &Path) -> bool {
+        match path.canonicalize() {
+            Ok(canonical) => self.0.lock().unwrap().contains(&canonical),
+            Err(_) => false,
+        }
+    }
 }
 
-/// Save a base64-encoded file to temp directory and open with system viewer
+/// Read an email file the user opened and return its bytes
 #[tauri::command]
-fn open_file_with_system(base64_content: String, file_name: String) -> Result<(), String> {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+fn read_file_as_bytes(path: String, opened: tauri::State<'_, OpenedFiles>) -> Result<Vec<u8>, String> {
+    let path = PathBuf::from(path);
+    if !security::is_email_file(&path) || !opened.is_granted(&path) {
+        return Err("Access denied: file was not opened by the user".to_string());
+    }
+    std::fs::read(&path).map_err(|e| format!("Failed to read file: {}", e))
+}
 
-    // Decode base64 content
-    let bytes = STANDARD.decode(&base64_content)
+/// Save a base64-encoded PDF to a private temp directory and open it with the system viewer
+#[tauri::command]
+fn open_pdf_with_system(base64_content: String, file_name: String) -> Result<(), String> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+
+    let bytes = STANDARD
+        .decode(&base64_content)
         .map_err(|e| format!("Failed to decode base64: {}", e))?;
 
-    // Create temp file path
-    let temp_dir = std::env::temp_dir();
-    let temp_path = temp_dir.join(&file_name);
+    let dir = security::create_private_temp_dir()
+        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+    let temp_path = dir.join(security::safe_file_name(&file_name, Some("pdf")));
 
-    // Write to temp file
-    let mut file = std::fs::File::create(&temp_path)
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp_path)
         .map_err(|e| format!("Failed to create temp file: {}", e))?;
     file.write_all(&bytes)
         .map_err(|e| format!("Failed to write temp file: {}", e))?;
+    drop(file);
 
-    // Open with system default application
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&temp_path)
-            .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        // Use cmd.exe's start command - more reliable than PowerShell for opening files
-        // The empty "" is required as start interprets the first quoted arg as window title
-        // CREATE_NO_WINDOW prevents the console window from flashing
-        std::process::Command::new("cmd")
-            .args(["/c", "start", ""])
-            .arg(&temp_path)
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&temp_path)
-            .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
-    }
-
-    Ok(())
+    tauri_plugin_opener::open_path(&temp_path, None::<&str>)
+        .map_err(|e| format!("Failed to open file: {}", e))
 }
 
 /// Save a file with a "Save As" dialog
@@ -77,8 +78,10 @@ async fn save_file_with_dialog(
     base64_content: String,
     file_name: String,
 ) -> Result<bool, String> {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
     use tauri_plugin_dialog::FilePath;
+
+    let file_name = security::safe_file_name(&file_name, None);
 
     // Extract file extension for filter
     let extension = std::path::Path::new(&file_name)
@@ -122,31 +125,53 @@ fn get_pending_files(state: tauri::State<'_, PendingFiles>) -> Vec<String> {
     files
 }
 
+/// Queue a file opened before the frontend is ready
+fn queue_pending_file(app: &AppHandle, path: PathBuf) {
+    if !security::is_email_file(&path) {
+        return;
+    }
+    app.state::<OpenedFiles>().grant(&path);
+    app.state::<PendingFiles>().0.lock().unwrap().push(path);
+}
+
 /// Handle a file being opened - emit event to frontend
 fn handle_file_open(app: &AppHandle, path: PathBuf) {
-    // Validate file extension
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_lowercase());
+    if !security::is_email_file(&path) {
+        eprintln!("Unsupported file type: {:?}", path);
+        return;
+    }
 
-    match ext.as_deref() {
-        Some("msg") | Some("eml") => {
-            // Emit event to frontend
-            if let Err(e) = app.emit("file-open", path.to_string_lossy().to_string()) {
-                eprintln!("Failed to emit file-open event: {}", e);
-            }
-        }
-        _ => {
-            eprintln!("Unsupported file type: {:?}", path);
+    app.state::<OpenedFiles>().grant(&path);
+    if let Err(e) = app.emit("file-open", path.to_string_lossy().to_string()) {
+        eprintln!("Failed to emit file-open event: {}", e);
+    }
+}
+
+fn grant_dropped_files(app: &AppHandle, event: &DragDropEvent) {
+    if let DragDropEvent::Drop { paths, .. } = event {
+        let opened = app.state::<OpenedFiles>();
+        for path in paths {
+            opened.grant(path);
         }
     }
+}
+
+/// Keeps the main webview on the app's own pages; web links go to the system browser.
+fn handle_navigation(app: &AppHandle, url: &Url) -> bool {
+    if security::is_app_url(url, app.config().build.dev_url.as_ref()) {
+        return true;
+    }
+    if security::is_external_link(url) {
+        if let Err(e) = tauri_plugin_opener::open_url(url.as_str(), None::<&str>) {
+            eprintln!("Failed to open link: {}", e);
+        }
+    }
+    false
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
@@ -162,29 +187,52 @@ pub fn run() {
             }
         }))
         .manage(PendingFiles(Mutex::new(Vec::new())))
+        .manage(OpenedFiles::default())
+        .on_window_event(|window, event| {
+            if let WindowEvent::DragDrop(drop) = event {
+                grant_dropped_files(window.app_handle(), drop);
+            }
+        })
+        .on_webview_event(|webview, event| {
+            if let tauri::WebviewEvent::DragDrop(drop) = event {
+                grant_dropped_files(webview.app_handle(), drop);
+            }
+        })
         .setup(|app| {
             // Check for files passed as command-line arguments on startup (Windows/Linux)
-            let args: Vec<String> = std::env::args().collect();
-            for arg in args.iter().skip(1) {
-                let path = PathBuf::from(arg);
-                let ext = path
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .map(|e| e.to_lowercase());
-
-                if matches!(ext.as_deref(), Some("msg") | Some("eml")) {
-                    // Store for later retrieval by frontend
-                    app.state::<PendingFiles>()
-                        .0
-                        .lock()
-                        .unwrap()
-                        .push(path);
-                }
+            let handle = app.handle().clone();
+            for arg in std::env::args().skip(1) {
+                queue_pending_file(&handle, PathBuf::from(arg));
             }
+
+            // Created here instead of from config so navigation can be restricted
+            let window_config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|w| w.label == "main")
+                .cloned()
+                .ok_or("missing main window config")?;
+            let nav_handle = handle.clone();
+            let popup_handle = handle.clone();
+            WebviewWindowBuilder::from_config(app, &window_config)?
+                .on_navigation(move |url| handle_navigation(&nav_handle, url))
+                .on_new_window(move |url, _features| {
+                    handle_navigation(&popup_handle, &url);
+                    NewWindowResponse::Deny
+                })
+                .build()?;
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_file_as_bytes, get_pending_files, open_file_with_system, save_file_with_dialog, printing::print_message]);
+        .invoke_handler(tauri::generate_handler![
+            read_file_as_bytes,
+            get_pending_files,
+            open_pdf_with_system,
+            save_file_with_dialog,
+            printing::print_message
+        ]);
 
     builder
         .build(tauri::generate_context!())
@@ -195,26 +243,11 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = &event {
                 for url in urls {
-                    // Convert file:// URL to path
                     if let Ok(path) = url.to_file_path() {
-                        // Check if app is ready (has windows)
                         if app.get_webview_window("main").is_some() {
-                            // App is running, emit event
                             handle_file_open(app, path);
                         } else {
-                            // App is starting up, store for later
-                            let ext = path
-                                .extension()
-                                .and_then(|e| e.to_str())
-                                .map(|e| e.to_lowercase());
-
-                            if matches!(ext.as_deref(), Some("msg") | Some("eml")) {
-                                app.state::<PendingFiles>()
-                                    .0
-                                    .lock()
-                                    .unwrap()
-                                    .push(path);
-                            }
+                            queue_pending_file(app, path);
                         }
                     }
                 }

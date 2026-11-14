@@ -8,7 +8,8 @@ import {
     extractBaseMimeType,
     extractBoundary,
     extractCharset,
-    getCharsetFromCodepage
+    getCharsetFromCodepage,
+    toSafeMimeType
 } from './helpers.js';
 import { BASE64_SIZE_FACTOR, DEFAULT_CHARSET } from './constants.js';
 import { replaceCidReferences } from './cidReplacer.js';
@@ -347,7 +348,7 @@ function createAttachment(filename, mimeType, base64Content, contentId = null) {
         fileName: sanitizeFilename(filename),
         attachMimeTag: mimeType,
         contentLength: Math.floor(base64Content.length * BASE64_SIZE_FACTOR),
-        contentBase64: `data:${mimeType};base64,${base64Content}`
+        contentBase64: `data:${toSafeMimeType(mimeType)};base64,${base64Content}`
     };
 
     if (contentId) {
@@ -643,7 +644,7 @@ function processMsgAttachments(msgReader, attachments) {
         return {
             ...attachment,
             fileName: resolveMsgAttachmentFilename(attachment, attachmentData.fileName),
-            contentBase64: `data:${attachment.attachMimeTag};base64,${contentBase64}`
+            contentBase64: `data:${toSafeMimeType(attachment.attachMimeTag)};base64,${contentBase64}`
         };
     });
 }

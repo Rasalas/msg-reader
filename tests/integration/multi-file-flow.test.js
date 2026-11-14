@@ -21,9 +21,13 @@ jest.mock('../../src/js/tauri-bridge.js', () => ({
     checkForUpdates: jest.fn()
 }));
 
-jest.mock('dompurify', () => ({
-    sanitize: jest.fn((html) => html)
-}));
+jest.mock('dompurify', () => {
+    // DOMPurify is both an instance and a factory for further instances
+    const purifier = jest.fn(() => purifier);
+    purifier.sanitize = jest.fn((html) => html);
+    purifier.addHook = jest.fn();
+    return purifier;
+});
 
 import MessageHandler from '../../src/js/MessageHandler.js';
 import UIManager from '../../src/js/UIManager.js';

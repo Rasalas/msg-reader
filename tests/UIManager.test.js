@@ -13,9 +13,13 @@ jest.mock('../src/js/tauri-bridge.js', () => ({
 }));
 
 // Mock DOMPurify
-jest.mock('dompurify', () => ({
-    sanitize: jest.fn((html) => html)
-}));
+jest.mock('dompurify', () => {
+    // DOMPurify is both an instance and a factory for further instances
+    const purifier = jest.fn(() => purifier);
+    purifier.sanitize = jest.fn((html) => html);
+    purifier.addHook = jest.fn();
+    return purifier;
+});
 
 import UIManager from '../src/js/UIManager.js';
 import { ToastManager } from '../src/js/ui/ToastManager.js';
@@ -1590,22 +1594,6 @@ describe('MessageContentRenderer', () => {
         test('handles Windows line endings', () => {
             const result = renderer.processEmailContent({ bodyContent: 'Line one\r\nLine two' });
             expect(result).toContain('<br>');
-        });
-    });
-
-    describe('scopeEmailStyles', () => {
-        test('returns empty string for falsy input', () => {
-            expect(renderer.scopeEmailStyles(null)).toBe('');
-            expect(renderer.scopeEmailStyles('')).toBe('');
-        });
-
-        test('scopes style rules', () => {
-            const result = renderer.scopeEmailStyles('<style>p { color: red; }</style><p>Test</p>');
-            expect(result).toContain('.email-content');
-        });
-
-        test('returns content without styles unchanged', () => {
-            expect(renderer.scopeEmailStyles('<p>No styles</p>')).toBe('<p>No styles</p>');
         });
     });
 

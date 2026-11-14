@@ -20,6 +20,22 @@ function getVersion() {
 
 const version = getVersion();
 
+// Keep in sync with app.security.csp in src-tauri/tauri.conf.json (minus the IPC sources).
+const WEB_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https: http:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "media-src 'self' data: blob:",
+  "object-src 'self' blob:",
+  "frame-src 'self' blob:",
+  "worker-src 'self' blob:",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ');
+
 export default defineConfig({
   root: '.',
   // Use root path for Tauri, /msg-reader/ for GitHub Pages
@@ -38,6 +54,21 @@ export default defineConfig({
       name: 'html-version-replace',
       transformIndexHtml(html) {
         return html.replace(/__VERSION__/g, version);
+      },
+    },
+    {
+      // The Tauri build gets its CSP as a response header from tauri.conf.json instead.
+      name: 'html-csp',
+      apply: 'build',
+      transformIndexHtml() {
+        if (isTauri) return [];
+        return [
+          {
+            tag: 'meta',
+            attrs: { 'http-equiv': 'Content-Security-Policy', content: WEB_CSP },
+            injectTo: 'head-prepend',
+          },
+        ];
       },
     },
   ],

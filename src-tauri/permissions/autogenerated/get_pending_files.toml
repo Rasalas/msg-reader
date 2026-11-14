@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-pending-files"
+description = "Enables the get_pending_files command without any pre-configured scope."
+commands.allow = ["get_pending_files"]
+
+[[permission]]
+identifier = "deny-get-pending-files"
+description = "Denies the get_pending_files command without any pre-configured scope."
+commands.deny = ["get_pending_files"]

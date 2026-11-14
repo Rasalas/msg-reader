@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE } from '../constants.js';
+import { escapeHTML } from '../sanitizer.js';
 import { isInlineImageAttachment } from '../helpers.js';
 import { VirtualList } from './VirtualList.js';
 
@@ -7,14 +8,6 @@ import { VirtualList } from './VirtualList.js';
  * Used for virtual list calculations
  */
 const MESSAGE_ITEM_HEIGHT = 72;
-
-function escapeAttribute(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
 
 /**
  * Renders the message list sidebar using virtual scrolling
@@ -180,7 +173,7 @@ export class MessageListRenderer {
                  aria-posinset="${index + 1}"
                  data-message-index="${originalIndex}"
                  tabindex="${isActive ? '0' : '-1'}"
-                 title="${escapeAttribute(msg.fileName)}">
+                 title="${escapeHTML(msg.fileName)}">
                 <label class="message-select-control"
                        data-selection-toggle
                        aria-hidden="${hiddenFromAT}"
@@ -189,7 +182,7 @@ export class MessageListRenderer {
                            class="message-select-input"
                            tabindex="${checkboxTabIndex}"
                            ${isSelected ? 'checked' : ''}
-                           aria-label="${isSelected ? 'Deselect' : 'Select'} ${escapeAttribute(msg.subject || msg.fileName || 'email')}">
+                           aria-label="${isSelected ? 'Deselect' : 'Select'} ${escapeHTML(msg.subject || msg.fileName || 'email')}">
                     <span class="message-select-box" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -197,15 +190,15 @@ export class MessageListRenderer {
                     </span>
                 </label>
                 <div class="message-item-main">
-                    <div class="message-sender">${msg.senderName}</div>
+                    <div class="message-sender">${escapeHTML(msg.senderName)}</div>
                     <div class="message-subject-line">
-                        <span class="message-subject grow">${msg.subject}</span>
+                        <span class="message-subject grow">${escapeHTML(msg.subject)}</span>
                         <div class="shrink-0">
                             ${hasRealAttachments ? '<span class="attachment-icon" aria-label="Has attachments"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg></span>' : ''}
                         </div>
                     </div>
                     <div class="message-preview-container">
-                        <div class="message-preview">${cleanBody}</div>
+                        <div class="message-preview">${escapeHTML(cleanBody)}</div>
                         <div class="message-date">${dateStr}</div>
                     </div>
                 </div>
