@@ -12,6 +12,16 @@ Open Outlook `.msg` and `.eml` email files in your browser or on your desktop. R
 2. Drop one or more `.msg` or `.eml` files into the window, or use the file picker.
 3. Select a message to read it and open or save its attachments.
 
+## Self-host with Docker
+
+From the repository root, run:
+
+```bash
+docker compose up -d --build
+```
+
+Open [localhost:3000](http://localhost:3000/) or use the Docker host's address on port 3000.
+
 ## What it does
 
 - Read HTML and plain-text emails, including embedded images.
